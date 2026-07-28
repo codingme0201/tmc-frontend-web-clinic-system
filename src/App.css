@@ -3,6 +3,11 @@
   display: grid;
   grid-template-columns: 292px minmax(0, 1fr);
   background: var(--color-bg);
+  transition: grid-template-columns 0.2s ease;
+}
+
+.admin-shell.sidebar-collapsed {
+  grid-template-columns: 76px minmax(0, 1fr);
 }
 
 .admin-sidebar {
@@ -16,6 +21,28 @@
   background: #083b3f;
   color: #eaf8f5;
   overflow-y: auto;
+  overflow-x: hidden;
+  transition: padding 0.2s ease;
+}
+
+.admin-sidebar.collapsed {
+  padding: 22px 14px;
+}
+
+.admin-sidebar.collapsed .brand-text,
+.admin-sidebar.collapsed .nav-section-label,
+.admin-sidebar.collapsed .nav-item-label {
+  display: none;
+}
+
+.admin-sidebar.collapsed .nav-item,
+.admin-sidebar.collapsed .logout-button {
+  justify-content: center;
+  padding: 10px;
+}
+
+.sidebar-overlay {
+  display: none;
 }
 
 .brand-block,
@@ -340,6 +367,111 @@
   background: rgba(255, 255, 255, 0.86);
   border-bottom: 1px solid #dce8e5;
   backdrop-filter: blur(14px);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.hamburger-button {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  border-radius: 8px;
+  background: #eef4f2;
+}
+
+.hamburger-button span {
+  width: 18px;
+  height: 2px;
+  background: #16484b;
+  border-radius: 2px;
+}
+
+.online-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #5d7772;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.online-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2fa96b;
+}
+
+.admin-profile-menu {
+  position: relative;
+}
+
+.admin-profile-trigger {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.profile-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  width: 210px;
+  background: #ffffff;
+  border: 1px solid #d8e6e2;
+  border-radius: 10px;
+  box-shadow: 0 16px 34px rgba(38, 71, 67, 0.16);
+  overflow: hidden;
+  z-index: 20;
+}
+
+.profile-dropdown-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid #eef4f2;
+}
+
+.profile-dropdown-header p {
+  margin: 0;
+  color: #12393b;
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.profile-dropdown-header span {
+  color: #d95f35;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.profile-dropdown-logout {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border: 0;
+  background: transparent;
+  color: #b23c1f;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+}
+
+.profile-dropdown-logout:hover {
+  background: #fdf1ec;
 }
 
 .topbar-kicker,
@@ -688,57 +820,83 @@
 }
 
 @media (max-width: 980px) {
-  .admin-shell {
+  .admin-shell,
+  .admin-shell.sidebar-collapsed {
     grid-template-columns: 1fr;
   }
 
   .admin-sidebar {
     position: fixed;
-    z-index: 10;
+    z-index: 30;
     left: 0;
-    right: 0;
+    top: 0;
     bottom: 0;
-    top: auto;
-    height: auto;
-    max-height: 44svh;
-    padding: 12px;
-    border-radius: 18px 18px 0 0;
+    height: 100svh;
+    width: 260px;
+    padding: 22px 18px;
+    border-radius: 0;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+  }
+
+  .admin-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .admin-sidebar.collapsed:not(.mobile-open) {
+    padding: 22px 18px;
+  }
+
+  .admin-sidebar.collapsed .brand-text,
+  .admin-sidebar.collapsed .nav-section-label,
+  .admin-sidebar.collapsed .nav-item-label {
+    display: block;
+  }
+
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    background: rgba(8, 20, 20, 0.5);
   }
 
   .brand-block {
-    display: none;
+    display: flex;
   }
 
   .sidebar-nav {
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(140px, 1fr);
-    gap: 8px;
-    overflow-x: auto;
-    padding-bottom: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow-x: visible;
   }
 
   .nav-section {
-    display: contents;
+    display: grid;
   }
 
   .nav-section-label {
-    display: none;
+    display: block;
   }
 
   .nav-item {
-    justify-content: center;
-    min-height: 50px;
-    white-space: nowrap;
+    justify-content: flex-start;
+    min-height: 40px;
+    white-space: normal;
   }
 
   .logout-button {
-    margin-top: 8px;
-    justify-content: center;
+    margin-top: auto;
+    justify-content: flex-start;
+  }
+
+  .topbar h1 {
+    font-size: 18px;
   }
 
   .content-area {
-    padding: 20px 16px 170px;
+    padding: 20px 16px;
   }
 
   .stats-grid,
@@ -769,7 +927,8 @@
     font-size: 18px;
   }
 
-  .topbar-actions button {
+  .online-indicator,
+  .topbar-actions > button {
     display: none;
   }
 
