@@ -2,8 +2,17 @@
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
     sans-serif;
-  color: #12393b;
-  background: #eef4f2;
+
+  /* Brand green, lightened a touch from #0f6860 for a softer feel. */
+  --color-primary: #14786d;
+  --color-primary-rgb: 20, 120, 109;
+  --color-primary-dark: #083b3f;
+
+  --color-bg: #eef4f2;
+  --color-text: #12393b;
+
+  color: var(--color-text);
+  background: var(--color-bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;

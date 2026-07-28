@@ -1,4 +1,8 @@
-function Login({ onEnterAdmin }) {
+import { useAppContext } from '../context/AppContext'
+
+function Login() {
+  const { login } = useAppContext()
+
   return (
     <main className="login-page">
       <section className="login-visual">
@@ -30,7 +34,7 @@ function Login({ onEnterAdmin }) {
             Password
             <input type="password" placeholder="Enter password" />
           </label>
-          <button type="button" className="primary-action full-width" onClick={onEnterAdmin}>
+          <button type="button" className="primary-action full-width" onClick={login}>
             Sign In
           </button>
         </form>

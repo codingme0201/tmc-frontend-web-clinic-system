@@ -1,21 +1,13 @@
-const stats = [
-  { label: 'Today Appointments', value: '24', trend: '+8 scheduled' },
-  { label: 'Active Consultations', value: '7', trend: '3 awaiting notes' },
-  { label: 'Patient Records', value: '1,248', trend: '42 updated this week' },
-  { label: 'Certificates Issued', value: '18', trend: '6 pending approval' },
-]
-
-const appointments = [
-  { time: '08:30 AM', patient: 'Angela Reyes', type: 'Check-up', status: 'Confirmed' },
-  { time: '09:15 AM', patient: 'Mark Dela Cruz', type: 'Dental concern', status: 'Waiting' },
-  { time: '10:00 AM', patient: 'Joanna Lim', type: 'Follow-up', status: 'In clinic' },
-]
-
-const staff = [
-  { name: 'Dr. R. Mendoza', role: 'School Physician', shift: '8:00 AM - 4:00 PM' },
-  { name: 'Nurse C. Villanueva', role: 'Clinic Nurse', shift: '7:30 AM - 3:30 PM' },
-  { name: 'Nurse J. Santos', role: 'Medical Assistant', shift: '10:00 AM - 6:00 PM' },
-]
+import StatCard from '../components/StatCard'
+import AppointmentRow from '../components/AppointmentRow'
+import StaffRow from '../components/StaffRow'
+import ActivityBar from '../components/ActivityBar'
+import {
+  dashboardStats,
+  upcomingAppointments,
+  medicalStaffToday,
+  clinicActivity,
+} from '../lib/mockData'
 
 function Dashboard() {
   return (
@@ -29,12 +21,8 @@ function Dashboard() {
       </section>
 
       <section className="stats-grid" aria-label="Clinic overview">
-        {stats.map((item) => (
-          <article className="stat-card" key={item.label}>
-            <p>{item.label}</p>
-            <strong>{item.value}</strong>
-            <span>{item.trend}</span>
-          </article>
+        {dashboardStats.map((item) => (
+          <StatCard key={item.label} {...item} />
         ))}
       </section>
 
@@ -48,15 +36,8 @@ function Dashboard() {
             <button type="button">View All</button>
           </div>
           <div className="appointment-list">
-            {appointments.map((appointment) => (
-              <div className="appointment-row" key={`${appointment.time}-${appointment.patient}`}>
-                <div className="appointment-time">{appointment.time}</div>
-                <div>
-                  <strong>{appointment.patient}</strong>
-                  <span>{appointment.type}</span>
-                </div>
-                <mark>{appointment.status}</mark>
-              </div>
+            {upcomingAppointments.map((appointment) => (
+              <AppointmentRow key={`${appointment.time}-${appointment.patient}`} {...appointment} />
             ))}
           </div>
         </article>
@@ -69,15 +50,8 @@ function Dashboard() {
             </div>
           </div>
           <div className="staff-list">
-            {staff.map((member) => (
-              <div className="staff-row" key={member.name}>
-                <div className="staff-avatar">{member.name.slice(0, 2).toUpperCase()}</div>
-                <div>
-                  <strong>{member.name}</strong>
-                  <span>{member.role}</span>
-                </div>
-                <time>{member.shift}</time>
-              </div>
+            {medicalStaffToday.map((member) => (
+              <StaffRow key={member.name} {...member} />
             ))}
           </div>
         </article>
@@ -90,18 +64,9 @@ function Dashboard() {
             </div>
           </div>
           <div className="activity-bars">
-            <div style={{ '--bar-size': '78%' }}>
-              <span>Consultations</span>
-              <b />
-            </div>
-            <div style={{ '--bar-size': '52%' }}>
-              <span>Prescriptions</span>
-              <b />
-            </div>
-            <div style={{ '--bar-size': '34%' }}>
-              <span>Certificates</span>
-              <b />
-            </div>
+            {clinicActivity.map((item) => (
+              <ActivityBar key={item.label} {...item} />
+            ))}
           </div>
         </article>
       </section>
