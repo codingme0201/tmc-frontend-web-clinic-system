@@ -1,121 +1,102 @@
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
 import './App.css'
+import AdminLayout from './layouts/AdminLayout'
+import Dashboard from './pages/Dashboard'
+import Login from './pages/Login'
+import PlaceholderPage from './pages/PlaceholderPage'
+
+const pages = {
+  dashboard: {
+    title: 'Dashboard',
+    eyebrow: 'TMC CareLink',
+    description: 'Clinic appointment and medical record management overview.',
+    component: Dashboard,
+  },
+  appointments: {
+    title: 'Appointments',
+    eyebrow: 'Clinic',
+    description: 'Manage student, faculty, and staff clinic appointment requests.',
+  },
+  consultations: {
+    title: 'Consultations',
+    eyebrow: 'Clinic',
+    description: 'Track consultation notes, outcomes, and assigned medical personnel.',
+  },
+  medicalRecords: {
+    title: 'Medical Records',
+    eyebrow: 'Clinic',
+    description: 'Maintain secure patient health histories and clinic visit records.',
+  },
+  medicalCertificates: {
+    title: 'Medical Certificates',
+    eyebrow: 'Clinic',
+    description: 'Prepare and issue clinic-approved medical certificates.',
+  },
+  prescriptions: {
+    title: 'Prescriptions',
+    eyebrow: 'Clinic',
+    description: 'Record prescribed medicine, dosage, and patient instructions.',
+  },
+  patients: {
+    title: 'Patients',
+    eyebrow: 'Patient Registry',
+    description: 'View student, faculty, and staff patient profiles.',
+  },
+  staffSchedule: {
+    title: 'Medical Staff Schedule',
+    eyebrow: 'Schedules',
+    description: 'Plan doctor, nurse, and assigned medical staff clinic shifts.',
+  },
+  clinicCalendar: {
+    title: 'Clinic Calendar',
+    eyebrow: 'Schedules',
+    description: 'Review appointments, events, and clinic availability by date.',
+  },
+  reports: {
+    title: 'Reports',
+    eyebrow: 'Insights',
+    description: 'Generate appointment, consultation, and medical record summaries.',
+  },
+  notifications: {
+    title: 'Notifications',
+    eyebrow: 'Communications',
+    description: 'Send appointment updates, reminders, and clinic announcements.',
+  },
+  users: {
+    title: 'User Management',
+    eyebrow: 'Administration',
+    description: 'Manage admin, doctor, nurse, registrar, and staff access.',
+  },
+  settingsAudit: {
+    title: 'Settings Audit Logs',
+    eyebrow: 'System',
+    description: 'Review configuration changes and activity history.',
+  },
+  rolesPermissions: {
+    title: 'Roles & Permissions',
+    eyebrow: 'System',
+    description: 'Configure role-based access for TMC CareLink modules.',
+  },
+}
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [activePage, setActivePage] = useState('dashboard')
+  const [showLogin, setShowLogin] = useState(false)
+  const page = pages[activePage] ?? pages.dashboard
+  const PageComponent = page.component ?? PlaceholderPage
+
+  if (showLogin) {
+    return <Login onEnterAdmin={() => setShowLogin(false)} />
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+    <AdminLayout
+      activePage={activePage}
+      onNavigate={setActivePage}
+      onLogout={() => setShowLogin(true)}
+    >
+      <PageComponent page={page} />
+    </AdminLayout>
   )
 }
 
