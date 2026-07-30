@@ -1,7 +1,27 @@
+import { useState } from 'react'
 import { useAppContext } from '../context/AppContext'
 
 function Login() {
   const { login } = useAppContext()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    setError('')
+
+    if (!email || !password) {
+      setError('Please fill in all fields.')
+      return
+    }
+
+    if (email === 'admin@tmc.edu.ph' && password === 'admin123') {
+      login()
+    } else {
+      setError('Invalid email or password. Please try again.')
+    }
+  }
 
   return (
     <main className="login-page">
@@ -25,16 +45,30 @@ function Login() {
           <h2 id="login-title">Welcome back</h2>
         </div>
 
-        <form>
+        <form onSubmit={handleSubmit}>
+          {error && <div className="error-banner" role="alert">{error}</div>}
+
           <label>
             Email Address
-            <input type="email" placeholder="admin@tmc.edu.ph" />
+            <input
+              type="email"
+              placeholder="admin@tmc.edu.ph"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
           </label>
           <label>
             Password
-            <input type="password" placeholder="Enter password" />
+            <input
+              type="password"
+              placeholder="Enter password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
           </label>
-          <button type="button" className="primary-action full-width" onClick={login}>
+          <button type="submit" className="primary-action full-width">
             Sign In
           </button>
         </form>
