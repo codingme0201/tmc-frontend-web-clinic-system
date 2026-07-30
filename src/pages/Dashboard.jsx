@@ -175,32 +175,19 @@ function Dashboard() {
     setEvtDesc('')
   }
 
-  // Inventory Stock Action
-  const handleReorderItem = (name) => {
-    setInventory(prev => prev.map(item => {
-      if (item.name === name) {
-        const newQty = item.quantity + 50
-        const newStatus = newQty >= item.threshold ? 'Normal' : 'Low Stock'
-        addLog(`Restocked medication: ${name} (+50 units)`)
-        return { ...item, quantity: newQty, status: newStatus }
-      }
-      return item
-    }))
-  }
-
   // Stats derivation
   const activeStats = useMemo(() => {
     const todayAppts = appointments.filter(a => a.status !== 'Cancelled').length
     const activeCons = staff.filter(s => s.status === 'On duty').length
     const totalPats = patients.length
-    const lowStockCount = inventory.filter(i => i.status === 'Low Stock').length
+    const totalConsults = consultations.length
     return [
       { label: 'Today Appointments', value: todayAppts, trend: `${appointments.filter(a => a.status === 'Pending').length} pending review` },
       { label: 'On-Duty Staff', value: activeCons, trend: `${staff.filter(s => s.status === 'Break').length} on break` },
       { label: 'Registered Patients', value: totalPats, trend: 'Unified clinic health list' },
-      { label: 'Low Stock Alerts', value: lowStockCount, trend: lowStockCount > 0 ? `${lowStockCount} items need restock` : 'All items optimal' }
+      { label: 'Total Consultations', value: totalConsults, trend: 'Clinic visit records logged' }
     ]
-  }, [appointments, staff, patients, inventory])
+  }, [appointments, staff, patients, consultations])
 
   // Filtered Appointments
   const filteredAppointments = useMemo(() => {
@@ -298,7 +285,7 @@ function Dashboard() {
             className={`tab-btn ${activeTab === 'activity' ? 'active' : ''}`}
             onClick={() => setActiveTab('activity')}
           >
-            Activity & Inventory
+            Clinic Activity
           </button>
         </nav>
       </section>
@@ -390,34 +377,22 @@ function Dashboard() {
                 </div>
               </article>
 
-              {/* Urgent Stock & Activity Summary */}
+              {/* Clinic Activity Summary */}
               <article className="panel alerts-panel">
                 <div className="panel-header">
                   <div>
-                    <p>Clinic Safety</p>
-                    <h3>Inventory Warnings</h3>
+                    <p>Records</p>
+                    <h3>Clinic Activity</h3>
                   </div>
-                  <button type="button" onClick={() => setActiveTab('activity')}>Full Stock</button>
+                  <button type="button" onClick={() => setActiveTab('activity')}>View All</button>
                 </div>
-                <div className="inventory-summary-list">
-                  {inventory.filter(item => item.status === 'Low Stock').map(item => (
-                    <div className="inventory-alert-item" key={item.name}>
-                      <div className="inv-info">
-                        <strong>{item.name}</strong>
-                        <span className="stock-alert-text">Only {item.quantity} {item.unit} left!</span>
-                      </div>
-                      <button 
-                        type="button" 
-                        className="btn-reorder-fast"
-                        onClick={() => handleReorderItem(item.name)}
-                      >
-                        Restock (+50)
-                      </button>
+                <div className="activity-bars">
+                  {clinicActivity.map((item) => (
+                    <div style={{ '--bar-size': `${item.percent}%` }} key={item.label}>
+                      <span>{item.label}</span>
+                      <b />
                     </div>
                   ))}
-                  {inventory.filter(item => item.status === 'Low Stock').length === 0 && (
-                    <div className="empty-state success-text">✓ All medications optimal.</div>
-                  )}
                 </div>
               </article>
             </div>
@@ -1031,10 +1006,10 @@ function Dashboard() {
           </div>
         )}
 
-        {/* ================= CLINIC ACTIVITY & INVENTORY ================= */}
+        {/* ================= CLINIC ACTIVITY ================= */}
         {activeTab === 'activity' && (
           <div className="activity-tab-view flex-grid-layout">
-            {/* Left: Peak Hours and Inventory Management */}
+            {/* Left: Peak Hours and Activity */}
             <div className="panel main-panel">
               
               {/* Peak Hours Chart */}
@@ -1059,50 +1034,7 @@ function Dashboard() {
                 </div>
               </div>
 
-              {/* Inventory Management Table */}
-              <div className="inventory-management-widget" style={{ marginTop: '24px' }}>
-                <div className="panel-header">
-                  <h3>Medical Inventory Status</h3>
-                  <p>Track clinical drug levels and receive low-stock alerts</p>
-                </div>
 
-                <div className="records-table-container">
-                  <table className="records-table">
-                    <thead>
-                      <tr>
-                        <th>Medication / Item</th>
-                        <th>Category</th>
-                        <th>Stock Count</th>
-                        <th>Status Alert</th>
-                        <th>Quick Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {inventory.map(item => (
-                        <tr key={item.name}>
-                          <td className="bold-text">{item.name}</td>
-                          <td>{item.category}</td>
-                          <td className="bold-text font-monospace text-teal">{item.quantity} {item.unit}</td>
-                          <td>
-                            <span className={`status-badge ${item.status === 'Low Stock' ? 'badge-cancelled' : 'badge-in-clinic'}`}>
-                              {item.status}
-                            </span>
-                          </td>
-                          <td>
-                            <button 
-                              type="button" 
-                              className="btn-info-small"
-                              onClick={() => handleReorderItem(item.name)}
-                            >
-                              Restock (+50)
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
             </div>
 
             {/* Right: Live System Audit Log */}
