@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAppointments } from '../hooks/useAppointments'
 import { usePatients } from '../hooks/usePatients'
 import { useConsultations } from '../hooks/useConsultations'
@@ -7,7 +7,10 @@ import { useActivityLogs } from '../hooks/useActivityLogs'
 import { useClinicEvents } from '../hooks/useClinicEvents'
 import { useClinicInsights } from '../hooks/useClinicInsights'
 import { useToast } from '../hooks/useToast'
+import { useDebounce } from '../hooks/useDebounce'
+import { usePagination } from '../hooks/usePagination'
 import { formatDate, todayISO } from '../lib/format'
+import Pagination from '../components/Pagination'
 import Toast from '../components/Toast'
 import StatusBadge from '../components/StatusBadge'
 import { EmptyState, ErrorState, LoadingState } from '../components/AsyncState'
@@ -227,33 +230,64 @@ function Dashboard() {
     ]
   }, [appointments, staff, patients, consultations])
 
+  // Debounced search values — filtering/pagination only run after the user
+  // pauses typing (~300ms), instead of on every keystroke.
+  const debouncedAppSearch = useDebounce(appSearch, 300)
+  const debouncedConsSearch = useDebounce(consSearch, 300)
+  const debouncedPatSearch = useDebounce(patSearch, 300)
+
   // Filtered Appointments
   const filteredAppointments = useMemo(() => {
     return appointments.filter((app) => {
-      const matchSearch = app.patient.toLowerCase().includes(appSearch.toLowerCase())
+      const matchSearch = app.patient.toLowerCase().includes(debouncedAppSearch.toLowerCase())
       const matchFilter = appFilter === 'All' || app.status === appFilter
       return matchSearch && matchFilter
     })
-  }, [appointments, appSearch, appFilter])
+  }, [appointments, debouncedAppSearch, appFilter])
 
   // Filtered Consultations
   const filteredConsultations = useMemo(() => {
     return consultations.filter((cons) => {
       const matchSearch =
-        cons.patient.toLowerCase().includes(consSearch.toLowerCase()) ||
-        cons.diagnosis.toLowerCase().includes(consSearch.toLowerCase())
+        cons.patient.toLowerCase().includes(debouncedConsSearch.toLowerCase()) ||
+        cons.diagnosis.toLowerCase().includes(debouncedConsSearch.toLowerCase())
       return matchSearch
     })
-  }, [consultations, consSearch])
+  }, [consultations, debouncedConsSearch])
 
   // Filtered Patients
   const filteredPatients = useMemo(() => {
     return patients.filter((pat) => {
-      const matchSearch = pat.name.toLowerCase().includes(patSearch.toLowerCase()) || pat.id.includes(patSearch)
+      const matchSearch =
+        pat.name.toLowerCase().includes(debouncedPatSearch.toLowerCase()) ||
+        pat.id.includes(debouncedPatSearch)
       const matchFilter = patFilter === 'All' || pat.type === patFilter
       return matchSearch && matchFilter
     })
-  }, [patients, patSearch, patFilter])
+  }, [patients, debouncedPatSearch, patFilter])
+
+  // Client-side pagination per list — swap for API-driven pages later without
+  // touching the tables or the Pagination UI.
+  const appPagination = usePagination(filteredAppointments)
+  const consPagination = usePagination(filteredConsultations)
+  const patPagination = usePagination(filteredPatients)
+  const logsPagination = usePagination(activityLogs)
+  const staffPagination = usePagination(staff)
+
+  const { resetPage: resetAppPage } = appPagination
+  const { resetPage: resetConsPage } = consPagination
+  const { resetPage: resetPatPage } = patPagination
+
+  // Search/filter changes always reset to page 1.
+  useEffect(() => {
+    resetAppPage()
+  }, [debouncedAppSearch, appFilter, resetAppPage])
+  useEffect(() => {
+    resetConsPage()
+  }, [debouncedConsSearch, resetConsPage])
+  useEffect(() => {
+    resetPatPage()
+  }, [debouncedPatSearch, patFilter, resetPatPage])
 
   // Patient history for detail lookup
   const patientHistoryLogs = useMemo(() => {
@@ -522,7 +556,7 @@ function Dashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredAppointments.map((app) => (
+                      {appPagination.pageItems.map((app) => (
                         <tr key={app.id}>
                           <td className="bold-text text-teal">
                             {app.time}
@@ -613,6 +647,12 @@ function Dashboard() {
                   </table>
                 )}
               </div>
+
+              <Pagination
+                currentPage={appPagination.currentPage}
+                totalPages={appPagination.totalPages}
+                onPageChange={appPagination.goToPage}
+              />
             </div>
 
             {/* Right Column: Book Appointment Form */}
@@ -703,7 +743,7 @@ function Dashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredConsultations.map((cons) => (
+                      {consPagination.pageItems.map((cons) => (
                         <tr key={cons.id}>
                           <td>
                             <span className="bold-text">{cons.date}</span>
@@ -739,6 +779,12 @@ function Dashboard() {
                   </table>
                 )}
               </div>
+
+              <Pagination
+                currentPage={consPagination.currentPage}
+                totalPages={consPagination.totalPages}
+                onPageChange={consPagination.goToPage}
+              />
             </div>
 
             {/* Right Column: Add Consult form */}
@@ -892,7 +938,7 @@ function Dashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredPatients.map((pat) => (
+                      {patPagination.pageItems.map((pat) => (
                         <tr
                           key={pat.id}
                           onClick={() => setSelectedPatient(pat)}
@@ -922,6 +968,12 @@ function Dashboard() {
                   </table>
                 )}
               </div>
+
+              <Pagination
+                currentPage={patPagination.currentPage}
+                totalPages={patPagination.totalPages}
+                onPageChange={patPagination.goToPage}
+              />
             </div>
 
             {/* Right Column: Register New Patient Form */}
@@ -1047,7 +1099,7 @@ function Dashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {staff.map((member) => (
+                      {staffPagination.pageItems.map((member) => (
                         <tr key={member.name}>
                           <td className="bold-text">{member.name}</td>
                           <td>{member.role}</td>
@@ -1072,6 +1124,12 @@ function Dashboard() {
                   </table>
                 )}
               </div>
+
+              <Pagination
+                currentPage={staffPagination.currentPage}
+                totalPages={staffPagination.totalPages}
+                onPageChange={staffPagination.goToPage}
+              />
 
               {/* Upcoming Clinic Events List */}
               <div className="clinic-events-container" style={{ marginTop: '24px' }}>
@@ -1191,7 +1249,7 @@ function Dashboard() {
                 ) : logsLoading ? (
                   <LoadingState label="Loading audit log..." />
                 ) : (
-                  activityLogs.map((log, idx) => (
+                  logsPagination.pageItems.map((log, idx) => (
                     <div className="audit-log-card" key={idx}>
                       <div className="audit-time">{log.time}</div>
                       <div className="audit-details">
@@ -1202,6 +1260,12 @@ function Dashboard() {
                   ))
                 )}
               </div>
+
+              <Pagination
+                currentPage={logsPagination.currentPage}
+                totalPages={logsPagination.totalPages}
+                onPageChange={logsPagination.goToPage}
+              />
             </div>
           </div>
         )}

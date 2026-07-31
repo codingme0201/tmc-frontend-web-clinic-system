@@ -1,8 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAppointments } from '../hooks/useAppointments'
 import { useStaff } from '../hooks/useStaff'
 import { useToast } from '../hooks/useToast'
+import { useDebounce } from '../hooks/useDebounce'
+import { usePagination } from '../hooks/usePagination'
 import { formatDate, todayISO, timeToMinutes } from '../lib/format'
+import Pagination from '../components/Pagination'
 import Toast from '../components/Toast'
 import StatusBadge from '../components/StatusBadge'
 import { EmptyState, ErrorState, LoadingState } from '../components/AsyncState'
@@ -69,9 +72,12 @@ function Appointments({ page }) {
     }
   }, [appointments])
 
-  // Search + filter pipeline
+  // Search is debounced so filtering doesn't run on every keystroke.
+  const debouncedSearch = useDebounce(search, 300)
+
+  // Search + filter pipeline (runs against the debounced query)
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
+    const q = debouncedSearch.trim().toLowerCase()
     return appointments
       .filter((app) => {
         const matchQuery =
@@ -88,7 +94,17 @@ function Appointments({ page }) {
         if (a.date !== b.date) return a.date.localeCompare(b.date)
         return timeToMinutes(a.time) - timeToMinutes(b.time)
       })
-  }, [appointments, search, statusFilter, dateFilter])
+  }, [appointments, debouncedSearch, statusFilter, dateFilter])
+
+  // Client-side pagination over the filtered list; swap for API pagination
+  // later without touching the table or the Pagination UI.
+  const pagination = usePagination(filtered)
+  const { pageItems, resetPage, currentPage, totalPages, goToPage } = pagination
+
+  // Any search/filter change starts back at page 1.
+  useEffect(() => {
+    resetPage()
+  }, [debouncedSearch, statusFilter, dateFilter, resetPage])
 
   // Keep the detail modal in sync with live store updates
   const selected = selectedId ? appointments.find((a) => a.id === selectedId) || null : null
@@ -312,7 +328,7 @@ function Appointments({ page }) {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((app) => (
+                {pageItems.map((app) => (
                   <tr key={app.id}>
                     <td className="bold-text text-teal font-monospace">{app.reference}</td>
                     <td>
@@ -352,6 +368,8 @@ function Appointments({ page }) {
             </table>
           )}
         </div>
+
+        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} />
       </div>
 
       {/* ================= VIEW APPOINTMENT DETAIL MODAL ================= */}
