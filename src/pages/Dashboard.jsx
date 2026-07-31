@@ -1,27 +1,32 @@
 import { useState, useMemo } from 'react'
+import { useAppContext } from '../context/AppContext'
+import { formatDate, todayISO } from '../lib/format'
 import {
-  dashboardStats,
-  upcomingAppointments,
   medicalStaffToday,
   clinicActivity,
   mockPatients,
   mockConsultations,
-  mockInventory,
-  mockActivityLogs,
   mockPeakHours,
   mockUpcomingEvents
 } from '../lib/mockData'
 
 function Dashboard() {
   const [activeTab, setActiveTab] = useState('overview') // 'overview', 'appointments', 'consultations', 'patients', 'schedule', 'activity'
-  
+
+  // Shared clinic store (appointments + audit log) so changes made in the
+  // Appointments module stay in sync with this Dashboard.
+  const {
+    appointments,
+    addAppointment,
+    updateAppointmentStatus,
+    activityLogs,
+    addActivityLog,
+  } = useAppContext()
+
   // Stateful Mock Data for inter-module reactivity
-  const [appointments, setAppointments] = useState(upcomingAppointments)
   const [staff, setStaff] = useState(medicalStaffToday)
   const [patients, setPatients] = useState(mockPatients)
   const [consultations, setConsultations] = useState(mockConsultations)
-  const [inventory, setInventory] = useState(mockInventory)
-  const [activityLogs, setActivityLogs] = useState(mockActivityLogs)
   const [events, setEvents] = useState(mockUpcomingEvents)
 
   // Modals & Panels Active States
@@ -65,35 +70,23 @@ function Dashboard() {
   const [patSearch, setPatSearch] = useState('')
   const [patFilter, setPatFilter] = useState('All')
 
-  // Helper log generator
-  const addLog = (action) => {
-    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    setActivityLogs(prev => [{ time, user: 'Admin User', action }, ...prev])
-  }
+  // Helper log generator (writes to the shared audit log)
+  const addLog = (action) => addActivityLog(action)
 
   // Appointment Actions
   const handleUpdateAppointmentStatus = (id, newStatus) => {
-    setAppointments(prev => prev.map(app => {
-      if (app.id === id) {
-        addLog(`Updated appointment for ${app.patient} to: ${newStatus}`)
-        return { ...app, status: newStatus }
-      }
-      return app
-    }))
+    updateAppointmentStatus(id, newStatus)
   }
 
   const handleAddAppointment = (e) => {
     e.preventDefault()
     if (!appPatient.trim()) return
-    const newApp = {
-      id: appointments.length + 1,
-      time: appTime,
-      patient: appPatient,
+    addAppointment({
+      patient: appPatient.trim(),
       type: appType,
-      status: 'Pending'
-    }
-    setAppointments(prev => [...prev, newApp])
-    addLog(`Booked new ${appType} appointment for ${appPatient} at ${appTime}`)
+      time: appTime,
+      reason: appType,
+    })
     setAppPatient('')
   }
 
@@ -177,7 +170,7 @@ function Dashboard() {
 
   // Stats derivation
   const activeStats = useMemo(() => {
-    const todayAppts = appointments.filter(a => a.status !== 'Cancelled').length
+    const todayAppts = appointments.filter(a => a.date === todayISO() && a.status !== 'Cancelled' && a.status !== 'Rejected').length
     const activeCons = staff.filter(s => s.status === 'On duty').length
     const totalPats = patients.length
     const totalConsults = consultations.length
@@ -222,6 +215,11 @@ function Dashboard() {
     return consultations.filter(c => c.patient === selectedPatient.name)
   }, [selectedPatient, consultations])
 
+  // Appointments awaiting attention (pending + under review)
+  const pendingQueue = useMemo(() => {
+    return appointments.filter(a => a.status === 'Pending' || a.status === 'Under Review')
+  }, [appointments])
+
   return (
     <div className="dashboard-page">
       {/* Dashboard Top Header & Tabs */}
@@ -257,7 +255,7 @@ function Dashboard() {
             className={`tab-btn ${activeTab === 'appointments' ? 'active' : ''}`}
             onClick={() => setActiveTab('appointments')}
           >
-            Appointment Queue ({appointments.filter(a => a.status === 'Pending').length})
+            Appointment Queue ({pendingQueue.length})
           </button>
           <button 
             type="button" 
@@ -319,7 +317,7 @@ function Dashboard() {
                   <button type="button" onClick={() => setActiveTab('appointments')}>Manage Queue</button>
                 </div>
                 <div className="appointment-list">
-                  {appointments.filter(a => a.status === 'Pending').slice(0, 3).map((app) => (
+                  {pendingQueue.slice(0, 3).map((app) => (
                     <div className="appointment-row interactive-row" key={app.id}>
                       <div className="appointment-time">{app.time}</div>
                       <div>
@@ -327,24 +325,33 @@ function Dashboard() {
                         <span>{app.type}</span>
                       </div>
                       <div className="row-actions">
+                        {app.status === 'Pending' && (
+                          <button 
+                            type="button"
+                            className="btn-reorder-fast"
+                            onClick={() => handleUpdateAppointmentStatus(app.id, 'Under Review')}
+                          >
+                            Review
+                          </button>
+                        )}
                         <button 
                           type="button"
                           className="btn-action-success"
-                          onClick={() => handleUpdateAppointmentStatus(app.id, 'Confirmed')}
+                          onClick={() => handleUpdateAppointmentStatus(app.id, 'Approved')}
                         >
-                          Confirm
+                          Approve
                         </button>
                         <button 
                           type="button"
                           className="btn-action-danger"
-                          onClick={() => handleUpdateAppointmentStatus(app.id, 'Cancelled')}
+                          onClick={() => handleUpdateAppointmentStatus(app.id, 'Rejected')}
                         >
-                          Cancel
+                          Reject
                         </button>
                       </div>
                     </div>
                   ))}
-                  {appointments.filter(a => a.status === 'Pending').length === 0 && (
+                  {pendingQueue.length === 0 && (
                     <div className="empty-state">No pending appointments today.</div>
                   )}
                 </div>
@@ -424,10 +431,12 @@ function Dashboard() {
                   >
                     <option value="All">All Statuses</option>
                     <option value="Pending">Pending</option>
-                    <option value="Confirmed">Confirmed</option>
-                    <option value="In Clinic">In Clinic</option>
-                    <option value="Completed">Completed</option>
+                    <option value="Under Review">Under Review</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Rescheduled">Rescheduled</option>
+                    <option value="Rejected">Rejected</option>
                     <option value="Cancelled">Cancelled</option>
+                    <option value="Completed">Completed</option>
                   </select>
                 </div>
               </div>
@@ -446,11 +455,14 @@ function Dashboard() {
                   <tbody>
                     {filteredAppointments.map(app => (
                       <tr key={app.id}>
-                        <td className="bold-text text-teal">{app.time}</td>
+                        <td className="bold-text text-teal">
+                          {app.time}
+                          <span className="block-sub">{formatDate(app.date)}</span>
+                        </td>
                         <td className="bold-text">{app.patient}</td>
                         <td>{app.type}</td>
                         <td>
-                          <span className={`status-badge badge-${app.status.toLowerCase().replace(' ', '-')}`}>
+                          <span className={`status-badge badge-${app.status.toLowerCase().replace(/ /g, '-')}`}>
                             {app.status}
                           </span>
                         </td>
@@ -458,36 +470,42 @@ function Dashboard() {
                           {app.status === 'Pending' && (
                             <>
                               <button 
-                                className="btn-success-small"
-                                onClick={() => handleUpdateAppointmentStatus(app.id, 'Confirmed')}
+                                className="btn-info-small"
+                                onClick={() => handleUpdateAppointmentStatus(app.id, 'Under Review')}
                               >
-                                Confirm
+                                Review
+                              </button>
+                              <button 
+                                className="btn-success-small"
+                                onClick={() => handleUpdateAppointmentStatus(app.id, 'Approved')}
+                              >
+                                Approve
                               </button>
                               <button 
                                 className="btn-danger-small"
-                                onClick={() => handleUpdateAppointmentStatus(app.id, 'Cancelled')}
+                                onClick={() => handleUpdateAppointmentStatus(app.id, 'Rejected')}
                               >
-                                Cancel
+                                Reject
                               </button>
                             </>
                           )}
-                          {app.status === 'Confirmed' && (
-                            <button 
-                              className="btn-info-small"
-                              onClick={() => handleUpdateAppointmentStatus(app.id, 'In Clinic')}
-                            >
-                              Check-In
-                            </button>
+                          {app.status === 'Under Review' && (
+                            <>
+                              <button 
+                                className="btn-success-small"
+                                onClick={() => handleUpdateAppointmentStatus(app.id, 'Approved')}
+                              >
+                                Approve
+                              </button>
+                              <button 
+                                className="btn-danger-small"
+                                onClick={() => handleUpdateAppointmentStatus(app.id, 'Rejected')}
+                              >
+                                Reject
+                              </button>
+                            </>
                           )}
-                          {app.status === 'In Clinic' && (
-                            <button 
-                              className="btn-primary-small"
-                              onClick={() => handleUpdateAppointmentStatus(app.id, 'Completed')}
-                            >
-                              Complete
-                            </button>
-                          )}
-                          {app.status !== 'Completed' && app.status !== 'Cancelled' && app.status !== 'Pending' && (
+                          {app.status === 'Approved' && (
                             <button 
                               className="btn-danger-small"
                               onClick={() => handleUpdateAppointmentStatus(app.id, 'Cancelled')}
@@ -495,7 +513,23 @@ function Dashboard() {
                               Cancel
                             </button>
                           )}
-                          {(app.status === 'Completed' || app.status === 'Cancelled') && (
+                          {app.status === 'Rescheduled' && (
+                            <>
+                              <button 
+                                className="btn-success-small"
+                                onClick={() => handleUpdateAppointmentStatus(app.id, 'Approved')}
+                              >
+                                Approve
+                              </button>
+                              <button 
+                                className="btn-danger-small"
+                                onClick={() => handleUpdateAppointmentStatus(app.id, 'Rejected')}
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+                          {(app.status === 'Rejected' || app.status === 'Cancelled' || app.status === 'Completed') && (
                             <span className="muted-text">-</span>
                           )}
                         </td>
@@ -679,6 +713,15 @@ function Dashboard() {
                       placeholder="36.5°C" 
                       value={consTemp} 
                       onChange={(e) => setConsTemp(e.target.value)} 
+                    />
+                  </label>
+                  <label>
+                    Pulse
+                    <input 
+                      type="text" 
+                      placeholder="75 bpm" 
+                      value={consPulse} 
+                      onChange={(e) => setConsPulse(e.target.value)} 
                     />
                   </label>
                 </div>

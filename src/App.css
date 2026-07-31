@@ -1193,10 +1193,12 @@
 /* Button variants */
 .row-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 .btn-action-success, .btn-action-danger, .btn-reorder-fast,
-.btn-success-small, .btn-danger-small, .btn-info-small, .btn-primary-small {
+.btn-success-small, .btn-danger-small, .btn-info-small, .btn-primary-small,
+.btn-warn-small, .btn-neutral-small, .btn-view-small {
   border: 0;
   font: inherit;
   font-weight: 800;
@@ -1554,4 +1556,197 @@
   border-radius: 8px;
   color: #627772;
   font-size: 12.5px;
+}
+
+/* ==========================================================================
+   Appointments Module Styles
+   ========================================================================== */
+
+/* Extended status badges */
+.badge-under-review {
+  background: #e8f0fe;
+  color: #1a56c4;
+}
+.badge-approved {
+  background: #d8f5e3;
+  color: #157347;
+}
+.badge-rejected {
+  background: #ffebe6;
+  color: #b3361f;
+}
+.badge-rescheduled {
+  background: #efeafd;
+  color: #6b46c1;
+}
+
+/* Extended button variants */
+.btn-warn-small {
+  background: #fff3d6;
+  color: #8a5a00;
+  padding: 4px 8px;
+}
+.btn-neutral-small {
+  background: #eef2f1;
+  color: #4d615e;
+  padding: 4px 8px;
+}
+.btn-view-small {
+  background: #e8f0fe;
+  color: #1a56c4;
+  padding: 4px 8px;
+}
+
+.page-heading-description {
+  display: block;
+  margin-top: 6px;
+  color: #627772;
+  font-size: 13px;
+}
+
+/* Status summary chips (click to filter) */
+.appointments-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.summary-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px;
+  border: 1px solid #d8e6e2;
+  border-radius: 8px;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.summary-chip:hover {
+  border-color: var(--color-primary);
+}
+.summary-chip.active {
+  border-color: var(--color-primary);
+  background: #f0faf8;
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+}
+.summary-chip small {
+  color: #627772;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.summary-chip strong {
+  color: #12393b;
+  font-size: 26px;
+  line-height: 1;
+}
+@media (max-width: 900px) {
+  .appointments-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .appointments-summary {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Toolbar (search + filters) */
+.appointments-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.toolbar-search {
+  flex: 1 1 220px;
+  min-width: 200px;
+}
+.toolbar-date {
+  min-width: 150px;
+}
+.results-count {
+  margin-left: auto;
+  color: #627772;
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Detail modal banner */
+.appointment-detail-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  margin-bottom: 18px;
+  background: #f4faf8;
+  border: 1px solid #e4eeeb;
+  border-radius: 8px;
+}
+.appointment-detail-banner strong {
+  display: block;
+  color: #12393b;
+  font-size: 15px;
+}
+.reason-box {
+  background: #f4faf8;
+  border-color: #cfe5df;
+}
+.notes-box {
+  background: #fdf1ec;
+  margin-top: 12px;
+}
+.notes-pre {
+  white-space: pre-line;
+}
+
+/* Status management row */
+.status-manage-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #e4eeeb;
+}
+.status-manage-label {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #12393b;
+}
+
+/* Modal tweaks */
+.modal-card-sm {
+  width: min(480px, 100%);
+}
+.modal-footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+.modal-footer-actions .primary-action,
+.modal-footer-actions .btn-action-danger {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  font-size: 13px;
+}
+.modal-footer-actions .btn-action-danger {
+  background: #d95f35;
+  color: #ffffff;
+  border: 0;
+}
+.modal-footer-actions .btn-action-danger:hover {
+  background: #b6451e;
 }

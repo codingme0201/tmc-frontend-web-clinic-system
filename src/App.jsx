@@ -1,7 +1,9 @@
 import './App.css'
-import { AppProvider, useAppContext } from './context/AppContext'
+import { useAppContext } from './context/AppContext'
+import { AppProvider } from './context/AppProvider'
 import AdminLayout from './layouts/AdminLayout'
 import Dashboard from './pages/Dashboard'
+import Appointments from './pages/Appointments'
 import Login from './pages/Login'
 import PlaceholderPage from './pages/PlaceholderPage'
 import { pageContent } from './lib/mockData'
@@ -10,6 +12,7 @@ import { pageContent } from './lib/mockData'
 // falls back to PlaceholderPage automatically.
 const pageComponents = {
   dashboard: Dashboard,
+  appointments: Appointments,
 }
 
 function AppContent() {

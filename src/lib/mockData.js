@@ -115,21 +115,6 @@ export const pageContent = {
   },
 }
 
-export const dashboardStats = [
-  { label: 'Today Appointments', value: '24', trend: '+8 scheduled' },
-  { label: 'Active Consultations', value: '7', trend: '3 awaiting notes' },
-  { label: 'Patient Records', value: '1,248', trend: '42 updated this week' },
-  { label: 'Certificates Issued', value: '18', trend: '6 pending approval' },
-]
-
-export const upcomingAppointments = [
-  { id: 1, time: '08:30 AM', patient: 'Angela Reyes', type: 'Check-up', status: 'Confirmed' },
-  { id: 2, time: '09:15 AM', patient: 'Mark Dela Cruz', type: 'Dental concern', status: 'Pending' },
-  { id: 3, time: '10:00 AM', patient: 'Joanna Lim', type: 'Follow-up', status: 'In Clinic' },
-  { id: 4, time: '11:00 AM', patient: 'John Paul Santos', type: 'Fever', status: 'Pending' },
-  { id: 5, time: '01:30 PM', patient: 'Patricia Mae Garcia', type: 'Vaccination', status: 'Confirmed' },
-]
-
 export const medicalStaffToday = [
   { name: 'Dr. R. Mendoza', role: 'School Physician', shift: '8:00 AM - 4:00 PM', status: 'On duty' },
   { name: 'Dr. S. Lopez', role: 'School Dentist', shift: '9:00 AM - 3:00 PM', status: 'Break' },
@@ -158,16 +143,6 @@ export const mockConsultations = [
   { id: 'C-2026-002', date: '2026-07-30', time: '10:15 AM', patient: 'Joanna Lim', staff: 'Nurse C. Villanueva', symptoms: 'Slight Fever, Runny Nose', vitals: { bp: '120/80', temp: '37.9°C', pulse: '84 bpm' }, diagnosis: 'Mild Flu Symptoms', treatment: 'Paracetamol 500mg (every 4 hours), Cetirizine 10mg. Oral rehydration.', disposition: 'Sent Home' },
   { id: 'C-2026-003', date: '2026-07-29', time: '02:00 PM', patient: 'Mark Dela Cruz', staff: 'Dr. R. Mendoza', symptoms: 'Acid Reflux, Burning Sensation in Chest', vitals: { bp: '120/75', temp: '36.5°C', pulse: '76 bpm' }, diagnosis: 'Acid Reflux / GERD Flare-up', treatment: 'Antacid liquid 10ml.', disposition: 'Sent to Class' },
   { id: 'C-2026-004', date: '2026-07-29', time: '11:30 AM', patient: 'Susan Clave', staff: 'Nurse C. Villanueva', symptoms: 'Accidental Slip, Minor Ankle Sprain', vitals: { bp: '130/80', temp: '36.4°C', pulse: '88 bpm' }, diagnosis: 'Grade 1 Right Ankle Sprain', treatment: 'R.I.C.E. protocol, elastic bandage applied. Advised Ibuprofen 400mg.', disposition: 'Referred to Hospital' }
-]
-
-export const mockInventory = [
-  { name: 'Paracetamol 500mg', category: 'Analgesics', quantity: 240, threshold: 50, unit: 'Tablets', status: 'Normal' },
-  { name: 'Ibuprofen 400mg', category: 'Analgesics', quantity: 18, threshold: 30, unit: 'Tablets', status: 'Low Stock' },
-  { name: 'Amoxicillin 500mg', category: 'Antibiotics', quantity: 85, threshold: 25, unit: 'Tablets', status: 'Normal' },
-  { name: 'Cetirizine 10mg', category: 'Antihistamines', quantity: 12, threshold: 20, unit: 'Tablets', status: 'Low Stock' },
-  { name: 'Vitamin C + Zinc', category: 'Supplements', quantity: 500, threshold: 100, unit: 'Tablets', status: 'Normal' },
-  { name: 'Ethyl Alcohol 70%', category: 'Antiseptics', quantity: 3, threshold: 5, unit: 'Gallons', status: 'Low Stock' },
-  { name: 'Sterile Gauze Pads 3x3', category: 'Supplies', quantity: 120, threshold: 30, unit: 'Pcs', status: 'Normal' },
 ]
 
 export const mockActivityLogs = [
