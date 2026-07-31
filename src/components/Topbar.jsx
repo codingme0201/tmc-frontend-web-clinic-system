@@ -47,9 +47,6 @@ function Topbar({ onToggleSidebar }) {
           <span className="online-dot" />
           Online
         </div>
-        <button type="button" aria-label="Search">
-          <Icon name="search" />
-        </button>
         <button type="button" aria-label="Notifications">
           <Icon name="bell" />
         </button>
