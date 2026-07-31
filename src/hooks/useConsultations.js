@@ -22,7 +22,47 @@ export function useConsultationsStore({ onLog } = {}) {
     [setData],
   )
 
-  return { data: data || [], isLoading, error, refetch, addConsultation }
+  const startConsultation = useCallback(
+    async (id) => {
+      const updated = await consultationsService.startConsultation(id)
+      setData((prev) => (prev || []).map((c) => (c.id === id ? updated : c)))
+      onLogRef.current?.(`Started consultation ${updated.reference} for patient ${updated.patient}`)
+      return updated
+    },
+    [setData],
+  )
+
+  const saveConsultation = useCallback(
+    async (id, patch) => {
+      const updated = await consultationsService.updateConsultation(id, patch)
+      setData((prev) => (prev || []).map((c) => (c.id === id ? updated : c)))
+      return updated
+    },
+    [setData],
+  )
+
+  const completeConsultation = useCallback(
+    async (id, finalData) => {
+      const updated = await consultationsService.completeConsultation(id, finalData)
+      setData((prev) => (prev || []).map((c) => (c.id === id ? updated : c)))
+      onLogRef.current?.(
+        `Completed consultation ${updated.reference} for patient ${updated.patient} - Diagnosis: ${updated.diagnosis}`,
+      )
+      return updated
+    },
+    [setData],
+  )
+
+  return {
+    data: data || [],
+    isLoading,
+    error,
+    refetch,
+    addConsultation,
+    startConsultation,
+    saveConsultation,
+    completeConsultation,
+  }
 }
 
 /** Public hook — returns the shared consultation store. */

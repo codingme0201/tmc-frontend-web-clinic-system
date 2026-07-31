@@ -27,6 +27,10 @@ export function AppProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return localStorage.getItem('tmc_auth') === 'true'
   })
+  // Mock session role (same localStorage pattern as the auth flag). The current
+  // login is the Administrator; this is where a doctor/nurse login would set
+  // 'doctor'/'nurse' so the authorization gate below stays meaningful.
+  const [userRole, setUserRole] = useState(() => localStorage.getItem('tmc_user_role') || 'admin')
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -72,13 +76,18 @@ export function AppProvider({ children }) {
         setActivePage(pageId)
       },
       isAuthenticated,
+      userRole,
       login: () => {
         localStorage.setItem('tmc_auth', 'true')
+        localStorage.setItem('tmc_user_role', 'admin')
+        setUserRole('admin')
         setIsAuthenticated(true)
         window.location.hash = '#/dashboard'
       },
       logout: () => {
         localStorage.removeItem('tmc_auth')
+        localStorage.removeItem('tmc_user_role')
+        setUserRole(null)
         setIsAuthenticated(false)
         window.location.hash = '#/login'
       },
@@ -93,6 +102,7 @@ export function AppProvider({ children }) {
     [
       activePage,
       isAuthenticated,
+      userRole,
       appointments,
       patients,
       consultations,

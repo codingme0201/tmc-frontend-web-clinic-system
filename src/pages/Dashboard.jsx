@@ -752,9 +752,9 @@ function Dashboard() {
                           <td className="bold-text">{cons.patient}</td>
                           <td className="bold-text text-teal">{cons.staff}</td>
                           <td>
-                            <strong className="block-sub">Symptoms: {cons.symptoms}</strong>
+                            <strong className="block-sub">Complaint: {cons.chiefComplaint || '—'}</strong>
                             <span className="block-sub muted-text">
-                              BP: {cons.vitals.bp} | Temp: {cons.vitals.temp} | Pulse: {cons.vitals.pulse}
+                              BP: {cons.vitals.bloodPressure || '—'} | Temp: {cons.vitals.temperature || '—'} | Pulse: {cons.vitals.pulseRate || '—'}
                             </span>
                           </td>
                           <td>
@@ -762,9 +762,13 @@ function Dashboard() {
                             <span className="block-sub muted-text">{cons.treatment}</span>
                           </td>
                           <td>
-                            <span className={`dispo-tag dispo-${cons.disposition.toLowerCase().replace(/ /g, '-')}`}>
-                              {cons.disposition}
-                            </span>
+                            {cons.disposition ? (
+                              <span className={`dispo-tag dispo-${cons.disposition.toLowerCase().replace(/ /g, '-')}`}>
+                                {cons.disposition}
+                              </span>
+                            ) : (
+                              <span className="muted-text">—</span>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -1333,9 +1337,13 @@ function Dashboard() {
                       <div className="mini-log-card" key={log.id}>
                         <div className="mini-log-header">
                           <strong>{log.date} @ {log.time}</strong>
-                          <span className={`dispo-tag dispo-${log.disposition.toLowerCase().replace(/ /g, '-')}`}>
-                            {log.disposition}
-                          </span>
+                          {log.disposition ? (
+                            <span className={`dispo-tag dispo-${log.disposition.toLowerCase().replace(/ /g, '-')}`}>
+                              {log.disposition}
+                            </span>
+                          ) : (
+                            <span className="muted-text">—</span>
+                          )}
                         </div>
                         <p className="mini-log-body">
                           <strong>Diag:</strong> {log.diagnosis} <br />

@@ -4,6 +4,7 @@ import { AppProvider } from './context/AppProvider'
 import AdminLayout from './layouts/AdminLayout'
 import Dashboard from './pages/Dashboard'
 import Appointments from './pages/Appointments'
+import Consultations from './pages/Consultations'
 import Login from './pages/Login'
 import PlaceholderPage from './pages/PlaceholderPage'
 import { pageContent } from './lib/navigation'
@@ -13,6 +14,7 @@ import { pageContent } from './lib/navigation'
 const pageComponents = {
   dashboard: Dashboard,
   appointments: Appointments,
+  consultations: Consultations,
 }
 
 function AppContent() {
