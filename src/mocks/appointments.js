@@ -1,7 +1,6 @@
-// Rich mock appointment data for the Appointments module.
-// Each record is a clinic appointment request with a full lifecycle status
-// (Pending → Under Review → Approved / Rejected / Rescheduled / Cancelled / Completed)
-// managed by the admin.
+// Temporary mock appointment data for the Appointments module.
+// Lives here (not in pages/components) so it can be deleted the moment a
+// real REST backend is connected — services are the only consumers.
 
 export const mockAppointments = [
   { id: 1, reference: 'APT-2026-001', patient: 'Angela Reyes', patientId: '2023-0104', type: 'Check-up', reason: 'Annual physical examination required by the registrar.', date: '2026-07-31', time: '08:30 AM', staff: 'Dr. R. Mendoza', status: 'Pending', notes: '', requestedOn: '2026-07-28' },

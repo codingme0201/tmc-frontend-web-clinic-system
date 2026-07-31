@@ -1,6 +1,6 @@
 import Icon from './Icon'
 import { useAppContext } from '../context/AppContext'
-import { navSections } from '../lib/mockData'
+import { navSections } from '../lib/navigation'
 
 function Sidebar({ collapsed = false, mobileOpen = false, onNavigate }) {
   const { activePage, navigate, logout } = useAppContext()

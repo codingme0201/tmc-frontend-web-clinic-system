@@ -1,13 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AppContext } from './AppContext'
-import { mockActivityLogs } from '../lib/mockData'
-import { mockAppointments } from '../lib/mockAppointments'
+import { useAppointmentsStore } from '../hooks/useAppointments'
+import { usePatientsStore } from '../hooks/usePatients'
+import { useConsultationsStore } from '../hooks/useConsultations'
+import { useStaffStore } from '../hooks/useStaff'
+import { useActivityLogsStore } from '../hooks/useActivityLogs'
+import { useClinicEventsStore } from '../hooks/useClinicEvents'
+import { useClinicInsightsStore } from '../hooks/useClinicInsights'
 
 /**
- * Provides app-wide UI state: active page, mock "session" auth status, the
- * shared appointment store, and the live activity/audit log. Keeping the
- * appointments here means the Dashboard queue and the Appointments module
- * always show the same, up-to-date data.
+ * Composition root for app-wide state.
+ *
+ * - Auth + routing state (mock "session" backed by localStorage).
+ * - Each domain store hook (appointments, patients, etc.) is instantiated
+ *   exactly once here and exposed through context, so every page consumes a
+ *   single shared instance via the matching use* hook.
+ *
+ * The store hooks talk to the service layer only; pages never touch mock
+ * data or services directly.
  */
 export function AppProvider({ children }) {
   const [activePage, setActivePage] = useState(() => {
@@ -17,8 +27,6 @@ export function AppProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return localStorage.getItem('tmc_auth') === 'true'
   })
-  const [appointments, setAppointments] = useState(mockAppointments)
-  const [activityLogs, setActivityLogs] = useState(mockActivityLogs)
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -43,74 +51,18 @@ export function AppProvider({ children }) {
     return () => window.removeEventListener('hashchange', handleHashChange)
   }, [isAuthenticated])
 
-  const addActivityLog = useCallback((action) => {
-    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    setActivityLogs((prev) => [{ time, user: 'Admin User', action }, ...prev])
-  }, [])
+  // --- Domain stores (one instance, shared app-wide) -----------------------
+  const activityLogs = useActivityLogsStore()
+  // Plain callback — the store hooks keep it in a ref, so there is no stale
+  // closure even though this is recreated on every render.
+  const log = (action) => activityLogs.addActivityLog(action)
 
-  const addAppointment = useCallback(
-    ({ patient, type, reason = '', date, time, staff = '' }) => {
-      // Derive the next reference from the highest existing number so
-      // references never collide even if the store changes shape.
-      const maxRef = appointments.reduce((max, app) => {
-        const num = Number(app.reference.split('-').pop())
-        return Number.isFinite(num) ? Math.max(max, num) : max
-      }, 0)
-      const reference = `APT-2026-${String(maxRef + 1).padStart(3, '0')}`
-      const newAppointment = {
-        id: Date.now(),
-        reference,
-        patient,
-        patientId: '',
-        type,
-        reason: reason || type,
-        date: date || new Date().toISOString().split('T')[0],
-        time,
-        staff: staff || 'Unassigned',
-        status: 'Pending',
-        notes: '',
-        requestedOn: new Date().toISOString().split('T')[0],
-      }
-      setAppointments((prev) => [newAppointment, ...prev])
-      addActivityLog(`Booked new ${type} appointment for ${patient} at ${time}`)
-    },
-    [appointments, addActivityLog],
-  )
-
-  const updateAppointmentStatus = useCallback(
-    (id, newStatus, note = '') => {
-      const target = appointments.find((app) => app.id === id)
-      if (target) {
-        addActivityLog(`Updated appointment ${target.reference} (${target.patient}) to: ${newStatus}`)
-      }
-      setAppointments((prev) =>
-        prev.map((app) => {
-          if (app.id !== id) return app
-          const appended = note ? (app.notes ? `${app.notes}\n${note}` : note) : app.notes
-          return { ...app, status: newStatus, notes: appended }
-        }),
-      )
-    },
-    [appointments, addActivityLog],
-  )
-
-  const rescheduleAppointment = useCallback(
-    (id, { date, time, note = '' }) => {
-      const target = appointments.find((app) => app.id === id)
-      if (target) {
-        addActivityLog(`Rescheduled appointment ${target.reference} (${target.patient}) to ${date} ${time}`)
-      }
-      setAppointments((prev) =>
-        prev.map((app) => {
-          if (app.id !== id) return app
-          const rescheduleNote = `Rescheduled from ${app.date} ${app.time} to ${date} ${time}${note ? ` — ${note}` : ''}`
-          const notes = app.notes ? `${app.notes}\n${rescheduleNote}` : rescheduleNote
-          return { ...app, date, time, status: 'Rescheduled', notes }
-        }),
-      )
-    },
-    [appointments, addActivityLog],
-  )
+  const appointments = useAppointmentsStore({ onLog: log })
+  const patients = usePatientsStore({ onLog: log })
+  const consultations = useConsultationsStore({ onLog: log })
+  const staff = useStaffStore({ onLog: log })
+  const clinicEvents = useClinicEventsStore({ onLog: log })
+  const clinicInsights = useClinicInsightsStore()
 
   const value = useMemo(
     () => ({
@@ -131,21 +83,23 @@ export function AppProvider({ children }) {
         window.location.hash = '#/login'
       },
       appointments,
+      patients,
+      consultations,
+      staff,
       activityLogs,
-      addAppointment,
-      updateAppointmentStatus,
-      rescheduleAppointment,
-      addActivityLog,
+      clinicEvents,
+      clinicInsights,
     }),
     [
       activePage,
       isAuthenticated,
       appointments,
+      patients,
+      consultations,
+      staff,
       activityLogs,
-      addAppointment,
-      updateAppointmentStatus,
-      rescheduleAppointment,
-      addActivityLog,
+      clinicEvents,
+      clinicInsights,
     ],
   )
 

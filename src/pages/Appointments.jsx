@@ -1,7 +1,11 @@
 import { useMemo, useState } from 'react'
-import { useAppContext } from '../context/AppContext'
-import { formatDate, todayISO } from '../lib/format'
-import { medicalStaffToday } from '../lib/mockData'
+import { useAppointments } from '../hooks/useAppointments'
+import { useStaff } from '../hooks/useStaff'
+import { useToast } from '../hooks/useToast'
+import { formatDate, todayISO, timeToMinutes } from '../lib/format'
+import Toast from '../components/Toast'
+import StatusBadge from '../components/StatusBadge'
+import { EmptyState, ErrorState, LoadingState } from '../components/AsyncState'
 
 const STATUSES = ['Pending', 'Under Review', 'Approved', 'Rescheduled', 'Rejected', 'Cancelled', 'Completed']
 const APPOINTMENT_TYPES = ['Check-up', 'Dental concern', 'Follow-up', 'Fever', 'Vaccination', 'Emergency']
@@ -10,24 +14,20 @@ const TIME_SLOTS = [
   '11:00 AM', '01:00 PM', '01:30 PM', '02:30 PM', '03:00 PM', '03:30 PM', '04:30 PM',
 ]
 
-function badgeClass(status) {
-  return `status-badge badge-${status.toLowerCase().replace(/ /g, '-')}`
-}
-
-// Converts a display time (e.g. "01:30 PM") to minutes for chronological sorting.
-function timeToMinutes(time) {
-  const match = time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i)
-  if (!match) return 0
-  let hours = Number(match[1])
-  const minutes = Number(match[2])
-  const meridiem = match[3].toUpperCase()
-  if (meridiem === 'PM' && hours !== 12) hours += 12
-  if (meridiem === 'AM' && hours === 12) hours = 0
-  return hours * 60 + minutes
-}
-
 function Appointments({ page }) {
-  const { appointments, updateAppointmentStatus, rescheduleAppointment, addAppointment } = useAppContext()
+  // Data comes from the shared appointment store; the page never touches
+  // mock data or services directly.
+  const {
+    data: appointments,
+    isLoading,
+    error,
+    refetch,
+    createAppointment,
+    updateStatus,
+    reschedule,
+  } = useAppointments()
+  const { data: staff } = useStaff()
+  const { toast, showToast, dismiss } = useToast()
 
   // Search / filter state
   const [search, setSearch] = useState('')
@@ -39,6 +39,7 @@ function Appointments({ page }) {
   const [rescheduleTarget, setRescheduleTarget] = useState(null)
   const [reasonTarget, setReasonTarget] = useState(null)
   const [bookOpen, setBookOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
 
   // Book appointment form
   const [bPatient, setBPatient] = useState('')
@@ -92,8 +93,15 @@ function Appointments({ page }) {
   // Keep the detail modal in sync with live store updates
   const selected = selectedId ? appointments.find((a) => a.id === selectedId) || null : null
 
-  const setStatus = (app, newStatus, note = '') => {
-    updateAppointmentStatus(app.id, newStatus, note)
+  const setStatus = async (app, newStatus, note = '') => {
+    try {
+      await updateStatus(app.id, newStatus, note)
+      showToast(`${app.reference} marked as ${newStatus}.`)
+      return true
+    } catch (err) {
+      showToast(err?.message || 'Failed to update the appointment status.', 'error')
+      return false
+    }
   }
 
   const openReasonModal = (app, action) => {
@@ -101,11 +109,13 @@ function Appointments({ page }) {
     setReasonText('')
   }
 
-  const confirmReason = () => {
-    if (!reasonTarget) return
+  const confirmReason = async () => {
+    if (!reasonTarget || busy) return
+    setBusy(true)
     const note = reasonText.trim() ? `${reasonTarget.action} — ${reasonText.trim()}` : ''
-    setStatus(reasonTarget.app, reasonTarget.action, note)
-    setReasonTarget(null)
+    const ok = await setStatus(reasonTarget.app, reasonTarget.action, note)
+    if (ok) setReasonTarget(null)
+    setBusy(false)
   }
 
   const openReschedule = (app) => {
@@ -115,26 +125,42 @@ function Appointments({ page }) {
     setRReason('')
   }
 
-  const confirmReschedule = () => {
-    if (!rescheduleTarget || !rDate || !rTime) return
-    rescheduleAppointment(rescheduleTarget.id, { date: rDate, time: rTime, note: rReason.trim() })
-    setRescheduleTarget(null)
+  const confirmReschedule = async () => {
+    if (!rescheduleTarget || busy || !rDate || !rTime) return
+    setBusy(true)
+    try {
+      await reschedule(rescheduleTarget.id, { date: rDate, time: rTime, note: rReason.trim() })
+      showToast(`${rescheduleTarget.reference} rescheduled to ${formatDate(rDate)} at ${rTime}.`)
+      setRescheduleTarget(null)
+    } catch (err) {
+      showToast(err?.message || 'Failed to reschedule the appointment.', 'error')
+    } finally {
+      setBusy(false)
+    }
   }
 
-  const handleBook = (e) => {
+  const handleBook = async (e) => {
     e.preventDefault()
-    if (!bPatient.trim()) return
-    addAppointment({
-      patient: bPatient.trim(),
-      type: bType,
-      reason: bReason.trim() || bType,
-      date: bDate,
-      time: bTime,
-      staff: bStaff === 'Unassigned' ? '' : bStaff,
-    })
-    setBPatient('')
-    setBReason('')
-    setBookOpen(false)
+    if (busy || !bPatient.trim()) return
+    setBusy(true)
+    try {
+      await createAppointment({
+        patient: bPatient.trim(),
+        type: bType,
+        reason: bReason.trim() || bType,
+        date: bDate,
+        time: bTime,
+        staff: bStaff === 'Unassigned' ? '' : bStaff,
+      })
+      showToast('Appointment booked successfully.')
+      setBPatient('')
+      setBReason('')
+      setBookOpen(false)
+    } catch (err) {
+      showToast(err?.message || 'Failed to book the appointment.', 'error')
+    } finally {
+      setBusy(false)
+    }
   }
 
   // Contextual action buttons per status
@@ -259,64 +285,72 @@ function Appointments({ page }) {
                 Clear filters
               </button>
             )}
-            <span className="results-count">
-              {filtered.length} of {appointments.length} appointments
-            </span>
+            {!isLoading && !error && (
+              <span className="results-count">
+                {filtered.length} of {appointments.length} appointments
+              </span>
+            )}
           </div>
         </div>
 
         <div className="records-table-container">
-          <table className="records-table">
-            <thead>
-              <tr>
-                <th>Reference</th>
-                <th>Patient</th>
-                <th>Type / Reason</th>
-                <th>Schedule</th>
-                <th>Assigned Staff</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((app) => (
-                <tr key={app.id}>
-                  <td className="bold-text text-teal font-monospace">{app.reference}</td>
-                  <td>
-                    <strong className="bold-text">{app.patient}</strong>
-                    {app.patientId ? <span className="block-sub muted-text">{app.patientId}</span> : null}
-                  </td>
-                  <td>
-                    <strong className="block-sub">{app.type}</strong>
-                    <span className="block-sub muted-text">{app.reason}</span>
-                  </td>
-                  <td>
-                    <span className="bold-text">{formatDate(app.date)}</span>
-                    <span className="block-sub muted-text">{app.time}</span>
-                  </td>
-                  <td>{app.staff}</td>
-                  <td>
-                    <span className={badgeClass(app.status)}>{app.status}</span>
-                  </td>
-                  <td className="actions-cell">
-                    <div className="row-actions">
-                      <button type="button" className="btn-view-small" onClick={() => setSelectedId(app.id)}>
-                        View
-                      </button>
-                      {actionButtons(app)}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
+          {error ? (
+            <ErrorState message={error} onRetry={refetch} />
+          ) : isLoading ? (
+            <LoadingState label="Loading appointments..." />
+          ) : (
+            <table className="records-table">
+              <thead>
                 <tr>
-                  <td colSpan="7" className="empty-row">
-                    No appointments matched your search or filters.
-                  </td>
+                  <th>Reference</th>
+                  <th>Patient</th>
+                  <th>Type / Reason</th>
+                  <th>Schedule</th>
+                  <th>Assigned Staff</th>
+                  <th>Status</th>
+                  <th>Actions</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filtered.map((app) => (
+                  <tr key={app.id}>
+                    <td className="bold-text text-teal font-monospace">{app.reference}</td>
+                    <td>
+                      <strong className="bold-text">{app.patient}</strong>
+                      {app.patientId ? <span className="block-sub muted-text">{app.patientId}</span> : null}
+                    </td>
+                    <td>
+                      <strong className="block-sub">{app.type}</strong>
+                      <span className="block-sub muted-text">{app.reason}</span>
+                    </td>
+                    <td>
+                      <span className="bold-text">{formatDate(app.date)}</span>
+                      <span className="block-sub muted-text">{app.time}</span>
+                    </td>
+                    <td>{app.staff}</td>
+                    <td>
+                      <StatusBadge status={app.status} />
+                    </td>
+                    <td className="actions-cell">
+                      <div className="row-actions">
+                        <button type="button" className="btn-view-small" onClick={() => setSelectedId(app.id)}>
+                          View
+                        </button>
+                        {actionButtons(app)}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan="7">
+                      <EmptyState message="No appointments matched your search or filters." />
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
@@ -340,7 +374,7 @@ function Appointments({ page }) {
             </div>
             <div className="modal-body">
               <div className="appointment-detail-banner">
-                <span className={badgeClass(selected.status)}>{selected.status}</span>
+                <StatusBadge status={selected.status} />
                 <div>
                   <strong>{selected.patient}</strong>
                   <span className="block-sub muted-text">
@@ -449,7 +483,7 @@ function Appointments({ page }) {
             </div>
             <div className="modal-body">
               <div className="appointment-detail-banner">
-                <span className={badgeClass(rescheduleTarget.status)}>{rescheduleTarget.status}</span>
+                <StatusBadge status={rescheduleTarget.status} />
                 <div>
                   <strong>{rescheduleTarget.patient}</strong>
                   <span className="block-sub muted-text">
@@ -487,11 +521,16 @@ function Appointments({ page }) {
                   />
                 </label>
                 <div className="modal-footer-actions">
-                  <button type="button" className="secondary-pill" onClick={() => setRescheduleTarget(null)}>
+                  <button
+                    type="button"
+                    className="secondary-pill"
+                    onClick={() => setRescheduleTarget(null)}
+                    disabled={busy}
+                  >
                     Cancel
                   </button>
-                  <button type="submit" className="primary-action">
-                    Confirm Reschedule
+                  <button type="submit" className="primary-action" disabled={busy}>
+                    {busy ? 'Saving...' : 'Confirm Reschedule'}
                   </button>
                 </div>
               </form>
@@ -520,7 +559,7 @@ function Appointments({ page }) {
             </div>
             <div className="modal-body">
               <div className="appointment-detail-banner">
-                <span className={badgeClass(reasonTarget.app.status)}>{reasonTarget.app.status}</span>
+                <StatusBadge status={reasonTarget.app.status} />
                 <div>
                   <strong>{reasonTarget.app.patient}</strong>
                   <span className="block-sub muted-text">
@@ -545,11 +584,16 @@ function Appointments({ page }) {
                   />
                 </label>
                 <div className="modal-footer-actions">
-                  <button type="button" className="secondary-pill" onClick={() => setReasonTarget(null)}>
+                  <button
+                    type="button"
+                    className="secondary-pill"
+                    onClick={() => setReasonTarget(null)}
+                    disabled={busy}
+                  >
                     Keep Appointment
                   </button>
-                  <button type="submit" className="btn-action-danger">
-                    Confirm {reasonTarget.action}
+                  <button type="submit" className="btn-action-danger" disabled={busy}>
+                    {busy ? 'Saving...' : `Confirm ${reasonTarget.action}`}
                   </button>
                 </div>
               </form>
@@ -603,7 +647,7 @@ function Appointments({ page }) {
                     Assigned Staff
                     <select value={bStaff} onChange={(e) => setBStaff(e.target.value)}>
                       <option value="Unassigned">Unassigned</option>
-                      {medicalStaffToday.map((m) => (
+                      {staff.map((m) => (
                         <option key={m.name} value={m.name}>
                           {m.name}
                         </option>
@@ -636,11 +680,11 @@ function Appointments({ page }) {
                   </label>
                 </div>
                 <div className="modal-footer-actions">
-                  <button type="button" className="secondary-pill" onClick={() => setBookOpen(false)}>
+                  <button type="button" className="secondary-pill" onClick={() => setBookOpen(false)} disabled={busy}>
                     Cancel
                   </button>
-                  <button type="submit" className="primary-action">
-                    Book Appointment
+                  <button type="submit" className="primary-action" disabled={busy}>
+                    {busy ? 'Booking...' : 'Book Appointment'}
                   </button>
                 </div>
               </form>
@@ -648,6 +692,8 @@ function Appointments({ page }) {
           </div>
         </div>
       )}
+
+      <Toast toast={toast} onDismiss={dismiss} />
     </div>
   )
 }

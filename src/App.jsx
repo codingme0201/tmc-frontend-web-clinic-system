@@ -6,7 +6,7 @@ import Dashboard from './pages/Dashboard'
 import Appointments from './pages/Appointments'
 import Login from './pages/Login'
 import PlaceholderPage from './pages/PlaceholderPage'
-import { pageContent } from './lib/mockData'
+import { pageContent } from './lib/navigation'
 
 // Only pages with a built-out UI need an entry here; anything else
 // falls back to PlaceholderPage automatically.

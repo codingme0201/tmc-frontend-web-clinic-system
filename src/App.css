@@ -1125,16 +1125,6 @@
   color: #b23c1f;
   font-weight: 700;
 }
-.empty-row, .empty-state {
-  text-align: center;
-  padding: 30px;
-  color: #627772;
-  font-weight: 700;
-}
-.empty-state.success-text {
-  color: #2fa96b;
-}
-
 /* Status Badges */
 .status-badge {
   display: inline-flex;
@@ -1749,4 +1739,106 @@
 }
 .modal-footer-actions .btn-action-danger:hover {
   background: #b6451e;
+}
+
+/* ==========================================================================
+   Async states, toast, and disabled controls
+   ========================================================================== */
+
+.async-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 20px;
+  color: #627772;
+  text-align: center;
+  min-height: 120px;
+}
+.async-state p {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+.async-state.error {
+  color: #b23c1f;
+}
+.async-state.error .secondary-pill {
+  margin-top: 4px;
+}
+.async-state.empty {
+  font-size: 13px;
+  font-weight: 700;
+  min-height: 0;
+  padding: 26px 16px;
+}
+
+.spinner {
+  width: 26px;
+  height: 26px;
+  border: 3px solid #dce8e5;
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Toast notifications */
+.toast {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(420px, calc(100vw - 44px));
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: #12393b;
+  color: #ffffff;
+  box-shadow: 0 16px 34px rgba(8, 20, 20, 0.28);
+  font-size: 13px;
+  font-weight: 700;
+  animation: toastIn 0.25s ease;
+}
+.toast-success {
+  background: #1e5a1b;
+}
+.toast-error {
+  background: #a33c12;
+}
+.toast button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px;
+  opacity: 0.7;
+}
+.toast button:hover {
+  opacity: 1;
+}
+@keyframes toastIn {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Disabled controls during async actions */
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
