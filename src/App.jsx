@@ -5,6 +5,7 @@ import AdminLayout from './layouts/AdminLayout'
 import Dashboard from './pages/Dashboard'
 import Appointments from './pages/Appointments'
 import Consultations from './pages/Consultations'
+import MedicalRecords from './pages/MedicalRecords'
 import Login from './pages/Login'
 import PlaceholderPage from './pages/PlaceholderPage'
 import { pageContent } from './lib/navigation'
@@ -15,6 +16,7 @@ const pageComponents = {
   dashboard: Dashboard,
   appointments: Appointments,
   consultations: Consultations,
+  medicalRecords: MedicalRecords,
 }
 
 function AppContent() {

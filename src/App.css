@@ -2031,3 +2031,410 @@ button:disabled {
   font-size: 13px;
   color: #12393b;
 }
+
+/* ==========================================================================
+   Medical Records Module Styles
+   ========================================================================== */
+
+/* Patient initials avatar (mirrors the existing staff-avatar pattern) */
+.patient-avatar {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+.patient-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Extended status badges for records, conditions, medications, severity */
+.badge-active,
+.badge-mild {
+  background: #dff6dd;
+  color: #1e5a1b;
+}
+.badge-inactive,
+.badge-archived {
+  background: #f0f3f2;
+  color: #5d6e6c;
+}
+.badge-resolved {
+  background: #e1f5fe;
+  color: #0d47a1;
+}
+.badge-discontinued {
+  background: #ffebe0;
+  color: #a33c12;
+}
+.badge-moderate {
+  background: #fff3d6;
+  color: #8a5a00;
+}
+.badge-severe {
+  background: #ffebe0;
+  color: #a33c12;
+}
+
+/* Chips shown inside table cells */
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.chip-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 99px;
+  background: #eef4f2;
+  color: #4d615e;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.chip-tag.chip-danger {
+  background: #ffebe6;
+  color: #b3361f;
+}
+.chip-tag.muted {
+  color: #627772;
+}
+
+/* Record detail header */
+.mr-back-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.mr-patient-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.mr-avatar-lg {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #ffffff;
+  font-size: 17px;
+  font-weight: 800;
+}
+.mr-patient-id h3 {
+  margin: 0 0 2px;
+  color: #12393b;
+  font-size: 20px;
+}
+.mr-patient-id p {
+  margin: 0;
+  font-size: 12.5px;
+  color: #627772;
+}
+.mr-header-right {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+/* Prominent allergy warning */
+.mr-allergy-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px 14px;
+  border: 1px solid #f2cfc2;
+  border-radius: 8px;
+  background: #fdf1ec;
+  color: #b23c1f;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+/* Stat strip */
+.mr-stats-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0 18px;
+}
+@media (max-width: 760px) {
+  .mr-stats-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.mr-stat {
+  padding: 12px 14px;
+  border: 1px solid #d8e6e2;
+  border-radius: 8px;
+  background: #ffffff;
+}
+.mr-stat small {
+  display: block;
+  color: #627772;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.mr-stat strong {
+  display: block;
+  margin-top: 4px;
+  color: #12393b;
+  font-size: 22px;
+  line-height: 1;
+}
+
+/* Detail tab view */
+.mr-tab-view {
+  margin-top: 18px;
+  display: grid;
+  gap: 16px;
+}
+.mr-section-title {
+  margin: 0 0 12px;
+  color: #143d40;
+  font-size: 16px;
+}
+.mr-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.mr-section-header .primary-action {
+  min-height: 38px;
+  font-size: 13px;
+}
+.mr-panel-spaced {
+  margin-top: 16px;
+}
+.mr-panel-spaced .mr-allergy-warning {
+  margin-top: 0;
+}
+.mr-overview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+@media (max-width: 900px) {
+  .mr-overview-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.mini-log-list {
+  display: grid;
+  gap: 10px;
+}
+
+/* Allergy cards */
+.allergy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.allergy-card {
+  border: 1px solid #e4eeeb;
+  border-left: 4px solid #e0a13c;
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #ffffff;
+}
+.allergy-card.sev-mild {
+  border-left-color: #2fa96b;
+}
+.allergy-card.sev-moderate {
+  border-left-color: #e0a13c;
+}
+.allergy-card.sev-severe {
+  border-left-color: #d95f35;
+}
+.allergy-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.allergy-card-head strong {
+  color: #b23c1f;
+  font-size: 14px;
+}
+.allergy-reaction {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: #12393b;
+}
+.allergy-meta {
+  margin: 0;
+  font-size: 12px;
+}
+.allergy-notes {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #f4faf8;
+  font-size: 12px;
+  color: #627772;
+}
+
+/* Medication cards */
+.med-list {
+  display: grid;
+  gap: 10px;
+}
+.med-card {
+  border: 1px solid #e4eeeb;
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #ffffff;
+}
+.med-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.med-card-head strong {
+  color: #12393b;
+  font-size: 14px;
+}
+.med-dosage {
+  margin-left: 6px;
+  color: var(--color-primary);
+  font-weight: 800;
+}
+.med-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: #12393b;
+}
+.med-instructions {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+}
+
+/* Chronological timeline */
+.timeline {
+  display: grid;
+}
+.timeline-item {
+  position: relative;
+  margin-left: 9px;
+  padding: 0 0 22px 24px;
+  border-left: 2px solid #dce8e5;
+}
+.timeline-item:last-child {
+  border-left-color: transparent;
+  padding-bottom: 0;
+}
+.timeline-dot {
+  position: absolute;
+  left: -8px;
+  top: 2px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 2px #dce8e5;
+}
+.timeline-date {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-primary);
+}
+.tl-type {
+  display: inline-flex;
+  margin: 3px 0 5px;
+  padding: 2px 9px;
+  border-radius: 99px;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.tl-consultation {
+  background: #e8f0fe;
+  color: #1a56c4;
+}
+.tl-condition {
+  background: #fff3d6;
+  color: #8a5a00;
+}
+.tl-allergy {
+  background: #ffebe6;
+  color: #b3361f;
+}
+.tl-medication {
+  background: #dff6dd;
+  color: #1e5a1b;
+}
+.tl-history {
+  background: #eef2f1;
+  color: #4d615e;
+}
+.timeline-title {
+  margin: 0;
+  color: #12393b;
+  font-size: 14px;
+}
+.timeline-link {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-weight: 800;
+  color: var(--color-primary);
+  cursor: pointer;
+  text-align: left;
+}
+.timeline-link:hover {
+  text-decoration: underline;
+}
+.timeline-sub {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: #627772;
+}
+
+/* Medical records summary chips (3 statuses; own breakpoints win over the
+   generic appointments-summary media queries because they come later) */
+.mr-summary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (max-width: 900px) {
+  .mr-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .mr-summary {
+    grid-template-columns: 1fr;
+  }
+}

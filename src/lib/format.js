@@ -27,3 +27,8 @@ export function todayISO() {
   const day = String(date.getDate()).padStart(2, '0')
   return `${date.getFullYear()}-${month}-${day}`
 }
+
+/** Two-letter initials for avatar circles (matches the existing avatar pattern). */
+export function initials(name = '') {
+  return name.slice(0, 2).toUpperCase()
+}

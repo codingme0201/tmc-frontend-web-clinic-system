@@ -3,6 +3,7 @@ import { AppContext } from './AppContext'
 import { useAppointmentsStore } from '../hooks/useAppointments'
 import { usePatientsStore } from '../hooks/usePatients'
 import { useConsultationsStore } from '../hooks/useConsultations'
+import { useMedicalRecordsStore } from '../hooks/useMedicalRecords'
 import { useStaffStore } from '../hooks/useStaff'
 import { useActivityLogsStore } from '../hooks/useActivityLogs'
 import { useClinicEventsStore } from '../hooks/useClinicEvents'
@@ -64,6 +65,7 @@ export function AppProvider({ children }) {
   const appointments = useAppointmentsStore({ onLog: log })
   const patients = usePatientsStore({ onLog: log })
   const consultations = useConsultationsStore({ onLog: log })
+  const medicalRecords = useMedicalRecordsStore({ onLog: log })
   const staff = useStaffStore({ onLog: log })
   const clinicEvents = useClinicEventsStore({ onLog: log })
   const clinicInsights = useClinicInsightsStore()
@@ -94,6 +96,7 @@ export function AppProvider({ children }) {
       appointments,
       patients,
       consultations,
+      medicalRecords,
       staff,
       activityLogs,
       clinicEvents,
@@ -106,6 +109,7 @@ export function AppProvider({ children }) {
       appointments,
       patients,
       consultations,
+      medicalRecords,
       staff,
       activityLogs,
       clinicEvents,
