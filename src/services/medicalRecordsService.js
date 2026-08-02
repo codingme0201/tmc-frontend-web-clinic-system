@@ -28,6 +28,13 @@ function nextEntityId(prefix, items) {
   return `${prefix}-${String(max + 1).padStart(3, '0')}`
 }
 
+/**
+ * Fetches medical records. The Medical Records list hook (useMedicalRecordList)
+ * already produces the query params a REST version would accept —
+ *   { q, status, page, limit } — and the response would be
+ *   { data, total, totalPages }. For now every record is returned and the
+ *   hook filters/paginates in memory.
+ */
 export async function fetchMedicalRecords() {
   await delay()
   return recordsDb.map((r) => ({ ...r }))

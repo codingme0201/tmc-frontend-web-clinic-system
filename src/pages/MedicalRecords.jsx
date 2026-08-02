@@ -2,8 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMedicalRecords } from '../hooks/useMedicalRecords'
 import { useConsultations } from '../hooks/useConsultations'
 import { useToast } from '../hooks/useToast'
-import { useDebounce } from '../hooks/useDebounce'
-import { usePagination } from '../hooks/usePagination'
+import { useMedicalRecordList } from '../hooks/useMedicalRecordList'
 import { useAppContext } from '../context/AppContext'
 import { formatDate, initials, todayISO } from '../lib/format'
 import Toast from '../components/Toast'
@@ -217,10 +216,21 @@ function MedicalRecords({ page }) {
   const { userRole } = useAppContext()
   const canEdit = MEDICAL_ROLES.includes(userRole)
 
-  // ---------- List state ----------
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('All')
-  const debouncedSearch = useDebounce(search, 300)
+  // ---------- List state (debounced search + filter + pagination, API-ready) ----------
+  // pageSize 5 so pagination is visible with the current mock dataset; the
+  // hook accepts any pageSize/limit and is structured for server pagination.
+  const {
+    search,
+    setSearch,
+    statusFilter,
+    setStatusFilter,
+    clearFilters,
+    filtered,
+    pageItems,
+    currentPage,
+    totalPages,
+    goToPage,
+  } = useMedicalRecordList(records, { pageSize: 5, debounceDelay: 300 })
 
   // ---------- Detail view state ----------
   const [selectedId, setSelectedId] = useState(null)
@@ -252,28 +262,6 @@ function MedicalRecords({ page }) {
     }
     return map
   }, [consultations])
-
-  const filtered = useMemo(() => {
-    const q = debouncedSearch.trim().toLowerCase()
-    return records.filter((r) => {
-      const matchStatus = statusFilter === 'All' || r.status === statusFilter
-      const matchQuery =
-        !q ||
-        r.name.toLowerCase().includes(q) ||
-        r.patientId.toLowerCase().includes(q) ||
-        r.id.toLowerCase().includes(q) ||
-        r.conditions.some((c) => c.name.toLowerCase().includes(q)) ||
-        r.allergies.some((a) => a.allergen.toLowerCase().includes(q))
-      return matchStatus && matchQuery
-    })
-  }, [records, debouncedSearch, statusFilter])
-
-  const pagination = usePagination(filtered)
-  const { pageItems, resetPage, currentPage, totalPages, goToPage } = pagination
-
-  useEffect(() => {
-    resetPage()
-  }, [debouncedSearch, statusFilter, resetPage])
 
   const statusCounts = useMemo(() => {
     const counts = { All: records.length, Active: 0, Archived: 0 }
@@ -316,11 +304,6 @@ function MedicalRecords({ page }) {
   const closeRecord = () => {
     setSelectedId(null)
     setActiveTab('overview')
-  }
-
-  const clearFilters = () => {
-    setSearch('')
-    setStatusFilter('All')
   }
 
   // ---------- Condition handlers ----------
