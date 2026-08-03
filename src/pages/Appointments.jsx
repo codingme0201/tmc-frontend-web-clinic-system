@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAppointments } from '../hooks/useAppointments'
 import { useStaff } from '../hooks/useStaff'
 import { useToast } from '../hooks/useToast'
-import { useDebounce } from '../hooks/useDebounce'
+import { useSearch } from '../hooks/useSearch'
+import { useModal } from '../hooks/useModal'
+import { useForm } from '../hooks/useForm'
 import { usePagination } from '../hooks/usePagination'
 import { formatDate, todayISO, timeToMinutes } from '../lib/format'
 import Pagination from '../components/Pagination'
@@ -33,7 +35,7 @@ function Appointments({ page }) {
   const { toast, showToast, dismiss } = useToast()
 
   // Search / filter state
-  const [search, setSearch] = useState('')
+  const { search, setSearch, debouncedSearch, resetSearch } = useSearch({ debounceMs: 300 })
   const [statusFilter, setStatusFilter] = useState('All')
   const [dateFilter, setDateFilter] = useState('')
 
@@ -41,16 +43,18 @@ function Appointments({ page }) {
   const [selectedId, setSelectedId] = useState(null)
   const [rescheduleTarget, setRescheduleTarget] = useState(null)
   const [reasonTarget, setReasonTarget] = useState(null)
-  const [bookOpen, setBookOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const bookModal = useModal()
 
   // Book appointment form
-  const [bPatient, setBPatient] = useState('')
-  const [bType, setBType] = useState('Check-up')
-  const [bReason, setBReason] = useState('')
-  const [bDate, setBDate] = useState(todayISO())
-  const [bTime, setBTime] = useState('09:00 AM')
-  const [bStaff, setBStaff] = useState('Unassigned')
+  const bookForm = useForm({
+    patient: '',
+    type: 'Check-up',
+    reason: '',
+    date: todayISO(),
+    time: '09:00 AM',
+    staff: 'Unassigned',
+  })
 
   // Reschedule form
   const [rDate, setRDate] = useState('')
@@ -71,9 +75,6 @@ function Appointments({ page }) {
       Cancelled: count('Cancelled'),
     }
   }, [appointments])
-
-  // Search is debounced so filtering doesn't run on every keystroke.
-  const debouncedSearch = useDebounce(search, 300)
 
   // Search + filter pipeline (runs against the debounced query)
   const filtered = useMemo(() => {
@@ -157,21 +158,20 @@ function Appointments({ page }) {
 
   const handleBook = async (e) => {
     e.preventDefault()
-    if (busy || !bPatient.trim()) return
+    if (busy || !bookForm.values.patient.trim()) return
     setBusy(true)
     try {
       await createAppointment({
-        patient: bPatient.trim(),
-        type: bType,
-        reason: bReason.trim() || bType,
-        date: bDate,
-        time: bTime,
-        staff: bStaff === 'Unassigned' ? '' : bStaff,
+        patient: bookForm.values.patient.trim(),
+        type: bookForm.values.type,
+        reason: bookForm.values.reason.trim() || bookForm.values.type,
+        date: bookForm.values.date,
+        time: bookForm.values.time,
+        staff: bookForm.values.staff === 'Unassigned' ? '' : bookForm.values.staff,
       })
       showToast('Appointment booked successfully.')
-      setBPatient('')
-      setBReason('')
-      setBookOpen(false)
+      bookForm.setValues((prev) => ({ ...prev, patient: '', reason: '' }))
+      bookModal.close()
     } catch (err) {
       showToast(err?.message || 'Failed to book the appointment.', 'error')
     } finally {
@@ -219,7 +219,7 @@ function Appointments({ page }) {
   }
 
   const clearFilters = () => {
-    setSearch('')
+    resetSearch()
     setStatusFilter('All')
     setDateFilter('')
   }
@@ -234,7 +234,7 @@ function Appointments({ page }) {
           <span className="page-heading-description">{page.description}</span>
         </div>
         <div className="quick-actions-bar">
-          <button type="button" className="primary-action" onClick={() => setBookOpen(true)}>
+          <button type="button" className="primary-action" onClick={bookModal.open}>
             + Book Appointment
           </button>
         </div>
@@ -621,20 +621,20 @@ function Appointments({ page }) {
       )}
 
       {/* ================= BOOK APPOINTMENT MODAL ================= */}
-      {bookOpen && (
+      {bookModal.isOpen && (
         <div
           className="modal-backdrop"
           role="dialog"
           aria-modal="true"
           aria-label="Book a new appointment"
           onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setBookOpen(false)
+            if (e.target === e.currentTarget) bookModal.close()
           }}
         >
           <div className="modal-card">
             <div className="modal-header">
               <h3>Book New Appointment</h3>
-              <button type="button" className="btn-modal-close" onClick={() => setBookOpen(false)}>
+              <button type="button" className="btn-modal-close" onClick={bookModal.close}>
                 ✕
               </button>
             </div>
@@ -645,15 +645,15 @@ function Appointments({ page }) {
                   <input
                     type="text"
                     placeholder="Enter patient name"
-                    value={bPatient}
-                    onChange={(e) => setBPatient(e.target.value)}
+                    value={bookForm.values.patient}
+                    onChange={(e) => bookForm.setValue('patient', e.target.value)}
                     required
                   />
                 </label>
                 <div className="form-row-grid">
                   <label>
                     Appointment Type
-                    <select value={bType} onChange={(e) => setBType(e.target.value)}>
+                    <select value={bookForm.values.type} onChange={(e) => bookForm.setValue('type', e.target.value)}>
                       {APPOINTMENT_TYPES.map((t) => (
                         <option key={t} value={t}>
                           {t}
@@ -663,7 +663,7 @@ function Appointments({ page }) {
                   </label>
                   <label>
                     Assigned Staff
-                    <select value={bStaff} onChange={(e) => setBStaff(e.target.value)}>
+                    <select value={bookForm.values.staff} onChange={(e) => bookForm.setValue('staff', e.target.value)}>
                       <option value="Unassigned">Unassigned</option>
                       {staff.map((m) => (
                         <option key={m.name} value={m.name}>
@@ -677,18 +677,18 @@ function Appointments({ page }) {
                   Reason for Visit
                   <textarea
                     placeholder="Describe the reason for the visit"
-                    value={bReason}
-                    onChange={(e) => setBReason(e.target.value)}
+                    value={bookForm.values.reason}
+                    onChange={(e) => bookForm.setValue('reason', e.target.value)}
                   />
                 </label>
                 <div className="form-row-grid">
                   <label>
                     Date
-                    <input type="date" value={bDate} onChange={(e) => setBDate(e.target.value)} required />
+                    <input type="date" value={bookForm.values.date} onChange={(e) => bookForm.setValue('date', e.target.value)} required />
                   </label>
                   <label>
                     Time Slot
-                    <select value={bTime} onChange={(e) => setBTime(e.target.value)}>
+                    <select value={bookForm.values.time} onChange={(e) => bookForm.setValue('time', e.target.value)}>
                       {TIME_SLOTS.map((t) => (
                         <option key={t} value={t}>
                           {t}
@@ -698,7 +698,7 @@ function Appointments({ page }) {
                   </label>
                 </div>
                 <div className="modal-footer-actions">
-                  <button type="button" className="secondary-pill" onClick={() => setBookOpen(false)} disabled={busy}>
+                  <button type="button" className="secondary-pill" onClick={bookModal.close} disabled={busy}>
                     Cancel
                   </button>
                   <button type="submit" className="primary-action" disabled={busy}>

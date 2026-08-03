@@ -7,7 +7,7 @@ import { useActivityLogs } from '../hooks/useActivityLogs'
 import { useClinicEvents } from '../hooks/useClinicEvents'
 import { useClinicInsights } from '../hooks/useClinicInsights'
 import { useToast } from '../hooks/useToast'
-import { useDebounce } from '../hooks/useDebounce'
+import { useSearch } from '../hooks/useSearch'
 import { usePagination } from '../hooks/usePagination'
 import { formatDate, todayISO } from '../lib/format'
 import Pagination from '../components/Pagination'
@@ -94,10 +94,10 @@ function Dashboard() {
   const [evtDesc, setEvtDesc] = useState('')
 
   // Search/Filters State
+  const { search: appSearch, setSearch: setAppSearch, debouncedSearch: debouncedAppSearch } = useSearch()
+  const { search: consSearch, setSearch: setConsSearch, debouncedSearch: debouncedConsSearch } = useSearch()
+  const { search: patSearch, setSearch: setPatSearch, debouncedSearch: debouncedPatSearch } = useSearch()
   const [appFilter, setAppFilter] = useState('All')
-  const [appSearch, setAppSearch] = useState('')
-  const [consSearch, setConsSearch] = useState('')
-  const [patSearch, setPatSearch] = useState('')
   const [patFilter, setPatFilter] = useState('All')
 
   // Derived defaults for the consultation form (patients/staff load async).
@@ -229,12 +229,6 @@ function Dashboard() {
       { label: 'Total Consultations', value: totalConsults, trend: 'Clinic visit records logged' },
     ]
   }, [appointments, staff, patients, consultations])
-
-  // Debounced search values — filtering/pagination only run after the user
-  // pauses typing (~300ms), instead of on every keystroke.
-  const debouncedAppSearch = useDebounce(appSearch, 300)
-  const debouncedConsSearch = useDebounce(consSearch, 300)
-  const debouncedPatSearch = useDebounce(patSearch, 300)
 
   // Filtered Appointments
   const filteredAppointments = useMemo(() => {

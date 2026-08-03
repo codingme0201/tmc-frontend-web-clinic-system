@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useConsultations } from '../hooks/useConsultations'
 import { useStaff } from '../hooks/useStaff'
 import { useToast } from '../hooks/useToast'
-import { useDebounce } from '../hooks/useDebounce'
+import { useSearch } from '../hooks/useSearch'
+import { useModal } from '../hooks/useModal'
 import { usePagination } from '../hooks/usePagination'
 import { useAppContext } from '../context/AppContext'
 import { formatDate, timeToMinutes } from '../lib/format'
@@ -98,13 +99,13 @@ function Consultations({ page }) {
   const canRecord = MEDICAL_ROLES.includes(userRole)
 
   // Search / filter state
-  const [search, setSearch] = useState('')
+  const { search, setSearch, debouncedSearch, resetSearch } = useSearch({ debounceMs: 300 })
   const [statusFilter, setStatusFilter] = useState('All')
 
   // Modal state
   const [workspace, setWorkspace] = useState(null) // consultation being recorded
   const [details, setDetails] = useState(null) // read-only details target
-  const [confirmComplete, setConfirmComplete] = useState(false)
+  const confirmComplete = useModal()
   const [busy, setBusy] = useState(false)
   // Ref latch guards against double-submission within the same render tick
   // (state-based `busy` only protects after the next re-render).
@@ -123,9 +124,6 @@ function Consultations({ page }) {
       Completed: count('Completed'),
     }
   }, [consultations])
-
-  // Search is debounced so filtering doesn't run on every keystroke.
-  const debouncedSearch = useDebounce(search, 300)
 
   // Search + filter pipeline (runs against the debounced query)
   const filtered = useMemo(() => {
@@ -215,7 +213,7 @@ function Consultations({ page }) {
       showToast('Please complete the required fields before finishing the consultation.', 'error')
       return
     }
-    setConfirmComplete(true)
+    confirmComplete.open()
   }
 
   const handleConfirmComplete = async () => {
@@ -225,7 +223,7 @@ function Consultations({ page }) {
     try {
       const completed = await completeConsultation(workspace.id, draftToPatch(draft))
       showToast(`Consultation ${completed.reference} completed successfully.`)
-      setConfirmComplete(false)
+      confirmComplete.close()
       setWorkspace(null)
       setDraftErrors({})
     } catch (err) {
@@ -237,7 +235,7 @@ function Consultations({ page }) {
   }
 
   const clearFilters = () => {
-    setSearch('')
+    resetSearch()
     setStatusFilter('All')
   }
 
@@ -640,14 +638,14 @@ function Consultations({ page }) {
       )}
 
       {/* ============ COMPLETE CONFIRMATION MODAL ============ */}
-      {confirmComplete && workspace && (
+      {confirmComplete.isOpen && workspace && (
         <div
           className="modal-backdrop"
           role="dialog"
           aria-modal="true"
           aria-label="Confirm consultation completion"
           onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !busy) setConfirmComplete(false)
+            if (e.target === e.currentTarget && !busy) confirmComplete.close()
           }}
         >
           <div className="modal-card modal-card-sm">
@@ -657,7 +655,7 @@ function Consultations({ page }) {
                 type="button"
                 className="btn-modal-close"
                 onClick={() => {
-                  if (!busy) setConfirmComplete(false)
+                  if (!busy) confirmComplete.close()
                 }}
               >
                 ✕
@@ -687,7 +685,7 @@ function Consultations({ page }) {
                   type="button"
                   className="secondary-pill"
                   onClick={() => {
-                    if (!busy) setConfirmComplete(false)
+                    if (!busy) confirmComplete.close()
                   }}
                   disabled={busy}
                 >

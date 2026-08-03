@@ -1,5 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
-import { AppContext } from './AppContext'
+/* eslint-disable react-refresh/only-export-components */
+// The context object, provider, and consumer hook intentionally live in one
+// file as a single composition root. Fast Refresh falls back to a full
+// reload when this file changes — an acceptable trade-off for the merge.
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { useAppointmentsStore } from '../hooks/useAppointments'
 import { usePatientsStore } from '../hooks/usePatients'
 import { useConsultationsStore } from '../hooks/useConsultations'
@@ -8,6 +11,8 @@ import { useStaffStore } from '../hooks/useStaff'
 import { useActivityLogsStore } from '../hooks/useActivityLogs'
 import { useClinicEventsStore } from '../hooks/useClinicEvents'
 import { useClinicInsightsStore } from '../hooks/useClinicInsights'
+
+export const AppContext = createContext(undefined)
 
 /**
  * Composition root for app-wide state.
@@ -118,4 +123,12 @@ export function AppProvider({ children }) {
   )
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
+}
+
+export function useAppContext() {
+  const context = useContext(AppContext)
+  if (context === undefined) {
+    throw new Error('useAppContext must be used within an AppProvider')
+  }
+  return context
 }

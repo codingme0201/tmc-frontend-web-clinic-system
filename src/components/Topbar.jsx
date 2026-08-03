@@ -1,24 +1,25 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import Icon from './Icon'
 import { useAppContext } from '../context/AppContext'
+import { useToggle } from '../hooks/useToggle'
 
 function Topbar({ onToggleSidebar }) {
   const { logout } = useAppContext()
-  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [dropdownOpen, toggleDropdown, , closeDropdown] = useToggle(false)
   const dropdownRef = useRef(null)
 
   useEffect(() => {
     const handler = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setDropdownOpen(false)
+        closeDropdown()
       }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [])
+  }, [closeDropdown])
 
   const handleLogout = () => {
-    setDropdownOpen(false)
+    closeDropdown()
     const confirmed = window.confirm('Sign out of Admin Panel? You will be returned to the login page.')
     if (confirmed) logout()
   }
@@ -55,7 +56,7 @@ function Topbar({ onToggleSidebar }) {
           <button
             type="button"
             className="admin-profile-trigger"
-            onClick={() => setDropdownOpen((open) => !open)}
+            onClick={toggleDropdown}
             aria-label="Account menu"
           >
             <div className="admin-profile" aria-hidden="true">

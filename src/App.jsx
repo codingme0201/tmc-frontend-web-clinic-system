@@ -1,6 +1,5 @@
 import './App.css'
-import { useAppContext } from './context/AppContext'
-import { AppProvider } from './context/AppProvider'
+import { useAppContext, AppProvider } from './context/AppContext'
 import AdminLayout from './layouts/AdminLayout'
 import Dashboard from './pages/Dashboard'
 import Appointments from './pages/Appointments'

@@ -1,29 +1,29 @@
-import { useState } from 'react'
 import Sidebar from '../components/Sidebar'
 import Topbar from '../components/Topbar'
+import { useToggle } from '../hooks/useToggle'
 
 function AdminLayout({ children }) {
-  const [desktopCollapsed, setDesktopCollapsed] = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
+  const [desktopCollapsed, toggleDesktopCollapsed] = useToggle(false)
+  const [mobileOpen, toggleMobile, , closeMobile] = useToggle(false)
 
   const toggleSidebar = () => {
     if (window.innerWidth < 980) {
-      setMobileOpen((open) => !open)
+      toggleMobile()
     } else {
-      setDesktopCollapsed((collapsed) => !collapsed)
+      toggleDesktopCollapsed()
     }
   }
 
   return (
     <div className={`admin-shell ${desktopCollapsed ? 'sidebar-collapsed' : ''}`}>
       {mobileOpen && (
-        <div className="sidebar-overlay" onClick={() => setMobileOpen(false)} />
+        <div className="sidebar-overlay" onClick={closeMobile} />
       )}
 
       <Sidebar
         collapsed={desktopCollapsed}
         mobileOpen={mobileOpen}
-        onNavigate={() => setMobileOpen(false)}
+        onNavigate={closeMobile}
       />
 
       <div className="admin-main">

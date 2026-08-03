@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMedicalRecords } from '../hooks/useMedicalRecords'
 import { useConsultations } from '../hooks/useConsultations'
 import { useToast } from '../hooks/useToast'
+import { useForm } from '../hooks/useForm'
 import { useMedicalRecordList } from '../hooks/useMedicalRecordList'
 import { useAppContext } from '../context/AppContext'
 import { formatDate, initials, todayISO } from '../lib/format'
@@ -248,9 +249,12 @@ function MedicalRecords({ page }) {
   // Form drafts for the management modals
   const emptyConditionForm = () => ({ name: '', status: 'Active', diagnosedDate: todayISO(), notes: '' })
   const emptyAllergyForm = () => ({ allergen: '', reaction: '', severity: 'Moderate', dateRecorded: todayISO(), notes: '' })
-  const [conditionForm, setConditionForm] = useState(emptyConditionForm)
-  const [allergyForm, setAllergyForm] = useState(emptyAllergyForm)
-  const [formError, setFormError] = useState('')
+  const conditionForm = useForm(emptyConditionForm(), {
+    validate: (values) => (values.name.trim() ? {} : { name: 'Condition name is required.' }),
+  })
+  const allergyForm = useForm(emptyAllergyForm(), {
+    validate: (values) => (values.allergen.trim() ? {} : { allergen: 'Allergen is required.' }),
+  })
 
   // Per-patient consultation metadata (count + last date) from the shared store.
   const consultMeta = useMemo(() => {
@@ -309,28 +313,25 @@ function MedicalRecords({ page }) {
   // ---------- Condition handlers ----------
   const openConditionModal = (record, condition = null) => {
     setConditionModal({ record, condition })
-    setConditionForm(
+    conditionForm.reset(
       condition
         ? { name: condition.name, status: condition.status, diagnosedDate: condition.diagnosedDate, notes: condition.notes }
         : emptyConditionForm(),
     )
-    setFormError('')
   }
 
   const handleSaveCondition = async () => {
     if (!conditionModal || busy || busyRef.current) return
-    if (!conditionForm.name.trim()) {
-      setFormError('Condition name is required.')
-      return
-    }
+    const validationErrors = conditionForm.runValidation()
+    if (Object.keys(validationErrors).length > 0) return
     busyRef.current = true
     setBusy(true)
     try {
       const payload = {
-        name: conditionForm.name.trim(),
-        status: conditionForm.status,
-        diagnosedDate: conditionForm.diagnosedDate || todayISO(),
-        notes: conditionForm.notes.trim(),
+        name: conditionForm.values.name.trim(),
+        status: conditionForm.values.status,
+        diagnosedDate: conditionForm.values.diagnosedDate || todayISO(),
+        notes: conditionForm.values.notes.trim(),
       }
       if (conditionModal.condition) {
         await updateCondition(conditionModal.record.id, conditionModal.condition.id, payload)
@@ -367,29 +368,26 @@ function MedicalRecords({ page }) {
   // ---------- Allergy handlers ----------
   const openAllergyModal = (record, allergy = null) => {
     setAllergyModal({ record, allergy })
-    setAllergyForm(
+    allergyForm.reset(
       allergy
         ? { allergen: allergy.allergen, reaction: allergy.reaction, severity: allergy.severity, dateRecorded: allergy.dateRecorded, notes: allergy.notes }
         : emptyAllergyForm(),
     )
-    setFormError('')
   }
 
   const handleSaveAllergy = async () => {
     if (!allergyModal || busy || busyRef.current) return
-    if (!allergyForm.allergen.trim()) {
-      setFormError('Allergen is required.')
-      return
-    }
+    const validationErrors = allergyForm.runValidation()
+    if (Object.keys(validationErrors).length > 0) return
     busyRef.current = true
     setBusy(true)
     try {
       const payload = {
-        allergen: allergyForm.allergen.trim(),
-        reaction: allergyForm.reaction.trim(),
-        severity: allergyForm.severity,
-        dateRecorded: allergyForm.dateRecorded || todayISO(),
-        notes: allergyForm.notes.trim(),
+        allergen: allergyForm.values.allergen.trim(),
+        reaction: allergyForm.values.reaction.trim(),
+        severity: allergyForm.values.severity,
+        dateRecorded: allergyForm.values.dateRecorded || todayISO(),
+        notes: allergyForm.values.notes.trim(),
       }
       if (allergyModal.allergy) {
         await updateAllergy(allergyModal.record.id, allergyModal.allergy.id, payload)
@@ -1067,15 +1065,15 @@ function MedicalRecords({ page }) {
                   <input
                     type="text"
                     placeholder="e.g. Hypertension"
-                    value={conditionForm.name}
-                    onChange={(e) => setConditionForm((f) => ({ ...f, name: e.target.value }))}
+                    value={conditionForm.values.name}
+                    onChange={(e) => conditionForm.setValue('name', e.target.value)}
                     disabled={busy}
                   />
                 </label>
                 <div className="form-row-grid">
                   <label>
                     Status
-                    <select value={conditionForm.status} onChange={(e) => setConditionForm((f) => ({ ...f, status: e.target.value }))} disabled={busy}>
+                    <select value={conditionForm.values.status} onChange={(e) => conditionForm.setValue('status', e.target.value)} disabled={busy}>
                       {CONDITION_STATUSES.map((s) => (
                         <option key={s} value={s}>{s}</option>
                       ))}
@@ -1085,8 +1083,8 @@ function MedicalRecords({ page }) {
                     Date diagnosed
                     <input
                       type="date"
-                      value={conditionForm.diagnosedDate}
-                      onChange={(e) => setConditionForm((f) => ({ ...f, diagnosedDate: e.target.value }))}
+                      value={conditionForm.values.diagnosedDate}
+                      onChange={(e) => conditionForm.setValue('diagnosedDate', e.target.value)}
                       disabled={busy}
                     />
                   </label>
@@ -1095,12 +1093,12 @@ function MedicalRecords({ page }) {
                   Notes
                   <textarea
                     placeholder="e.g. Patient advised to monitor blood pressure regularly."
-                    value={conditionForm.notes}
-                    onChange={(e) => setConditionForm((f) => ({ ...f, notes: e.target.value }))}
+                    value={conditionForm.values.notes}
+                    onChange={(e) => conditionForm.setValue('notes', e.target.value)}
                     disabled={busy}
                   />
                 </label>
-                {formError && <p className="section-error">{formError}</p>}
+                {conditionForm.errors.name && <p className="section-error">{conditionForm.errors.name}</p>}
               </div>
             </div>
             <div className="modal-footer">
@@ -1140,8 +1138,8 @@ function MedicalRecords({ page }) {
                   <input
                     type="text"
                     placeholder="e.g. Penicillin"
-                    value={allergyForm.allergen}
-                    onChange={(e) => setAllergyForm((f) => ({ ...f, allergen: e.target.value }))}
+                    value={allergyForm.values.allergen}
+                    onChange={(e) => allergyForm.setValue('allergen', e.target.value)}
                     disabled={busy}
                   />
                 </label>
@@ -1150,15 +1148,15 @@ function MedicalRecords({ page }) {
                   <input
                     type="text"
                     placeholder="e.g. Skin rash"
-                    value={allergyForm.reaction}
-                    onChange={(e) => setAllergyForm((f) => ({ ...f, reaction: e.target.value }))}
+                    value={allergyForm.values.reaction}
+                    onChange={(e) => allergyForm.setValue('reaction', e.target.value)}
                     disabled={busy}
                   />
                 </label>
                 <div className="form-row-grid">
                   <label>
                     Severity
-                    <select value={allergyForm.severity} onChange={(e) => setAllergyForm((f) => ({ ...f, severity: e.target.value }))} disabled={busy}>
+                    <select value={allergyForm.values.severity} onChange={(e) => allergyForm.setValue('severity', e.target.value)} disabled={busy}>
                       {ALLERGY_SEVERITIES.map((s) => (
                         <option key={s} value={s}>{s}</option>
                       ))}
@@ -1168,8 +1166,8 @@ function MedicalRecords({ page }) {
                     Date recorded
                     <input
                       type="date"
-                      value={allergyForm.dateRecorded}
-                      onChange={(e) => setAllergyForm((f) => ({ ...f, dateRecorded: e.target.value }))}
+                      value={allergyForm.values.dateRecorded}
+                      onChange={(e) => allergyForm.setValue('dateRecorded', e.target.value)}
                       disabled={busy}
                     />
                   </label>
@@ -1178,12 +1176,12 @@ function MedicalRecords({ page }) {
                   Notes
                   <textarea
                     placeholder="e.g. Avoid penicillin-based antibiotics."
-                    value={allergyForm.notes}
-                    onChange={(e) => setAllergyForm((f) => ({ ...f, notes: e.target.value }))}
+                    value={allergyForm.values.notes}
+                    onChange={(e) => allergyForm.setValue('notes', e.target.value)}
                     disabled={busy}
                   />
                 </label>
-                {formError && <p className="section-error">{formError}</p>}
+                {allergyForm.errors.allergen && <p className="section-error">{allergyForm.errors.allergen}</p>}
               </div>
             </div>
             <div className="modal-footer">

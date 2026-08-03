@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useDebounce } from './useDebounce'
+import { useSearch } from './useSearch'
 import { usePagination } from './usePagination'
 
 /**
@@ -21,11 +21,9 @@ import { usePagination } from './usePagination'
  * (list rows + <Pagination>) stays unchanged.
  */
 export function useMedicalRecordList(records, { pageSize = 8, debounceDelay = 300 } = {}) {
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('All')
-
   // Debounced query — the same value would be sent to the API as `?q=`.
-  const debouncedSearch = useDebounce(search, debounceDelay)
+  const { search, setSearch, debouncedSearch, resetSearch } = useSearch({ debounceMs: debounceDelay })
+  const [statusFilter, setStatusFilter] = useState('All')
 
   // Search + filter pipeline (runs against the debounced query only).
   const filtered = useMemo(() => {
@@ -68,7 +66,7 @@ export function useMedicalRecordList(records, { pageSize = 8, debounceDelay = 30
   )
 
   const clearFilters = () => {
-    setSearch('')
+    resetSearch()
     setStatusFilter('All')
   }
 

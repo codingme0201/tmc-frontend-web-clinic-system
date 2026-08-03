@@ -1,22 +1,22 @@
 import { useState } from 'react'
 import { useAppContext } from '../context/AppContext'
+import { useForm } from '../hooks/useForm'
 
 function Login() {
   const { login } = useAppContext()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const form = useForm({ email: '', password: '' })
 
   const handleSubmit = (e) => {
     e.preventDefault()
     setError('')
 
-    if (!email || !password) {
+    if (!form.values.email || !form.values.password) {
       setError('Please fill in all fields.')
       return
     }
 
-    if (email === 'admin@tmc.edu.ph' && password === 'admin123') {
+    if (form.values.email === 'admin@tmc.edu.ph' && form.values.password === 'admin123') {
       login()
     } else {
       setError('Invalid email or password. Please try again.')
@@ -53,8 +53,8 @@ function Login() {
             <input
               type="email"
               placeholder="admin@tmc.edu.ph"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={form.values.email}
+              onChange={(e) => form.setValue('email', e.target.value)}
               required
             />
           </label>
@@ -63,8 +63,8 @@ function Login() {
             <input
               type="password"
               placeholder="Enter password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={form.values.password}
+              onChange={(e) => form.setValue('password', e.target.value)}
               required
             />
           </label>
