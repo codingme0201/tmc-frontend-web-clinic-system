@@ -1,13 +1,16 @@
 // Shared data-layer utilities.
 //
 // THIS MODULE IS THE SEAM between mock data and a real REST backend:
-//  - Hooks call service functions and know nothing about fetch/mock data.
+//  - Hooks call service functions and know nothing about axios/mock data.
 //  - Services currently resolve with mock data after a simulated latency.
-//  - To go live, replace each service implementation with real fetch()
-//    calls (or a generated client) — hooks and pages stay untouched.
+//  - To go live, replace each service implementation with real calls via
+//    `request()` (below) — hooks and pages stay untouched.
 //
-// Authentication (Phase 1) already uses the real Laravel REST API through
-// `request()` below; the domain services can be migrated the same way.
+// Authentication (Phase 1) and the integrated modules (Roles & Permissions,
+// Appointments) use the real Laravel REST API through `request()`; the
+// remaining domain services can be migrated the same way.
+
+import axios from 'axios'
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api'
 const TOKEN_STORAGE_KEY = 'tmc_token'
@@ -27,6 +30,29 @@ export class ApiError extends Error {
     this.status = status
   }
 }
+
+// --- Axios instance (the single HTTP client) ------------------------------
+
+/**
+ * Shared axios instance for the Laravel REST API.
+ *
+ * Centralises the base URL and the bearer-token header (see the request
+ * interceptor below), so services only describe the path, method and body.
+ * `request()` unwraps `response.data` for callers.
+ */
+export const http = axios.create({
+  baseURL: API_BASE,
+  headers: { Accept: 'application/json' },
+})
+
+// Attach the persisted Sanctum bearer token to every outgoing request.
+http.interceptors.request.use((config) => {
+  const token = getAuthToken()
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
 
 // --- Auth token persistence (localStorage) --------------------------------
 
@@ -52,38 +78,36 @@ export function clearAuthToken() {
 /**
  * JSON request helper for the Laravel REST API.
  *
- * Attaches the stored bearer token when present, always requests JSON, and
- * throws an `ApiError` carrying the server-provided message for non-2xx
- * responses so callers can surface useful errors (e.g. invalid credentials,
- * validation failures).
+ * Built on the shared axios instance: the stored bearer token is attached by
+ * an interceptor, requests always ask for JSON, and non-2xx responses are
+ * thrown as an `ApiError` carrying the server-provided message so callers can
+ * surface useful errors (e.g. invalid credentials, validation failures).
  *
  * @param {string} path API path relative to the base (e.g. '/login').
  * @param {{ method?: string, body?: Object, headers?: Object }} [options]
  * @returns {Promise<any>} Parsed JSON body.
  */
 export async function request(path, { method = 'GET', body, headers } = {}) {
-  const token = getAuthToken()
-  const response = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...headers,
-    },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
-
-  const data = await response.json().catch(() => null)
-
-  if (!response.ok) {
-    const message =
-      data?.message ??
-      (data?.errors ? 'Please check the information you entered.' : `Request failed (${response.status}).`)
-    const error = new ApiError(message, response.status)
-    error.data = data
+  try {
+    const response = await http.request({ url: path, method, data: body, headers })
+    return response.data
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status ?? 0
+      const data = error.response?.data
+      // Network failures have no response; surface axios's own message
+      // (e.g. "Network Error") instead of a cryptic status code.
+      const message =
+        data?.message ??
+        (data?.errors
+          ? 'Please check the information you entered.'
+          : status > 0
+            ? `Request failed (${status}).`
+            : error.message)
+      const apiError = new ApiError(message, status)
+      apiError.data = data
+      throw apiError
+    }
     throw error
   }
-
-  return data
 }
