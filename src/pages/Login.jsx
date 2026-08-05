@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { useAppContext } from '../context/AppContext'
+import { useAuth } from '../hooks/useAuth'
 import { useForm } from '../hooks/useForm'
 
 function Login() {
-  const { login } = useAppContext()
+  const { login } = useAuth()
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const form = useForm({ email: '', password: '' })

@@ -1,5 +1,7 @@
 import './App.css'
 import { useAppContext, AppProvider } from './context/AppContext'
+import { AuthProvider } from './context/AuthContext'
+import { useAuth } from './hooks/useAuth'
 import AdminLayout from './layouts/AdminLayout'
 import Dashboard from './pages/Dashboard'
 import Appointments from './pages/Appointments'
@@ -20,7 +22,8 @@ const pageComponents = {
 }
 
 function AppContent() {
-  const { activePage, isAuthenticated, authLoading } = useAppContext()
+  const { activePage } = useAppContext()
+  const { isAuthenticated, authLoading } = useAuth()
 
   // While the persisted token is validated against the API, show a loading
   // state instead of flashing the login page.
@@ -48,9 +51,11 @@ function AppContent() {
 
 function App() {
   return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
+    <AuthProvider>
+      <AppProvider>
+        <AppContent />
+      </AppProvider>
+    </AuthProvider>
   )
 }
 

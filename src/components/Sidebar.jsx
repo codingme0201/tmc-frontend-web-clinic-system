@@ -1,9 +1,11 @@
 import Icon from './Icon'
 import { useAppContext } from '../context/AppContext'
+import { useAuth } from '../hooks/useAuth'
 import { navSections } from '../lib/navigation'
 
 function Sidebar({ collapsed = false, mobileOpen = false, onNavigate }) {
-  const { activePage, navigate, logout } = useAppContext()
+  const { activePage, navigate } = useAppContext()
+  const { logout } = useAuth()
 
   const handleNavigate = (pageId) => {
     navigate(pageId)

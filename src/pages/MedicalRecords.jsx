@@ -4,7 +4,7 @@ import { useConsultations } from '../hooks/useConsultations'
 import { useToast } from '../hooks/useToast'
 import { useForm } from '../hooks/useForm'
 import { useMedicalRecordList } from '../hooks/useMedicalRecordList'
-import { useAppContext } from '../context/AppContext'
+import { useAuth } from '../hooks/useAuth'
 import { formatDate, initials, todayISO } from '../lib/format'
 import Toast from '../components/Toast'
 import StatusBadge from '../components/StatusBadge'
@@ -214,7 +214,7 @@ function MedicalRecords({ page }) {
   } = useMedicalRecords()
   const { data: consultations } = useConsultations()
   const { toast, showToast, dismiss } = useToast()
-  const { userRole } = useAppContext()
+  const { userRole } = useAuth()
   const canEdit = MEDICAL_ROLES.includes(userRole)
 
   // ---------- List state (debounced search + filter + pagination, API-ready) ----------

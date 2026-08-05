@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react'
 import Icon from './Icon'
-import { useAppContext } from '../context/AppContext'
+import { useAuth } from '../hooks/useAuth'
 import { useToggle } from '../hooks/useToggle'
 
 function Topbar({ onToggleSidebar }) {
-  const { logout } = useAppContext()
+  const { logout } = useAuth()
   const [dropdownOpen, toggleDropdown, , closeDropdown] = useToggle(false)
   const dropdownRef = useRef(null)
 

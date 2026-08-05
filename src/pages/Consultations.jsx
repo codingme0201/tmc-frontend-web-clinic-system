@@ -5,7 +5,7 @@ import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { useModal } from '../hooks/useModal'
 import { usePagination } from '../hooks/usePagination'
-import { useAppContext } from '../context/AppContext'
+import { useAuth } from '../hooks/useAuth'
 import { formatDate, timeToMinutes } from '../lib/format'
 import Toast from '../components/Toast'
 import StatusBadge from '../components/StatusBadge'
@@ -95,7 +95,7 @@ function Consultations({ page }) {
   } = useConsultations()
   const { data: staff } = useStaff()
   const { toast, showToast, dismiss } = useToast()
-  const { userRole } = useAppContext()
+  const { userRole } = useAuth()
   const canRecord = MEDICAL_ROLES.includes(userRole)
 
   // Search / filter state
