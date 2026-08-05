@@ -2,10 +2,9 @@ import { useMemo, useRef, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useRoles } from '../hooks/useRoles'
 import { usePermissions } from '../hooks/usePermissions'
-import { useForm } from '../hooks/useForm'
+import { useForm } from 'react-hook-form'
 import { useToast } from '../hooks/useToast'
 import { rolesService } from '../services/rolesService'
-import Toast from '../components/Toast'
 import Skeleton from '../components/Skeleton'
 import { EmptyState, ErrorState } from '../components/AsyncState'
 
@@ -21,7 +20,7 @@ function RolesPermissions({ page }) {
   const { can } = useAuth()
   const roles = useRoles()
   const permissions = usePermissions()
-  const { toast, showToast, dismiss } = useToast()
+  const { showToast } = useToast()
 
   // Permission catalog grouped by module for the assignment UI.
   const permissionGroups = useMemo(() => {
@@ -39,7 +38,7 @@ function RolesPermissions({ page }) {
   // Create / edit role modal
   const [editing, setEditing] = useState(null) // null = create mode
   const [roleModalOpen, setRoleModalOpen] = useState(false)
-  const roleForm = useForm({ name: '', description: '' })
+  const roleForm = useForm({ defaultValues: { name: '', description: '' } })
 
   // Assign-permissions modal
   const [permTarget, setPermTarget] = useState(null)
@@ -58,7 +57,7 @@ function RolesPermissions({ page }) {
 
   const openCreate = () => {
     setEditing(null)
-    roleForm.reset({ name: '', description: '' })
+    roleForm.reset()
     setRoleModalOpen(true)
   }
 
@@ -68,19 +67,20 @@ function RolesPermissions({ page }) {
     setRoleModalOpen(true)
   }
 
-  const handleSaveRole = async (e) => {
-    e.preventDefault()
+  // RHF blocks submission when the name is empty; the onInvalid handler
+  // preserves the previous inline error toast for that case.
+  const submitRoleForm = (event) => {
+    roleForm.handleSubmit(handleSaveRole, () => showToast('Role name is required.', 'error'))(event)
+  }
+
+  const handleSaveRole = async ({ name, description }) => {
     if (busyRef.current) return
-    if (!roleForm.values.name.trim()) {
-      showToast('Role name is required.', 'error')
-      return
-    }
 
     busyRef.current = true
     setBusy(true)
     const payload = {
-      name: roleForm.values.name.trim(),
-      description: roleForm.values.description.trim() || null,
+      name: name.trim(),
+      description: description.trim() || null,
     }
     try {
       if (editing) {
@@ -302,16 +302,14 @@ function RolesPermissions({ page }) {
               </button>
             </div>
             <div className="modal-body">
-              <form className="sidebar-form" onSubmit={handleSaveRole}>
+              <form className="sidebar-form" onSubmit={submitRoleForm}>
                 <label>
                   Role Name
                   <input
                     type="text"
                     placeholder="e.g. front-desk"
-                    value={roleForm.values.name}
-                    onChange={(e) => roleForm.setValue('name', e.target.value)}
+                    {...roleForm.register('name', { required: 'Role name is required.' })}
                     disabled={busy}
-                    required
                   />
                 </label>
                 <label>
@@ -319,8 +317,7 @@ function RolesPermissions({ page }) {
                   <input
                     type="text"
                     placeholder="What is this role for?"
-                    value={roleForm.values.description}
-                    onChange={(e) => roleForm.setValue('description', e.target.value)}
+                    {...roleForm.register('description')}
                     disabled={busy}
                   />
                 </label>
@@ -492,7 +489,6 @@ function RolesPermissions({ page }) {
         </div>
       )}
 
-      <Toast toast={toast} onDismiss={dismiss} />
     </div>
   )
 }

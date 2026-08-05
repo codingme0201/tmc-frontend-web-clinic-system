@@ -2,7 +2,8 @@
 // The context object, provider, and consumer hook intentionally live in one
 // file as a single composition root. Fast Refresh falls back to a full
 // reload when this file changes — an acceptable trade-off for the merge.
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useMemo } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAppointmentsStore } from '../hooks/useAppointments'
 import { usePatientsStore } from '../hooks/usePatients'
 import { useConsultationsStore } from '../hooks/useConsultations'
@@ -11,57 +12,29 @@ import { useStaffStore } from '../hooks/useStaff'
 import { useActivityLogsStore } from '../hooks/useActivityLogs'
 import { useClinicEventsStore } from '../hooks/useClinicEvents'
 import { useClinicInsightsStore } from '../hooks/useClinicInsights'
-import { useAuth } from '../hooks/useAuth'
 
 export const AppContext = createContext(undefined)
 
 /**
  * Composition root for app-wide page/navigation + domain state.
  *
- * - Auth (isAuthenticated, user, login, logout, …) lives in AuthContext; the
- *   hash-based route guarding below only *reads* it via useAuth().
+ * - Routing now lives in react-router (see App.jsx): this provider derives
+ *   `activePage` from the current location and exposes `navigate(pageId)`
+ *   so components keep the same navigation API as before.
  * - Each domain store hook (appointments, patients, etc.) is instantiated
  *   exactly once here and exposed through context, so every page consumes a
  *   single shared instance via the matching use* hook.
  *
- * Must be rendered inside an AuthProvider.
- *
+ * Must be rendered inside an AuthProvider and a Router (HashRouter).
  * The store hooks talk to the service layer only; pages never touch mock
  * data or services directly.
  */
 export function AppProvider({ children }) {
-  const { isAuthenticated, authLoading } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
 
-  const [activePage, setActivePage] = useState(() => {
-    const hash = window.location.hash.replace('#/', '')
-    return hash || 'dashboard'
-  })
-
-  useEffect(() => {
-    const handleHashChange = () => {
-      if (authLoading) return
-      const pageId = window.location.hash.replace('#/', '') || 'dashboard'
-      if (pageId === 'login' && isAuthenticated) {
-        window.location.hash = '#/dashboard'
-      } else if (pageId !== 'login' && !isAuthenticated) {
-        window.location.hash = '#/login'
-      } else {
-        setActivePage(pageId)
-      }
-    }
-    window.addEventListener('hashchange', handleHashChange)
-
-    // Sync initial route based on auth status
-    if (!authLoading) {
-      if (!isAuthenticated && window.location.hash !== '#/login') {
-        window.location.hash = '#/login'
-      } else if (isAuthenticated && (window.location.hash === '#/login' || !window.location.hash)) {
-        window.location.hash = '#/dashboard'
-      }
-    }
-
-    return () => window.removeEventListener('hashchange', handleHashChange)
-  }, [isAuthenticated, authLoading])
+  // The active page is the current route segment ('' → 'dashboard').
+  const activePage = location.pathname.replace(/^\//, '') || 'dashboard'
 
   // --- Domain stores (one instance, shared app-wide) -----------------------
   const activityLogs = useActivityLogsStore()
@@ -80,10 +53,7 @@ export function AppProvider({ children }) {
   const value = useMemo(
     () => ({
       activePage,
-      navigate: (pageId) => {
-        window.location.hash = '#/' + pageId
-        setActivePage(pageId)
-      },
+      navigate: (pageId) => navigate('/' + pageId),
       appointments,
       patients,
       consultations,
@@ -95,6 +65,7 @@ export function AppProvider({ children }) {
     }),
     [
       activePage,
+      navigate,
       appointments,
       patients,
       consultations,

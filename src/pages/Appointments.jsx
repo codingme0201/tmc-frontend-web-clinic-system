@@ -4,11 +4,10 @@ import { useStaff } from '../hooks/useStaff'
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { useModal } from '../hooks/useModal'
-import { useForm } from '../hooks/useForm'
+import { useForm } from 'react-hook-form'
 import { usePagination } from '../hooks/usePagination'
 import { formatDate, todayISO, timeToMinutes } from '../lib/format'
 import Pagination from '../components/Pagination'
-import Toast from '../components/Toast'
 import StatusBadge from '../components/StatusBadge'
 import { EmptyState, ErrorState } from '../components/AsyncState'
 import Skeleton from '../components/Skeleton'
@@ -33,7 +32,7 @@ function Appointments({ page }) {
     reschedule,
   } = useAppointments()
   const { data: staff } = useStaff()
-  const { toast, showToast, dismiss } = useToast()
+  const { showToast } = useToast()
 
   // Search / filter state
   const { search, setSearch, debouncedSearch, resetSearch } = useSearch({ debounceMs: 300 })
@@ -49,18 +48,20 @@ function Appointments({ page }) {
 
   // Book appointment form
   const bookForm = useForm({
-    patient: '',
-    type: 'Check-up',
-    reason: '',
-    date: todayISO(),
-    time: '09:00 AM',
-    staff: 'Unassigned',
+    defaultValues: {
+      patient: '',
+      type: 'Check-up',
+      reason: '',
+      date: todayISO(),
+      time: '09:00 AM',
+      staff: 'Unassigned',
+    },
   })
 
   // Reschedule form
-  const [rDate, setRDate] = useState('')
-  const [rTime, setRTime] = useState('')
-  const [rReason, setRReason] = useState('')
+  const rescheduleForm = useForm({
+    defaultValues: { date: '', time: '', reason: '' },
+  })
 
   // Reject / cancel reason
   const [reasonText, setReasonText] = useState('')
@@ -138,17 +139,15 @@ function Appointments({ page }) {
 
   const openReschedule = (app) => {
     setRescheduleTarget(app)
-    setRDate(app.date)
-    setRTime(app.time)
-    setRReason('')
+    rescheduleForm.reset({ date: app.date, time: app.time, reason: '' })
   }
 
-  const confirmReschedule = async () => {
-    if (!rescheduleTarget || busy || !rDate || !rTime) return
+  const confirmReschedule = async ({ date, time, reason }) => {
+    if (!rescheduleTarget || busy) return
     setBusy(true)
     try {
-      await reschedule(rescheduleTarget.id, { date: rDate, time: rTime, note: rReason.trim() })
-      showToast(`${rescheduleTarget.reference} rescheduled to ${formatDate(rDate)} at ${rTime}.`)
+      await reschedule(rescheduleTarget.id, { date, time, note: (reason || '').trim() })
+      showToast(`${rescheduleTarget.reference} rescheduled to ${formatDate(date)} at ${time}.`)
       setRescheduleTarget(null)
     } catch (err) {
       showToast(err?.message || 'Failed to reschedule the appointment.', 'error')
@@ -157,21 +156,21 @@ function Appointments({ page }) {
     }
   }
 
-  const handleBook = async (e) => {
-    e.preventDefault()
-    if (busy || !bookForm.values.patient.trim()) return
+  const handleBook = async ({ patient, type, reason, date, time, staff }) => {
+    if (busy) return
     setBusy(true)
     try {
       await createAppointment({
-        patient: bookForm.values.patient.trim(),
-        type: bookForm.values.type,
-        reason: bookForm.values.reason.trim() || bookForm.values.type,
-        date: bookForm.values.date,
-        time: bookForm.values.time,
-        staff: bookForm.values.staff === 'Unassigned' ? '' : bookForm.values.staff,
+        patient: patient.trim(),
+        type,
+        reason: reason.trim() || type,
+        date,
+        time,
+        staff: staff === 'Unassigned' ? '' : staff,
       })
       showToast('Appointment booked successfully.')
-      bookForm.setValues((prev) => ({ ...prev, patient: '', reason: '' }))
+      bookForm.setValue('patient', '')
+      bookForm.setValue('reason', '')
       bookModal.close()
     } catch (err) {
       showToast(err?.message || 'Failed to book the appointment.', 'error')
@@ -534,20 +533,14 @@ function Appointments({ page }) {
                   </span>
                 </div>
               </div>
-              <form
-                className="sidebar-form"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  confirmReschedule()
-                }}
-              >
+              <form className="sidebar-form" onSubmit={rescheduleForm.handleSubmit(confirmReschedule)}>
                 <label>
                   New Date
-                  <input type="date" value={rDate} onChange={(e) => setRDate(e.target.value)} required />
+                  <input type="date" {...rescheduleForm.register('date', { required: 'A new date is required.' })} />
                 </label>
                 <label>
                   New Time Slot
-                  <select value={rTime} onChange={(e) => setRTime(e.target.value)} required>
+                  <select {...rescheduleForm.register('time', { required: 'A new time slot is required.' })}>
                     {TIME_SLOTS.map((t) => (
                       <option key={t} value={t}>
                         {t}
@@ -559,8 +552,7 @@ function Appointments({ page }) {
                   Reason for Rescheduling (optional)
                   <textarea
                     placeholder="e.g. Patient requested a later slot due to class conflict"
-                    value={rReason}
-                    onChange={(e) => setRReason(e.target.value)}
+                    {...rescheduleForm.register('reason')}
                   />
                 </label>
                 <div className="modal-footer-actions">
@@ -664,21 +656,19 @@ function Appointments({ page }) {
               </button>
             </div>
             <div className="modal-body">
-              <form className="sidebar-form" onSubmit={handleBook}>
+              <form className="sidebar-form" onSubmit={bookForm.handleSubmit(handleBook)}>
                 <label>
                   Patient Name
                   <input
                     type="text"
                     placeholder="Enter patient name"
-                    value={bookForm.values.patient}
-                    onChange={(e) => bookForm.setValue('patient', e.target.value)}
-                    required
+                    {...bookForm.register('patient', { required: 'Patient name is required.' })}
                   />
                 </label>
                 <div className="form-row-grid">
                   <label>
                     Appointment Type
-                    <select value={bookForm.values.type} onChange={(e) => bookForm.setValue('type', e.target.value)}>
+                    <select {...bookForm.register('type')}>
                       {APPOINTMENT_TYPES.map((t) => (
                         <option key={t} value={t}>
                           {t}
@@ -688,7 +678,7 @@ function Appointments({ page }) {
                   </label>
                   <label>
                     Assigned Staff
-                    <select value={bookForm.values.staff} onChange={(e) => bookForm.setValue('staff', e.target.value)}>
+                    <select {...bookForm.register('staff')}>
                       <option value="Unassigned">Unassigned</option>
                       {staff.map((m) => (
                         <option key={m.name} value={m.name}>
@@ -702,18 +692,17 @@ function Appointments({ page }) {
                   Reason for Visit
                   <textarea
                     placeholder="Describe the reason for the visit"
-                    value={bookForm.values.reason}
-                    onChange={(e) => bookForm.setValue('reason', e.target.value)}
+                    {...bookForm.register('reason')}
                   />
                 </label>
                 <div className="form-row-grid">
                   <label>
                     Date
-                    <input type="date" value={bookForm.values.date} onChange={(e) => bookForm.setValue('date', e.target.value)} required />
+                    <input type="date" {...bookForm.register('date', { required: 'A date is required.' })} />
                   </label>
                   <label>
                     Time Slot
-                    <select value={bookForm.values.time} onChange={(e) => bookForm.setValue('time', e.target.value)}>
+                    <select {...bookForm.register('time')}>
                       {TIME_SLOTS.map((t) => (
                         <option key={t} value={t}>
                           {t}
@@ -736,7 +725,6 @@ function Appointments({ page }) {
         </div>
       )}
 
-      <Toast toast={toast} onDismiss={dismiss} />
     </div>
   )
 }

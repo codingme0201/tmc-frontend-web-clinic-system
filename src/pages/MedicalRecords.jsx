@@ -6,7 +6,6 @@ import { useForm } from '../hooks/useForm'
 import { useMedicalRecordList } from '../hooks/useMedicalRecordList'
 import { useAuth } from '../hooks/useAuth'
 import { formatDate, initials, todayISO } from '../lib/format'
-import Toast from '../components/Toast'
 import StatusBadge from '../components/StatusBadge'
 import Pagination from '../components/Pagination'
 import { EmptyState, ErrorState, LoadingState } from '../components/AsyncState'
@@ -213,7 +212,7 @@ function MedicalRecords({ page }) {
     removeAllergy,
   } = useMedicalRecords()
   const { data: consultations } = useConsultations()
-  const { toast, showToast, dismiss } = useToast()
+  const { showToast } = useToast()
   const { userRole } = useAuth()
   const canEdit = MEDICAL_ROLES.includes(userRole)
 
@@ -1243,7 +1242,6 @@ function MedicalRecords({ page }) {
       {/* ============ READ-ONLY MEDICATION DETAILS ============ */}
       {medDetails && <MedicationDetailsModal med={medDetails.med} patientName={medDetails.patientName} onClose={() => setMedDetails(null)} />}
 
-      <Toast toast={toast} onDismiss={dismiss} />
     </div>
   )
 }

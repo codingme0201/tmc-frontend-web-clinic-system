@@ -3,6 +3,7 @@
 // The context object and provider live here; the public `useAuth` consumer
 // hook lives in hooks/useAuth.js following the project's hook convention.
 import { createContext, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { authService } from '../services/authService'
 import { clearAuthToken, getAuthToken, setAuthToken } from '../services/api'
 
@@ -20,6 +21,7 @@ export const AuthContext = createContext(undefined)
  * by the shared request helper. Domain/pages state stays in AppContext.
  */
 export function AuthProvider({ children }) {
+  const navigate = useNavigate()
   const [isAuthenticated, setIsAuthenticated] = useState(() => getAuthToken() !== null)
   const [user, setUser] = useState(null)
   const [userRole, setUserRole] = useState(null)
@@ -70,11 +72,10 @@ export function AuthProvider({ children }) {
     setUser(authenticatedUser)
     setUserRole(authenticatedUser.role)
     setIsAuthenticated(true)
-    // Signal the AppContext routing guard (it listens for hash changes) to
-    // move the user onto the dashboard — sign-in always lands on the home
-    // page rather than a stale protected hash.
-    window.location.hash = '#/dashboard'
-  }, [])
+    // Move the user onto the dashboard — sign-in always lands on the home
+    // page rather than a stale protected route.
+    navigate('/dashboard')
+  }, [navigate])
 
   // Frontend convenience for UI gating (hiding buttons/menu items). The
   // Laravel backend remains the actual security boundary.
@@ -97,9 +98,9 @@ export function AuthProvider({ children }) {
       setUser(null)
       setUserRole(null)
       setIsAuthenticated(false)
-      window.location.hash = '#/login'
+      navigate('/login')
     }
-  }, [])
+  }, [navigate])
 
   const value = useMemo(
     () => ({

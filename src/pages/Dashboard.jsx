@@ -11,7 +11,6 @@ import { useSearch } from '../hooks/useSearch'
 import { usePagination } from '../hooks/usePagination'
 import { formatDate, todayISO } from '../lib/format'
 import Pagination from '../components/Pagination'
-import Toast from '../components/Toast'
 import StatusBadge from '../components/StatusBadge'
 import { EmptyState, ErrorState, LoadingState } from '../components/AsyncState'
 
@@ -56,7 +55,7 @@ function Dashboard() {
   const { data: activityLogs, isLoading: logsLoading, error: logsError, refetch: refetchLogs } = useActivityLogs()
   const { data: events, isLoading: eventsLoading, error: eventsError, refetch: refetchEvents, addEvent } = useClinicEvents()
   const { data: clinicInsights, isLoading: insightsLoading, error: insightsError, refetch: refetchInsights } = useClinicInsights()
-  const { toast, showToast, dismiss } = useToast()
+  const { showToast } = useToast()
 
   // Modals & Panels Active States
   const [selectedPatient, setSelectedPatient] = useState(null)
@@ -122,6 +121,7 @@ function Dashboard() {
       await createAppointment({
         patient: appPatient.trim(),
         type: appType,
+        date: todayISO(),
         time: appTime,
         reason: appType,
       })
@@ -1365,7 +1365,6 @@ function Dashboard() {
         </div>
       )}
 
-      <Toast toast={toast} onDismiss={dismiss} />
     </div>
   )
 }

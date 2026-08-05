@@ -1,29 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback } from 'react'
+import { toast as sonner } from 'sonner'
 
 /**
- * Lightweight toast state: `showToast(message, type)` displays a toast that
- * auto-dismisses. Returns `{ toast, showToast, dismiss }` where `toast` is
- * `{ id, message, type }` or `null`.
+ * Toast adapter over sonner.
+ *
+ * Pages keep calling `showToast(message, type)` — the app-level `<Toaster />`
+ * (App.jsx) renders the notifications. Sonner's API is used directly:
+ * success/error/info/warning map onto the matching toast variants.
  */
-export function useToast(duration = 3000) {
-  const [toast, setToast] = useState(null)
-  const timerRef = useRef(null)
-
-  const dismiss = useCallback(() => {
-    if (timerRef.current) clearTimeout(timerRef.current)
-    setToast(null)
+export function useToast() {
+  const showToast = useCallback((message, type = 'success') => {
+    if (type === 'error') sonner.error(message)
+    else if (type === 'warning') sonner.warning(message)
+    else if (type === 'info') sonner.info(message)
+    else sonner.success(message)
   }, [])
 
-  const showToast = useCallback(
-    (message, type = 'success') => {
-      setToast({ id: Date.now(), message, type })
-      if (timerRef.current) clearTimeout(timerRef.current)
-      timerRef.current = setTimeout(() => setToast(null), duration)
-    },
-    [duration],
-  )
-
-  useEffect(() => () => clearTimeout(timerRef.current), [])
-
-  return { toast, showToast, dismiss }
+  return { showToast }
 }

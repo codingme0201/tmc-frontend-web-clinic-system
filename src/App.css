@@ -340,6 +340,18 @@
   box-sizing: border-box;
 }
 
+/* Lucide icons replace the CSS-drawn nav-icon shapes: neutralise the old
+   pseudo-element drawings and center the SVG in the 20px slot. */
+.nav-icon-lucide {
+  display: grid;
+  place-items: center;
+}
+
+.nav-icon-lucide::before,
+.nav-icon-lucide::after {
+  content: none;
+}
+
 .nav-icon-grid::before {
   inset: 2px;
   border: 2px solid currentColor;

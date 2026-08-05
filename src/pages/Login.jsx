@@ -1,32 +1,32 @@
 import { useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useAuth } from '../hooks/useAuth'
-import { useForm } from '../hooks/useForm'
 
 function Login() {
   const { login } = useAuth()
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const form = useForm({ email: '', password: '' })
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm({ defaultValues: { email: '', password: '' } })
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const onSubmit = async ({ email, password }) => {
     if (submitting) return
     setError('')
 
-    if (!form.values.email || !form.values.password) {
-      setError('Please fill in all fields.')
-      return
-    }
-
     setSubmitting(true)
     try {
-      await login(form.values.email, form.values.password)
+      await login(email, password)
     } catch (err) {
       setError(err?.message || 'Unable to sign in. Please try again.')
     } finally {
       setSubmitting(false)
     }
   }
+
+  const hasValidationErrors = Object.keys(errors).length > 0
 
   return (
     <main className="login-page">
@@ -50,18 +50,20 @@ function Login() {
           <h2 id="login-title">Welcome back</h2>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          {error && <div className="error-banner" role="alert">{error}</div>}
+        <form onSubmit={handleSubmit(onSubmit)}>
+          {(error || hasValidationErrors) && (
+            <div className="error-banner" role="alert">
+              {hasValidationErrors ? 'Please fill in all fields.' : error}
+            </div>
+          )}
 
           <label>
             Email Address
             <input
               type="email"
               placeholder="admin@tmc.edu.ph"
-              value={form.values.email}
-              onChange={(e) => form.setValue('email', e.target.value)}
+              {...register('email', { required: 'Email address is required.' })}
               disabled={submitting}
-              required
             />
           </label>
           <label>
@@ -69,10 +71,8 @@ function Login() {
             <input
               type="password"
               placeholder="Enter password"
-              value={form.values.password}
-              onChange={(e) => form.setValue('password', e.target.value)}
+              {...register('password', { required: 'Password is required.' })}
               disabled={submitting}
-              required
             />
           </label>
           <button type="submit" className="primary-action full-width" disabled={submitting}>

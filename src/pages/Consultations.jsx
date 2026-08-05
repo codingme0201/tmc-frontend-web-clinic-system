@@ -7,7 +7,6 @@ import { useModal } from '../hooks/useModal'
 import { usePagination } from '../hooks/usePagination'
 import { useAuth } from '../hooks/useAuth'
 import { formatDate, timeToMinutes } from '../lib/format'
-import Toast from '../components/Toast'
 import StatusBadge from '../components/StatusBadge'
 import Pagination from '../components/Pagination'
 import { EmptyState, ErrorState, LoadingState } from '../components/AsyncState'
@@ -94,7 +93,7 @@ function Consultations({ page }) {
     completeConsultation,
   } = useConsultations()
   const { data: staff } = useStaff()
-  const { toast, showToast, dismiss } = useToast()
+  const { showToast } = useToast()
   const { userRole } = useAuth()
   const canRecord = MEDICAL_ROLES.includes(userRole)
 
@@ -800,7 +799,6 @@ function Consultations({ page }) {
         </div>
       )}
 
-      <Toast toast={toast} onDismiss={dismiss} />
     </div>
   )
 }
