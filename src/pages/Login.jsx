@@ -10,6 +10,7 @@ function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (submitting) return
     setError('')
 
     if (!form.values.email || !form.values.password) {
@@ -75,7 +76,8 @@ function Login() {
             />
           </label>
           <button type="submit" className="primary-action full-width" disabled={submitting}>
-            {submitting ? 'Signing in...' : 'Sign In'}
+            {submitting && <span className="spinner-sm" aria-hidden="true" />}
+            {submitting ? 'Logging in...' : 'Sign In'}
           </button>
         </form>
       </section>

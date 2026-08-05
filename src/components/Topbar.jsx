@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useToggle } from '../hooks/useToggle'
 
 function Topbar({ onToggleSidebar }) {
-  const { logout } = useAuth()
+  const { logout, isLoggingOut } = useAuth()
   const [dropdownOpen, toggleDropdown, , closeDropdown] = useToggle(false)
   const dropdownRef = useRef(null)
 
@@ -20,6 +20,7 @@ function Topbar({ onToggleSidebar }) {
 
   const handleLogout = () => {
     closeDropdown()
+    if (isLoggingOut) return
     const confirmed = window.confirm('Sign out of Admin Panel? You will be returned to the login page.')
     if (confirmed) logout()
   }
@@ -70,9 +71,14 @@ function Topbar({ onToggleSidebar }) {
                 <p>Admin User</p>
                 <span>Administrator</span>
               </div>
-              <button type="button" className="profile-dropdown-logout" onClick={handleLogout}>
-                <Icon name="logout" />
-                Sign out
+              <button
+                type="button"
+                className="profile-dropdown-logout"
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+              >
+                {isLoggingOut ? <span className="spinner-sm" aria-hidden="true" /> : <Icon name="logout" />}
+                {isLoggingOut ? 'Logging out...' : 'Sign out'}
               </button>
             </div>
           )}

@@ -2,7 +2,7 @@
 // Dedicated authentication context (Phase 1 — Laravel REST API + Sanctum).
 // The context object and provider live here; the public `useAuth` consumer
 // hook lives in hooks/useAuth.js following the project's hook convention.
-import { createContext, useCallback, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { authService } from '../services/authService'
 import { clearAuthToken, getAuthToken, setAuthToken } from '../services/api'
 
@@ -26,6 +26,11 @@ export function AuthProvider({ children }) {
   // True while the persisted token is being validated against the API on
   // initial load, so the app can avoid flashing the login page.
   const [authLoading, setAuthLoading] = useState(() => getAuthToken() !== null)
+  // True while the logout API call is in flight; exposed so logout controls
+  // can show a spinner and block duplicate submissions.
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+  // Refs guard against concurrent calls regardless of render timing.
+  const logoutInFlightRef = useRef(false)
 
   // Validate any persisted token against the backend on mount. When there is
   // no token, `authLoading` already initializes to false, so nothing to do.
@@ -72,12 +77,18 @@ export function AuthProvider({ children }) {
   }, [])
 
   const logout = useCallback(async () => {
+    // Prevent duplicate logout requests (e.g. double-click on the button).
+    if (logoutInFlightRef.current) return
+    logoutInFlightRef.current = true
+    setIsLoggingOut(true)
     try {
       await authService.logout()
     } catch {
       // The token may already be invalid on the server; local state must
       // still be cleared so protected pages are no longer reachable.
     } finally {
+      logoutInFlightRef.current = false
+      setIsLoggingOut(false)
       clearAuthToken()
       setUser(null)
       setUserRole(null)
@@ -92,10 +103,11 @@ export function AuthProvider({ children }) {
       user,
       userRole,
       authLoading,
+      isLoggingOut,
       login,
       logout,
     }),
-    [isAuthenticated, user, userRole, authLoading, login, logout],
+    [isAuthenticated, user, userRole, authLoading, isLoggingOut, login, logout],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

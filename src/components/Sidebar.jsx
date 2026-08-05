@@ -5,7 +5,7 @@ import { navSections } from '../lib/navigation'
 
 function Sidebar({ collapsed = false, mobileOpen = false, onNavigate }) {
   const { activePage, navigate } = useAppContext()
-  const { logout } = useAuth()
+  const { logout, isLoggingOut } = useAuth()
 
   const handleNavigate = (pageId) => {
     navigate(pageId)
@@ -48,11 +48,13 @@ function Sidebar({ collapsed = false, mobileOpen = false, onNavigate }) {
       <button
         type="button"
         className="logout-button"
-        title={collapsed ? 'Logout' : undefined}
+        title={collapsed ? (isLoggingOut ? 'Logging out...' : 'Logout') : undefined}
         onClick={logout}
+        disabled={isLoggingOut}
+        aria-label={isLoggingOut ? 'Logging out' : 'Logout'}
       >
-        <Icon name="logout" />
-        <span className="nav-item-label">Logout</span>
+        {isLoggingOut ? <span className="spinner-sm" aria-hidden="true" /> : <Icon name="logout" />}
+        <span className="nav-item-label">{isLoggingOut ? 'Logging out...' : 'Logout'}</span>
       </button>
     </aside>
   )

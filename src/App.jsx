@@ -9,7 +9,7 @@ import Consultations from './pages/Consultations'
 import MedicalRecords from './pages/MedicalRecords'
 import Login from './pages/Login'
 import PlaceholderPage from './pages/PlaceholderPage'
-import { LoadingState } from './components/AsyncState'
+import AuthLoadingScreen from './components/AuthLoadingScreen'
 import { pageContent } from './lib/navigation'
 
 // Only pages with a built-out UI need an entry here; anything else
@@ -25,14 +25,10 @@ function AppContent() {
   const { activePage } = useAppContext()
   const { isAuthenticated, authLoading } = useAuth()
 
-  // While the persisted token is validated against the API, show a loading
-  // state instead of flashing the login page.
+  // While the persisted token is validated against the API, show an
+  // app-shell skeleton instead of flashing the login page or the app.
   if (authLoading) {
-    return (
-      <div className="auth-loading-screen">
-        <LoadingState label="Checking your session..." />
-      </div>
-    )
+    return <AuthLoadingScreen />
   }
 
   if (!isAuthenticated) {
