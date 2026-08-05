@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard'
 import Appointments from './pages/Appointments'
 import Consultations from './pages/Consultations'
 import MedicalRecords from './pages/MedicalRecords'
+import RolesPermissions from './pages/RolesPermissions'
 import Login from './pages/Login'
 import PlaceholderPage from './pages/PlaceholderPage'
 import AuthLoadingScreen from './components/AuthLoadingScreen'
@@ -19,6 +20,7 @@ const pageComponents = {
   appointments: Appointments,
   consultations: Consultations,
   medicalRecords: MedicalRecords,
+  rolesPermissions: RolesPermissions,
 }
 
 function AppContent() {

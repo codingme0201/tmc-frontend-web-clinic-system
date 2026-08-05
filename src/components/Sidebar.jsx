@@ -5,7 +5,15 @@ import { navSections } from '../lib/navigation'
 
 function Sidebar({ collapsed = false, mobileOpen = false, onNavigate }) {
   const { activePage, navigate } = useAppContext()
-  const { logout, isLoggingOut } = useAuth()
+  const { logout, isLoggingOut, can } = useAuth()
+
+  // Module access control: only show nav items the user's role permits.
+  const visibleSections = navSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => !item.permission || can(item.permission)),
+    }))
+    .filter((section) => section.items.length > 0)
 
   const handleNavigate = (pageId) => {
     navigate(pageId)
@@ -26,7 +34,7 @@ function Sidebar({ collapsed = false, mobileOpen = false, onNavigate }) {
       </div>
 
       <nav className="sidebar-nav">
-        {navSections.map((section, sectionIndex) => (
+        {visibleSections.map((section, sectionIndex) => (
           <div className="nav-section" key={section.label ?? sectionIndex}>
             {section.label ? <p className="nav-section-label">{section.label}</p> : null}
             {section.items.map((item) => (

@@ -76,6 +76,10 @@ export function AuthProvider({ children }) {
     window.location.hash = '#/dashboard'
   }, [])
 
+  // Frontend convenience for UI gating (hiding buttons/menu items). The
+  // Laravel backend remains the actual security boundary.
+  const can = useCallback((permission) => user?.permissions?.includes(permission) ?? false, [user])
+
   const logout = useCallback(async () => {
     // Prevent duplicate logout requests (e.g. double-click on the button).
     if (logoutInFlightRef.current) return
@@ -104,10 +108,11 @@ export function AuthProvider({ children }) {
       userRole,
       authLoading,
       isLoggingOut,
+      can,
       login,
       logout,
     }),
-    [isAuthenticated, user, userRole, authLoading, isLoggingOut, login, logout],
+    [isAuthenticated, user, userRole, authLoading, isLoggingOut, can, login, logout],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

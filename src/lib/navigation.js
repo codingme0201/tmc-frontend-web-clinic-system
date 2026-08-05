@@ -2,42 +2,45 @@
 // This is UI config, not domain data — it stays even after the mock backend
 // is replaced with a real API.
 
+// Each item optionally declares the permission required to see it in the
+// sidebar (module access control). The Laravel backend enforces the same
+// permissions on the API — hiding items here is UX only.
 export const navSections = [
   {
-    items: [{ id: 'dashboard', label: 'Dashboard', icon: 'grid' }],
+    items: [{ id: 'dashboard', label: 'Dashboard', icon: 'grid', permission: 'dashboard.view' }],
   },
   {
     label: 'Clinic',
     items: [
-      { id: 'appointments', label: 'Appointments', icon: 'calendarCheck' },
-      { id: 'consultations', label: 'Consultations', icon: 'stethoscope' },
-      { id: 'medicalRecords', label: 'Medical Records', icon: 'folderHeart' },
-      { id: 'medicalCertificates', label: 'Medical Certificates', icon: 'certificate' },
-      { id: 'prescriptions', label: 'Prescriptions', icon: 'pill' },
+      { id: 'appointments', label: 'Appointments', icon: 'calendarCheck', permission: 'appointments.view' },
+      { id: 'consultations', label: 'Consultations', icon: 'stethoscope', permission: 'consultations.view' },
+      { id: 'medicalRecords', label: 'Medical Records', icon: 'folderHeart', permission: 'medical_records.view' },
+      { id: 'medicalCertificates', label: 'Medical Certificates', icon: 'certificate', permission: 'medical_certificates.view' },
+      { id: 'prescriptions', label: 'Prescriptions', icon: 'pill', permission: 'prescriptions.view' },
     ],
   },
   {
-    items: [{ id: 'patients', label: 'Patients', icon: 'users' }],
+    items: [{ id: 'patients', label: 'Patients', icon: 'users', permission: 'patients.view' }],
   },
   {
     label: 'Schedules',
     items: [
-      { id: 'staffSchedule', label: 'Doctor/Nurse Schedule', icon: 'clipboardClock' },
-      { id: 'clinicCalendar', label: 'Clinic Calendar', icon: 'calendarDays' },
+      { id: 'staffSchedule', label: 'Doctor/Nurse Schedule', icon: 'clipboardClock', permission: 'schedules.view' },
+      { id: 'clinicCalendar', label: 'Clinic Calendar', icon: 'calendarDays', permission: 'calendar.view' },
     ],
   },
   {
     items: [
-      { id: 'reports', label: 'Reports', icon: 'barChart' },
-      { id: 'notifications', label: 'Notifications', icon: 'bell' },
-      { id: 'users', label: 'User Management', icon: 'shieldUser' },
+      { id: 'reports', label: 'Reports', icon: 'barChart', permission: 'reports.view' },
+      { id: 'notifications', label: 'Notifications', icon: 'bell', permission: 'notifications.view' },
+      { id: 'users', label: 'User Management', icon: 'shieldUser', permission: 'users.view' },
     ],
   },
   {
     label: 'System',
     items: [
-      { id: 'settingsAudit', label: 'Settings Audit Logs', icon: 'settings' },
-      { id: 'rolesPermissions', label: 'Roles & Permissions', icon: 'key' },
+      { id: 'settingsAudit', label: 'Settings Audit Logs', icon: 'settings', permission: 'settings.view' },
+      { id: 'rolesPermissions', label: 'Roles & Permissions', icon: 'key', permission: 'roles.view' },
     ],
   },
 ]

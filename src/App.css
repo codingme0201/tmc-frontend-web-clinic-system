@@ -2078,6 +2078,79 @@ button:disabled {
 }
 
 /* ==========================================================================
+   Roles & Permissions Module Styles
+   ========================================================================== */
+
+.role-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Permission assignment groups (grouped checkboxes per module) */
+.perm-groups {
+  display: grid;
+  gap: 14px;
+}
+
+.perm-group {
+  margin: 0;
+  border: 1px solid #e4eeeb;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.perm-group-title {
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #12393b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+}
+
+.perm-count-pill {
+  border-radius: 99px;
+  background: #eef4f2;
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+}
+
+.perm-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 7px 14px;
+}
+
+.perm-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #12393b;
+  cursor: pointer;
+}
+
+.perm-checkbox input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--color-primary);
+  margin: 0;
+}
+
+.perm-checkbox:has(input:checked) span {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+/* ==========================================================================
    Consultations Module Styles
    ========================================================================== */
 
