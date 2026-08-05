@@ -5,9 +5,10 @@ import { useForm } from '../hooks/useForm'
 function Login() {
   const { login } = useAppContext()
   const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const form = useForm({ email: '', password: '' })
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
 
@@ -16,10 +17,13 @@ function Login() {
       return
     }
 
-    if (form.values.email === 'admin@tmc.edu.ph' && form.values.password === 'admin123') {
-      login()
-    } else {
-      setError('Invalid email or password. Please try again.')
+    setSubmitting(true)
+    try {
+      await login(form.values.email, form.values.password)
+    } catch (err) {
+      setError(err?.message || 'Unable to sign in. Please try again.')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -55,6 +59,7 @@ function Login() {
               placeholder="admin@tmc.edu.ph"
               value={form.values.email}
               onChange={(e) => form.setValue('email', e.target.value)}
+              disabled={submitting}
               required
             />
           </label>
@@ -65,11 +70,12 @@ function Login() {
               placeholder="Enter password"
               value={form.values.password}
               onChange={(e) => form.setValue('password', e.target.value)}
+              disabled={submitting}
               required
             />
           </label>
-          <button type="submit" className="primary-action full-width">
-            Sign In
+          <button type="submit" className="primary-action full-width" disabled={submitting}>
+            {submitting ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
       </section>
