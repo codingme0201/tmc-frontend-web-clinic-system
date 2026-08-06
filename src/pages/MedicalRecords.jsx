@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMedicalRecords } from '../hooks/useMedicalRecords'
 import { useConsultations } from '../hooks/useConsultations'
+import { useAppointments } from '../hooks/useAppointments'
 import { useToast } from '../hooks/useToast'
 import { useForm } from '../hooks/useForm'
 import { useMedicalRecordList } from '../hooks/useMedicalRecordList'
@@ -37,6 +38,7 @@ const DETAIL_TABS = [
 // Timeline event type → Tailwind classes for the type tag.
 const TIMELINE_CLASS = {
   Consultation: 'bg-[#e8f0fe] text-[#1a56c4]',
+  Appointment: 'bg-[#e1f5fe] text-[#0d47a1]',
   'Medical Condition': 'bg-[#fff3d6] text-[#8a5a00]',
   'Allergy Recorded': 'bg-[#ffebe6] text-[#b3361f]',
   'Medication Prescribed': 'bg-[#dff6dd] text-[#1e5a1b]',
@@ -62,8 +64,9 @@ const EMPTY_MINI = 'rounded-lg border border-dashed border-[#c2dcd6] p-4 text-ce
 const SECTION_TITLE = 'm-0 mb-3 text-[16px] text-[#143d40]'
 const AUTH_NOTICE = 'mb-[14px] flex items-center gap-2 rounded-lg border border-dashed border-[#f2cfc2] bg-[#fdf1ec] p-[10px_14px] text-[12.5px] font-bold text-[#a33c12]'
 
-// Builds the chronological record timeline from the record + consultations.
-function buildTimeline(record, consults) {
+// Builds the chronological record timeline from the record's clinical
+// sections, its consultations, and its appointments (joined by patient id).
+function buildTimeline(record, consults, appointments) {
   const events = []
   for (const h of record.medicalHistory) {
     events.push({ id: `hist-${h.id}`, date: h.date, type: 'Medical History', title: h.condition, subtitle: h.notes, staff: '' })
@@ -79,6 +82,10 @@ function buildTimeline(record, consults) {
   }
   for (const c of consults) {
     events.push({ id: `cons-${c.id}`, date: c.date, type: 'Consultation', title: c.diagnosis || c.chiefComplaint || 'Consultation', subtitle: c.chiefComplaint, staff: c.staff, consultation: c })
+  }
+  for (const a of appointments) {
+    if (a.patientId !== record.patientId) continue
+    events.push({ id: `appt-${a.id}`, date: a.date, type: 'Appointment', title: a.type || 'Appointment', subtitle: a.status, staff: a.staff })
   }
   return events.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
 }
@@ -239,6 +246,7 @@ function MedicalRecords({ page }) {
     removeAllergy,
   } = useMedicalRecords()
   const { data: consultations } = useConsultations()
+  const { data: appointments } = useAppointments()
   const { showToast } = useToast()
   const { userRole } = useAuth()
   const canEdit = MEDICAL_ROLES.includes(userRole)
@@ -306,8 +314,8 @@ function MedicalRecords({ page }) {
     [selected, consultations],
   )
   const timeline = useMemo(
-    () => (selected ? buildTimeline(selected, patientConsults) : []),
-    [selected, patientConsults],
+    () => (selected ? buildTimeline(selected, patientConsults, appointments) : []),
+    [selected, patientConsults, appointments],
   )
   const activeConditions = selected ? selected.conditions.filter((c) => c.status === 'Active') : []
   const activeMedications = selected ? selected.medications.filter((m) => m.status === 'Active') : []
