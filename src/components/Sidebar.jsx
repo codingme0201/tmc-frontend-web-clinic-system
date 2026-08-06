@@ -57,7 +57,7 @@ function Sidebar({ collapsed = false, mobileOpen = false, onNavigate }) {
                 className={[
                   'flex min-h-10 w-full cursor-pointer items-center gap-[11px] rounded-lg px-[11px] py-[10px] text-left text-[#d9efea] transition-colors duration-150 hover:bg-white/10',
                   activePage === item.id
-                    ? 'bg-white text-[#0d3b3f] shadow-[0_12px_30px_rgba(0,0,0,0.18)]'
+                    ? 'bg-primary text-white shadow-[0_12px_30px_rgba(0,0,0,0.18)]'
                     : '',
                   collapsed ? 'desktop:justify-center desktop:px-[10px]' : '',
                 ].join(' ')}
