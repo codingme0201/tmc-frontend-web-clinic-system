@@ -15,9 +15,14 @@ function AdminLayout({ children }) {
   }
 
   return (
-    <div className={`admin-shell ${desktopCollapsed ? 'sidebar-collapsed' : ''}`}>
+    <div
+      className={[
+        'grid h-svh grid-cols-[292px_minmax(0,1fr)] overflow-hidden bg-bg transition-[grid-template-columns] duration-200 ease-out max-[980px]:grid-cols-1',
+        desktopCollapsed ? 'grid-cols-[76px_minmax(0,1fr)]' : '',
+      ].join(' ')}
+    >
       {mobileOpen && (
-        <div className="sidebar-overlay" onClick={closeMobile} />
+        <div className="fixed inset-0 z-20 bg-[rgba(8,20,20,0.5)]" onClick={closeMobile} />
       )}
 
       <Sidebar
@@ -26,9 +31,11 @@ function AdminLayout({ children }) {
         onNavigate={closeMobile}
       />
 
-      <div className="admin-main">
+      <div className="flex h-svh min-w-0 flex-col overflow-hidden">
         <Topbar onToggleSidebar={toggleSidebar} />
-        <main className="content-area">{children}</main>
+        <main className="flex-1 overflow-y-auto p-[26px] max-[980px]:p-[20px_16px]">
+          {children}
+        </main>
       </div>
     </div>
   )
