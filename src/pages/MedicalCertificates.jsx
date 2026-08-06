@@ -11,7 +11,7 @@ import { usePagination } from '../hooks/usePagination'
 import { useForm } from '../hooks/useForm'
 import { useAuth } from '../hooks/useAuth'
 import { formatDate, todayISO } from '../lib/format'
-import { KICKER, PANEL, TABLE, SEARCH_INPUT, SELECT_INPUT, PILL, PRIMARY_BTN, FORM_LABEL, FORM_FIELD, BTN_VIEW } from '../lib/ui'
+import { KICKER, PANEL, TABLE, SEARCH_INPUT, SELECT_INPUT, PILL, PRIMARY_BTN, FORM_LABEL, FORM_FIELD, BTN_VIEW, BTN_SUCCESS, BTN_DANGER } from '../lib/ui'
 import StatusBadge from '../components/StatusBadge'
 import Pagination from '../components/Pagination'
 import RefreshingBadge from '../components/RefreshingBadge'
@@ -19,12 +19,11 @@ import TableSkeleton from '../components/skeletons/TableSkeleton'
 import { EmptyState, ErrorState } from '../components/AsyncState'
 import InlineSpinner from '../components/Spinner'
 
-// Roles permitted to generate/manage certificates (mirrors Consultations).
+// Roles permitted to submit certificate requests (mirrors Consultations).
 const MEDICAL_ROLES = ['admin', 'doctor', 'nurse']
-// Only staff whose role carries medical_certificates.update may void.
-const VOID_ROLES = ['admin', 'doctor']
 
-const STATUSES = ['Issued', 'Void']
+// Certificate lifecycle — a request moves through review, then issue.
+const STATUSES = ['Pending', 'Approved', 'Issued', 'Rejected', 'Void']
 
 const PURPOSES = [
   'Medical Excuse — Clinic Visit',
@@ -46,10 +45,14 @@ const MODAL_FOOTER_ACTIONS = 'flex flex-wrap items-center justify-end gap-2'
 const FORM_ROW = 'grid grid-cols-2 gap-[10px] max-[620px]:grid-cols-1'
 const FIELD_ERROR = 'text-[12px] font-bold text-danger'
 const ALERT_BOX = 'rounded-lg border border-[#f2cfc2] bg-[#fdf1ec] p-[12px_14px]'
+const INFO_BOX = 'rounded-lg border border-[#cfe5df] bg-[#f4faf8] p-[12px_14px]'
+const PROFILE_LBL = 'mb-0.5 block text-[11px] font-extrabold uppercase text-muted'
+const PROFILE_VAL = 'm-0 text-[14px] font-bold text-ink'
 
 /**
- * Printable certificate sheet — used by both the details modal and (via the
- * print-area class) the browser's print output.
+ * Printable certificate sheet — used by the details modal (via the print-area
+ * class) so the browser prints only the certificate, and rendered as a draft
+ * preview while the request is still pending/approved.
  */
 function CertificateSheet({ certificate }) {
   return (
@@ -128,27 +131,37 @@ function MedicalCertificates({ page }) {
     isRefetching,
     addCertificate,
     updateCertificate,
+    approveCertificate,
+    rejectCertificate,
+    issueCertificate,
   } = useMedicalCertificates()
   const { data: patients } = usePatients()
   const { data: consultations } = useConsultations()
   const { data: staff } = useStaff()
   const { showToast } = useToast()
-  const { userRole } = useAuth()
+  const { user, userRole, can } = useAuth()
+  // UI gating mirrors the backend permission catalog; the API remains the
+  // security boundary.
   const canCreate = MEDICAL_ROLES.includes(userRole)
-  const canVoid = VOID_ROLES.includes(userRole)
+  const canApprove = can('medical_certificates.approve')
+  const canUpdate = can('medical_certificates.update') // issue + void
 
   // Search / filter state
   const { search, setSearch, debouncedSearch, resetSearch } = useSearch({ debounceMs: 300 })
   const [statusFilter, setStatusFilter] = useState('All')
 
   // Modal state
-  const generateModal = useModal()
+  const requestModal = useModal()
   const [details, setDetails] = useState(null) // certificate being viewed/printed
+  const [approveTarget, setApproveTarget] = useState(null)
+  const [rejectTarget, setRejectTarget] = useState(null)
+  const [issueTarget, setIssueTarget] = useState(null)
   const confirmVoid = useModal()
+  const [rejectReason, setRejectReason] = useState('')
   const [busy, setBusy] = useState(false)
   const busyRef = useRef(false)
 
-  // Generate form
+  // Request form (submits a Pending certificate request)
   const form = useForm(
     {
       patient: '',
@@ -174,6 +187,22 @@ function MedicalCertificates({ page }) {
     },
   )
 
+  // Issue form (finalizes issuer/date at issue time)
+  const issueForm = useForm(
+    {
+      issuedBy: '',
+      issueDate: todayISO(),
+    },
+    {
+      validate: (values) => {
+        const errors = {}
+        if (!values.issuedBy.trim()) errors.issuedBy = 'Issuing clinician is required'
+        if (!values.issueDate) errors.issueDate = 'Issue date is required'
+        return errors
+      },
+    },
+  )
+
   // Completed consultations for the currently selected patient (for prefill).
   const patientConsults = useMemo(
     () =>
@@ -188,7 +217,13 @@ function MedicalCertificates({ page }) {
   // Status summary counts
   const counts = useMemo(() => {
     const count = (status) => certificates.filter((c) => c.status === status).length
-    return { Issued: count('Issued'), Void: count('Void') }
+    return {
+      Pending: count('Pending'),
+      Approved: count('Approved'),
+      Issued: count('Issued'),
+      Rejected: count('Rejected'),
+      Void: count('Void'),
+    }
   }, [certificates])
 
   // Search + filter pipeline
@@ -216,9 +251,9 @@ function MedicalCertificates({ page }) {
     resetPage()
   }, [debouncedSearch, statusFilter, resetPage])
 
-  // ---------------- Generate helpers ----------------
+  // ---------------- Request helpers ----------------
 
-  const openGenerate = () => {
+  const openRequest = () => {
     form.reset({
       patient: '',
       patientId: '',
@@ -230,7 +265,7 @@ function MedicalCertificates({ page }) {
       validUntil: '',
       issuedBy: staff[0]?.name || '',
     })
-    generateModal.open()
+    requestModal.open()
   }
 
   const handlePatientChange = (patientId) => {
@@ -256,7 +291,7 @@ function MedicalCertificates({ page }) {
     })
   }
 
-  const handleGenerate = async () => {
+  const handleSubmitRequest = async () => {
     if (busy || busyRef.current) return
     const errors = form.runValidation()
     if (Object.keys(errors).length > 0) {
@@ -277,11 +312,82 @@ function MedicalCertificates({ page }) {
         issueDate: form.values.issueDate,
         validUntil: form.values.validUntil || null,
       })
-      showToast(`Medical certificate ${created.reference} generated.`)
-      generateModal.close()
-      setDetails(created) // show the printable preview right away
+      showToast(`Certificate request ${created.reference} submitted for review.`)
+      requestModal.close()
+      setDetails(created) // show the request summary right away
     } catch (err) {
-      showToast(err?.message || 'Failed to generate the certificate.', 'error')
+      showToast(err?.message || 'Failed to submit the certificate request.', 'error')
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }
+
+  // ---------------- Review helpers (approve / reject) ----------------
+
+  const handleApprove = async () => {
+    if (!approveTarget || busy || busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    try {
+      const updated = await approveCertificate(approveTarget.id)
+      showToast(`Request ${updated.reference} approved.`)
+      setApproveTarget(null)
+      if (details?.id === updated.id) setDetails(updated)
+    } catch (err) {
+      showToast(err?.message || 'Failed to approve the request.', 'error')
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }
+
+  const handleReject = async () => {
+    if (!rejectTarget || busy || busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    try {
+      const updated = await rejectCertificate(rejectTarget.id, rejectReason.trim())
+      showToast(`Request ${updated.reference} rejected.`)
+      setRejectTarget(null)
+      if (details?.id === updated.id) setDetails(updated)
+    } catch (err) {
+      showToast(err?.message || 'Failed to reject the request.', 'error')
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }
+
+  // ---------------- Issue helpers ----------------
+
+  const openIssue = (cert) => {
+    issueForm.reset({
+      issuedBy: user?.name || cert.issuedBy || staff[0]?.name || '',
+      issueDate: cert.issueDate || todayISO(),
+    })
+    setIssueTarget(cert)
+  }
+
+  const handleIssue = async () => {
+    if (!issueTarget || busy || busyRef.current) return
+    const errors = issueForm.runValidation()
+    if (Object.keys(errors).length > 0) {
+      showToast('Please complete the required fields.', 'error')
+      return
+    }
+    busyRef.current = true
+    setBusy(true)
+    try {
+      const updated = await issueCertificate(issueTarget.id, {
+        issued_by: issueForm.values.issuedBy.trim(),
+        issue_date: issueForm.values.issueDate,
+      })
+      showToast(`Certificate ${updated.reference} issued.`)
+      setIssueTarget(null)
+      if (details?.id === updated.id) setDetails(updated)
+    } catch (err) {
+      showToast(err?.message || 'Failed to issue the certificate.', 'error')
     } finally {
       busyRef.current = false
       setBusy(false)
@@ -312,10 +418,34 @@ function MedicalCertificates({ page }) {
     }
   }
 
+  // Contextual quick actions per status (table rows)
+  const actionButtons = (cert) => {
+    const buttons = []
+    const add = (label, className, onClick) => {
+      buttons.push(
+        <button key={label} type="button" className={className} onClick={onClick}>
+          {label}
+        </button>,
+      )
+    }
+    if (cert.status === 'Pending' && canApprove) {
+      add('Approve', BTN_SUCCESS, () => setApproveTarget(cert))
+      add('Reject', BTN_DANGER, () => {
+        setRejectTarget(cert)
+        setRejectReason('')
+      })
+    } else if (cert.status === 'Approved' && canUpdate) {
+      add('Issue', BTN_SUCCESS, () => openIssue(cert))
+    }
+    return buttons
+  }
+
   const clearFilters = () => {
     resetSearch()
     setStatusFilter('All')
   }
+
+  const isIssued = details?.status === 'Issued'
 
   return (
     <div>
@@ -327,14 +457,14 @@ function MedicalCertificates({ page }) {
           <span className="mt-[6px] block text-[13px] text-muted">{page.description}</span>
         </div>
         {canCreate && (
-          <button type="button" className={`${PRIMARY_BTN} px-[16px] text-[13.5px]`} onClick={openGenerate}>
-            + Generate Certificate
+          <button type="button" className={`${PRIMARY_BTN} px-[16px] text-[13.5px]`} onClick={openRequest}>
+            + Request Certificate
           </button>
         )}
       </section>
 
       {/* Status summary chips (click to filter) */}
-      <div className="mb-[18px] grid grid-cols-2 gap-3 max-[560px]:grid-cols-1">
+      <div className="mb-[18px] grid grid-cols-5 gap-3 max-[900px]:grid-cols-2 max-[480px]:grid-cols-1">
         {STATUSES.map((status) => (
           <button
             type="button"
@@ -352,8 +482,8 @@ function MedicalCertificates({ page }) {
       <div className={`${PANEL} p-5`}>
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="m-0 text-[18px] text-[#143d40]">Issued Certificates</h3>
-            <p className={KICKER}>Browse and print clinic-issued medical certificates</p>
+            <h3 className="m-0 text-[18px] text-[#143d40]">Certificate Requests & Records</h3>
+            <p className={KICKER}>Review, approve, and issue medical certificate requests</p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-[10px]">
             <input
@@ -394,7 +524,7 @@ function MedicalCertificates({ page }) {
 
         {!canCreate && (
           <div className="mb-[14px] flex items-center gap-2 rounded-lg border border-dashed border-[#f2cfc2] bg-[#fdf1ec] p-[10px_14px] text-[12.5px] font-bold text-[#a33c12]">
-            ⚠ You have view-only access. Only authorized medical personnel can generate certificates.
+            ⚠ You have view-only access. Only authorized medical personnel can submit certificate requests.
           </div>
         )}
 
@@ -433,16 +563,19 @@ function MedicalCertificates({ page }) {
                       <StatusBadge status={cert.status} />
                     </td>
                     <td>
-                      <button type="button" className={BTN_VIEW} onClick={() => setDetails(cert)}>
-                        View
-                      </button>
+                      <div className="flex flex-wrap gap-[6px]">
+                        <button type="button" className={BTN_VIEW} onClick={() => setDetails(cert)}>
+                          View
+                        </button>
+                        {actionButtons(cert)}
+                      </div>
                     </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
                   <tr>
                     <td colSpan="8">
-                      <EmptyState message="No certificates matched your search or filters." />
+                      <EmptyState message="No certificate requests matched your search or filters." />
                     </td>
                   </tr>
                 )}
@@ -454,31 +587,37 @@ function MedicalCertificates({ page }) {
         <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} />
       </div>
 
-      {/* ============ GENERATE CERTIFICATE MODAL ============ */}
-      {generateModal.isOpen && (
+      {/* ============ REQUEST CERTIFICATE MODAL ============ */}
+      {requestModal.isOpen && (
         <div
           className={MODAL_BACKDROP}
           role="dialog"
           aria-modal="true"
-          aria-label="Generate medical certificate"
+          aria-label="Request medical certificate"
           onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !busy) generateModal.close()
+            if (e.target === e.currentTarget && !busy) requestModal.close()
           }}
         >
           <div className={MODAL_CARD_WIDE}>
             <div className={MODAL_HEADER}>
-              <h3 className="m-0 text-[18px] text-ink">Generate Medical Certificate</h3>
+              <h3 className="m-0 text-[18px] text-ink">Request Medical Certificate</h3>
               <button
                 type="button"
                 className={MODAL_CLOSE}
                 onClick={() => {
-                  if (!busy) generateModal.close()
+                  if (!busy) requestModal.close()
                 }}
               >
                 ✕
               </button>
             </div>
             <div className={MODAL_BODY}>
+              <div className={`${INFO_BOX} mb-4`}>
+                <p className="m-0 text-[13px]">
+                  Submits a certificate <strong>request</strong> for review. A physician must approve the request before
+                  the certificate can be issued — requests stay <strong>Pending</strong> until then.
+                </p>
+              </div>
               <p className="mt-0 mb-4 text-[13px] text-muted">
                 Reuses existing patient and consultation data — select a patient, then optionally a completed
                 consultation to prefill the diagnosis and date.
@@ -564,7 +703,7 @@ function MedicalCertificates({ page }) {
 
                 <div className={FORM_ROW}>
                   <label className={FORM_LABEL}>
-                    <span>Issue Date</span>
+                    <span>Requested Date</span>
                     <input
                       type="date"
                       className={FORM_FIELD}
@@ -587,7 +726,7 @@ function MedicalCertificates({ page }) {
                 </div>
 
                 <label className={FORM_LABEL}>
-                  <span>Issued By</span>
+                  <span>Requested By</span>
                   <select
                     className={FORM_FIELD}
                     value={form.values.issuedBy}
@@ -609,19 +748,19 @@ function MedicalCertificates({ page }) {
                   type="button"
                   className={PILL}
                   onClick={() => {
-                    if (!busy) generateModal.close()
+                    if (!busy) requestModal.close()
                   }}
                   disabled={busy}
                 >
                   Cancel
                 </button>
-                <button type="button" className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`} onClick={handleGenerate} disabled={busy}>
+                <button type="button" className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`} onClick={handleSubmitRequest} disabled={busy}>
                   {busy ? (
                     <>
-                      <InlineSpinner /> Generating...
+                      <InlineSpinner /> Submitting...
                     </>
                   ) : (
-                    'Generate Certificate'
+                    'Submit Request'
                   )}
                 </button>
               </div>
@@ -630,20 +769,20 @@ function MedicalCertificates({ page }) {
         </div>
       )}
 
-      {/* ============ CERTIFICATE DETAILS / PREVIEW MODAL ============ */}
+      {/* ============ CERTIFICATE DETAILS / REVIEW MODAL ============ */}
       {details && (
         <div
           className={MODAL_BACKDROP}
           role="dialog"
           aria-modal="true"
-          aria-label={`Certificate ${details.reference} preview`}
+          aria-label={`Certificate ${details.reference} details`}
           onMouseDown={(e) => {
             if (e.target === e.currentTarget && !busy) setDetails(null)
           }}
         >
           <div className={MODAL_CARD_WIDE}>
             <div className={MODAL_HEADER}>
-              <h3 className="m-0 text-[18px] text-ink">Certificate Preview — {details.reference}</h3>
+              <h3 className="m-0 text-[18px] text-ink">Certificate — {details.reference}</h3>
               <button
                 type="button"
                 className={MODAL_CLOSE}
@@ -664,22 +803,89 @@ function MedicalCertificates({ page }) {
                   </span>
                 </div>
               </div>
+
+              {/* Workflow audit trail */}
+              <div className="mb-4 grid grid-cols-3 gap-3 max-[560px]:grid-cols-1">
+                <div className="rounded-lg border border-line bg-white p-[10px_12px]">
+                  <span className={PROFILE_LBL}>Requested By</span>
+                  <p className={PROFILE_VAL}>{details.requestedBy || '—'}</p>
+                </div>
+                <div className="rounded-lg border border-line bg-white p-[10px_12px]">
+                  <span className={PROFILE_LBL}>Approved By</span>
+                  <p className={PROFILE_VAL}>{details.approvedBy || '—'}</p>
+                </div>
+                <div className="rounded-lg border border-line bg-white p-[10px_12px]">
+                  <span className={PROFILE_LBL}>Approved At</span>
+                  <p className={PROFILE_VAL}>{details.approvedAt ? formatDate(details.approvedAt) : '—'}</p>
+                </div>
+                {details.status === 'Rejected' && (
+                  <>
+                    <div className="rounded-lg border border-line bg-white p-[10px_12px]">
+                      <span className={PROFILE_LBL}>Rejected By</span>
+                      <p className={PROFILE_VAL}>{details.rejectedBy || '—'}</p>
+                    </div>
+                    <div className="rounded-lg border border-line bg-white p-[10px_12px]">
+                      <span className={PROFILE_LBL}>Rejected At</span>
+                      <p className={PROFILE_VAL}>{details.rejectedAt ? formatDate(details.rejectedAt) : '—'}</p>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {details.status === 'Rejected' && details.rejectionReason && (
+                <div className={`${ALERT_BOX} mb-4`}>
+                  <h4 className="mb-1 m-0 text-[13px] font-bold text-danger">Rejection Reason</h4>
+                  <p className="m-0 text-[13px]">{details.rejectionReason}</p>
+                </div>
+              )}
+
+              {!isIssued && (
+                <div className={`${INFO_BOX} mb-4`}>
+                  <p className="m-0 text-[13px]">
+                    {details.status === 'Pending'
+                      ? 'Draft preview — this request is awaiting review and is not yet valid.'
+                      : details.status === 'Approved'
+                        ? 'Draft preview — approved, but not yet issued. Issue it to finalize the printable certificate.'
+                        : 'Preview of the request — this certificate was not issued.'}
+                  </p>
+                </div>
+              )}
+
               <CertificateSheet certificate={details} />
             </div>
             <div className={MODAL_FOOTER}>
               <div className={MODAL_FOOTER_ACTIONS}>
-                {details.status === 'Issued' && canVoid && (
-                  <button type="button" className={PILL} onClick={handleVoidClick} disabled={busy}>
-                    Void Certificate
+                {details.status === 'Pending' && canApprove && (
+                  <>
+                    <button type="button" className={PILL} onClick={() => { setRejectTarget(details); setRejectReason('') }} disabled={busy}>
+                      Reject
+                    </button>
+                    <button type="button" className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`} onClick={() => setApproveTarget(details)} disabled={busy}>
+                      Approve Request
+                    </button>
+                  </>
+                )}
+                {details.status === 'Approved' && canUpdate && (
+                  <button type="button" className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`} onClick={() => openIssue(details)} disabled={busy}>
+                    Issue Certificate
                   </button>
                 )}
-                <button
-                  type="button"
-                  className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`}
-                  onClick={() => window.print()}
-                >
-                  🖨 Print Certificate
-                </button>
+                {isIssued && (
+                  <>
+                    {canUpdate && (
+                      <button type="button" className={PILL} onClick={handleVoidClick} disabled={busy}>
+                        Void Certificate
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`}
+                      onClick={() => window.print()}
+                    >
+                      🖨 Print Certificate
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
                   className={PILL}
@@ -701,12 +907,244 @@ function MedicalCertificates({ page }) {
           chrome and the modal are all visibility-hidden during print, and
           this sheet is shown alone. */}
       {details &&
+        isIssued &&
         createPortal(
           <div className="print-only" aria-hidden="true">
             <CertificateSheet certificate={details} />
           </div>,
           document.body,
         )}
+
+      {/* ============ APPROVE CONFIRMATION MODAL ============ */}
+      {approveTarget && (
+        <div
+          className={MODAL_BACKDROP}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Approve certificate request"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !busy) setApproveTarget(null)
+          }}
+        >
+          <div className={MODAL_CARD_SM}>
+            <div className={MODAL_HEADER}>
+              <h3 className="m-0 text-[18px] text-ink">Approve Certificate Request</h3>
+              <button
+                type="button"
+                className={MODAL_CLOSE}
+                onClick={() => {
+                  if (!busy) setApproveTarget(null)
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <div className={MODAL_BODY}>
+              <div className="mb-[18px] flex items-center gap-3 rounded-lg border border-line bg-[#f4faf8] p-[14px]">
+                <StatusBadge status={approveTarget.status} />
+                <div>
+                  <strong className="block text-[15px] text-ink">{approveTarget.patient}</strong>
+                  <span className="block text-[12px] text-muted">
+                    {approveTarget.reference} · {approveTarget.purpose}
+                  </span>
+                </div>
+              </div>
+              <p className="mt-0 text-[13px]">
+                Approving moves this request to <strong>Approved</strong> and records your name in the audit trail. The
+                certificate can then be issued.
+              </p>
+            </div>
+            <div className={MODAL_FOOTER}>
+              <div className={MODAL_FOOTER_ACTIONS}>
+                <button type="button" className={PILL} onClick={() => setApproveTarget(null)} disabled={busy}>
+                  Cancel
+                </button>
+                <button type="button" className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`} onClick={handleApprove} disabled={busy}>
+                  {busy ? (
+                    <>
+                      <InlineSpinner /> Approving...
+                    </>
+                  ) : (
+                    'Confirm Approval'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============ REJECT REASON MODAL ============ */}
+      {rejectTarget && (
+        <div
+          className={MODAL_BACKDROP}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Reject certificate request"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !busy) setRejectTarget(null)
+          }}
+        >
+          <div className={MODAL_CARD_SM}>
+            <div className={MODAL_HEADER}>
+              <h3 className="m-0 text-[18px] text-ink">Reject Certificate Request</h3>
+              <button
+                type="button"
+                className={MODAL_CLOSE}
+                onClick={() => {
+                  if (!busy) setRejectTarget(null)
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <div className={MODAL_BODY}>
+              <div className="mb-[18px] flex items-center gap-3 rounded-lg border border-line bg-[#f4faf8] p-[14px]">
+                <StatusBadge status={rejectTarget.status} />
+                <div>
+                  <strong className="block text-[15px] text-ink">{rejectTarget.patient}</strong>
+                  <span className="block text-[12px] text-muted">
+                    {rejectTarget.reference} · {rejectTarget.purpose}
+                  </span>
+                </div>
+              </div>
+              <label className={FORM_LABEL}>
+                <span>Reason for Rejection</span>
+                <textarea
+                  className={`${FORM_FIELD} min-h-20 resize-y`}
+                  placeholder="Explain why this request is being rejected (shown on the record)..."
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  autoFocus
+                />
+              </label>
+            </div>
+            <div className={MODAL_FOOTER}>
+              <div className={MODAL_FOOTER_ACTIONS}>
+                <button
+                  type="button"
+                  className={PILL}
+                  onClick={() => {
+                    if (!busy) setRejectTarget(null)
+                  }}
+                  disabled={busy}
+                >
+                  Keep Request
+                </button>
+                <button
+                  type="button"
+                  className="min-h-10 cursor-pointer rounded-lg bg-[#c0392b] px-[14px] text-[13px] font-extrabold text-white transition-all duration-200 hover:bg-[#a93226]"
+                  onClick={handleReject}
+                  disabled={busy}
+                >
+                  {busy ? (
+                    <>
+                      <InlineSpinner /> Rejecting...
+                    </>
+                  ) : (
+                    'Confirm Rejection'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============ ISSUE CERTIFICATE MODAL ============ */}
+      {issueTarget && (
+        <div
+          className={MODAL_BACKDROP}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Issue medical certificate"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !busy) setIssueTarget(null)
+          }}
+        >
+          <div className={MODAL_CARD_SM}>
+            <div className={MODAL_HEADER}>
+              <h3 className="m-0 text-[18px] text-ink">Issue Certificate</h3>
+              <button
+                type="button"
+                className={MODAL_CLOSE}
+                onClick={() => {
+                  if (!busy) setIssueTarget(null)
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <div className={MODAL_BODY}>
+              <div className="mb-[18px] flex items-center gap-3 rounded-lg border border-line bg-[#f4faf8] p-[14px]">
+                <StatusBadge status={issueTarget.status} />
+                <div>
+                  <strong className="block text-[15px] text-ink">{issueTarget.patient}</strong>
+                  <span className="block text-[12px] text-muted">
+                    {issueTarget.reference} · {issueTarget.purpose}
+                  </span>
+                </div>
+              </div>
+              <p className="mt-0 mb-4 text-[13px] text-muted">
+                Finalize the printable certificate. The issuing clinician and printed date are recorded on the
+                document.
+              </p>
+              <div className="grid gap-[14px]">
+                <label className={FORM_LABEL}>
+                  <span>Issuing Clinician *</span>
+                  <select
+                    className={FORM_FIELD}
+                    value={issueForm.values.issuedBy}
+                    onChange={(e) => issueForm.setValue('issuedBy', e.target.value)}
+                    disabled={busy}
+                  >
+                    {staff.map((m) => (
+                      <option key={m.name} value={m.name}>
+                        {m.name} — {m.role}
+                      </option>
+                    ))}
+                  </select>
+                  {issueForm.errors.issuedBy && <span className={FIELD_ERROR}>{issueForm.errors.issuedBy}</span>}
+                </label>
+                <label className={FORM_LABEL}>
+                  <span>Issue Date *</span>
+                  <input
+                    type="date"
+                    className={FORM_FIELD}
+                    value={issueForm.values.issueDate}
+                    onChange={(e) => issueForm.setValue('issueDate', e.target.value)}
+                    disabled={busy}
+                  />
+                  {issueForm.errors.issueDate && <span className={FIELD_ERROR}>{issueForm.errors.issueDate}</span>}
+                </label>
+              </div>
+            </div>
+            <div className={MODAL_FOOTER}>
+              <div className={MODAL_FOOTER_ACTIONS}>
+                <button
+                  type="button"
+                  className={PILL}
+                  onClick={() => {
+                    if (!busy) setIssueTarget(null)
+                  }}
+                  disabled={busy}
+                >
+                  Cancel
+                </button>
+                <button type="button" className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`} onClick={handleIssue} disabled={busy}>
+                  {busy ? (
+                    <>
+                      <InlineSpinner /> Issuing...
+                    </>
+                  ) : (
+                    'Confirm Issue'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ============ VOID CONFIRMATION MODAL ============ */}
       {confirmVoid.isOpen && details && (

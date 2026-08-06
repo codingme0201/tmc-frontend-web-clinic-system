@@ -42,6 +42,36 @@ export function useMedicalCertificatesStore({ onLog } = {}, scope = 'page') {
     },
   })
 
+  const approveMutation = useMutation({
+    mutationFn: (id) => medicalCertificatesService.approveMedicalCertificate(id),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ['medical-certificates'] })
+      onLogRef.current?.(
+        `Approved medical certificate request ${updated.reference} for patient ${updated.patient}`,
+      )
+    },
+  })
+
+  const rejectMutation = useMutation({
+    mutationFn: ({ id, reason }) => medicalCertificatesService.rejectMedicalCertificate(id, reason),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ['medical-certificates'] })
+      onLogRef.current?.(
+        `Rejected medical certificate request ${updated.reference} for patient ${updated.patient}`,
+      )
+    },
+  })
+
+  const issueMutation = useMutation({
+    mutationFn: ({ id, payload }) => medicalCertificatesService.issueMedicalCertificate(id, payload),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ['medical-certificates'] })
+      onLogRef.current?.(
+        `Issued medical certificate ${updated.reference} for patient ${updated.patient}`,
+      )
+    },
+  })
+
   const deleteMutation = useMutation({
     mutationFn: medicalCertificatesService.deleteMedicalCertificate,
     onSuccess: (_, id) => {
@@ -60,6 +90,21 @@ export function useMedicalCertificatesStore({ onLog } = {}, scope = 'page') {
     [updateMutation],
   )
 
+  const approveCertificate = useCallback(
+    async (id) => approveMutation.mutateAsync(id),
+    [approveMutation],
+  )
+
+  const rejectCertificate = useCallback(
+    async (id, reason = '') => rejectMutation.mutateAsync({ id, reason }),
+    [rejectMutation],
+  )
+
+  const issueCertificate = useCallback(
+    async (id, payload = {}) => issueMutation.mutateAsync({ id, payload }),
+    [issueMutation],
+  )
+
   const removeCertificate = useCallback(
     async (id) => deleteMutation.mutateAsync(id),
     [deleteMutation],
@@ -73,6 +118,9 @@ export function useMedicalCertificatesStore({ onLog } = {}, scope = 'page') {
     isRefetching,
     addCertificate,
     updateCertificate,
+    approveCertificate,
+    rejectCertificate,
+    issueCertificate,
     removeCertificate,
   }
 }
@@ -80,7 +128,8 @@ export function useMedicalCertificatesStore({ onLog } = {}, scope = 'page') {
 /**
  * Public hook — pages call this on mount (page-scoped fetch + app-level
  * audit log). Returns { data, isLoading, error, refetch, isRefetching,
- * addCertificate, updateCertificate, removeCertificate }.
+ * addCertificate, updateCertificate, approveCertificate, rejectCertificate,
+ * issueCertificate, removeCertificate }.
  */
 export function useMedicalCertificates(scope = 'page') {
   const { log } = useAppContext()
