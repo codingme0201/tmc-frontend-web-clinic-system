@@ -1,24 +1,17 @@
-// Activity/audit log data access. Mock-backed; swap for REST calls later.
+// Activity/audit log data access — backed by the Laravel REST API.
 
-import { delay } from './api'
-import { mockActivityLogs } from '../mocks/activityLogs'
+import { request } from './api'
 
-let activityLogsDb = mockActivityLogs.map((l) => ({ ...l }))
-
+/** Fetch recent activity log entries, newest first. */
 export async function fetchActivityLogs() {
-  await delay()
-  return activityLogsDb.map((l) => ({ ...l }))
+  const res = await request('/activity-logs')
+  return res.data
 }
 
+/** Record an activity log entry for the current user. */
 export async function addActivityLog(action) {
-  await delay(120)
-  const entry = {
-    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    user: 'Admin User',
-    action,
-  }
-  activityLogsDb = [entry, ...activityLogsDb]
-  return { ...entry }
+  const res = await request('/activity-logs', { method: 'POST', body: { action } })
+  return res.data
 }
 
 export const activityLogsService = {

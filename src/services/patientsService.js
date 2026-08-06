@@ -1,20 +1,17 @@
-// Patient registry data access. Mock-backed; swap for REST calls later.
+// Patient registry data access — backed by the Laravel REST API.
 
-import { delay } from './api'
-import { mockPatients } from '../mocks/patients'
+import { request } from './api'
 
-let patientsDb = mockPatients.map((p) => ({ ...p }))
-
+/** Fetch the patient registry. */
 export async function fetchPatients() {
-  await delay()
-  return patientsDb.map((p) => ({ ...p }))
+  const res = await request('/patients')
+  return res.data
 }
 
+/** Register a new patient (form payload uses camelCase keys). */
 export async function createPatient(payload) {
-  await delay()
-  const patient = { ...payload, status: 'Active' }
-  patientsDb = [...patientsDb, patient]
-  return { ...patient }
+  const res = await request('/patients', { method: 'POST', body: payload })
+  return res.data
 }
 
 export const patientsService = {

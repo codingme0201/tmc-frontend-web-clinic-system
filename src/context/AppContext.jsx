@@ -26,8 +26,8 @@ export const AppContext = createContext(undefined)
  *   single shared instance via the matching use* hook.
  *
  * Must be rendered inside an AuthProvider and a Router (HashRouter).
- * The store hooks talk to the service layer only; pages never touch mock
- * data or services directly.
+ * The store hooks talk to the service layer only; pages never touch the
+ * API or services directly.
  */
 export function AppProvider({ children }) {
   const location = useLocation()

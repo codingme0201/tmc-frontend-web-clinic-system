@@ -241,7 +241,7 @@ function MedicalRecords({ page }) {
   const canEdit = MEDICAL_ROLES.includes(userRole)
 
   // ---------- List state (debounced search + filter + pagination, API-ready) ----------
-  // pageSize 5 so pagination is visible with the current mock dataset; the
+  // pageSize 5 so pagination is visible with the current dataset; the
   // hook accepts any pageSize/limit and is structured for server pagination.
   const {
     search,

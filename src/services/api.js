@@ -1,26 +1,12 @@
 // Shared data-layer utilities.
 //
-// THIS MODULE IS THE SEAM between mock data and a real REST backend:
-//  - Hooks call service functions and know nothing about axios/mock data.
-//  - Services currently resolve with mock data after a simulated latency.
-//  - To go live, replace each service implementation with real calls via
-//    `request()` (below) — hooks and pages stay untouched.
-//
-// Authentication (Phase 1) and the integrated modules (Roles & Permissions,
-// Appointments) use the real Laravel REST API through `request()`; the
-// remaining domain services can be migrated the same way.
+// All domain services talk to the Laravel REST API through `request()`
+// below; hooks and pages only know the service function signatures.
 
 import axios from 'axios'
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api'
 const TOKEN_STORAGE_KEY = 'tmc_token'
-
-const LATENCY_MS = 300 // simulated network round-trip
-
-/** Simulated network latency for mock services. */
-export function delay(ms = LATENCY_MS) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
 
 /** Error thrown by the data layer with an optional HTTP status code. */
 export class ApiError extends Error {

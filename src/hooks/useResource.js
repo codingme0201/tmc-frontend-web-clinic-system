@@ -5,8 +5,8 @@ import { useCallback, useEffect, useState } from 'react'
  *
  * Loads from a `fetcher` function (typically a service call) on mount and
  * tracks loading/error state. Domain hooks (useAppointments, usePatients,
- * etc.) build on this, so swapping a mock service for a REST call never
- * touches the hook consumers.
+ * etc.) build on this, so swapping a service implementation never touches
+ * the hook consumers.
  *
  * @param {() => Promise<any>} fetcher Stable async function that returns data.
  * @returns {{ data, setData, isLoading, error, refetch }}

@@ -38,7 +38,7 @@ const ALERT_BOX = 'rounded-lg border border-[#f2cfc2] bg-[#fdf1ec] p-[12px_14px]
 
 function Appointments({ page }) {
   // Data comes from the shared appointment store; the page never touches
-  // mock data or services directly.
+  // API data or services directly.
   const {
     data: appointments,
     isLoading,

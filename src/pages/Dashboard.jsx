@@ -19,7 +19,7 @@ function Dashboard() {
   const [activeTab, setActiveTab] = useState('overview') // 'overview', 'appointments', 'consultations', 'patients', 'schedule', 'activity'
 
   // All data flows through shared custom hooks — the page never imports or
-  // mutates mock data directly.
+  // mutates shared store data directly.
   const {
     data: appointments,
     isLoading: appointmentsLoading,

@@ -1,5 +1,5 @@
 // Static app configuration: sidebar navigation structure and page header copy.
-// This is UI config, not domain data — it stays even after the mock backend
+// This is UI config, not domain data — it stays independent of the API
 // is replaced with a real API.
 
 // Each item optionally declares the permission required to see it in the

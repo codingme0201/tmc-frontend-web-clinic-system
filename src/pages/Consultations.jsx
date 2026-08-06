@@ -103,7 +103,7 @@ function validateDraft(draft) {
 
 function Consultations({ page }) {
   // Data comes from the shared consultation store; the page never touches
-  // mock data or services directly.
+  // API data or services directly.
   const {
     data: consultations,
     isLoading,

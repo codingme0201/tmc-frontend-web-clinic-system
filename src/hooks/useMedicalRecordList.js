@@ -9,9 +9,9 @@ import { usePagination } from './usePagination'
  * hook so the page stays declarative and the logic can move to a server
  * without rewriting the UI:
  *
- *   Today (mock):  records (in-memory) → debounce → filter → paginate
- *   Future (REST): GET /medical-records?q=&status=&page=&limit=
- *                    → { data, total, totalPages }
+ *   Today:  records (fetched via API) → debounce → filter → paginate
+ *   Future: GET /medical-records?q=&status=&page=&limit=
+ *           → { data, total, totalPages }
  *
  * The derived `queryParams` object already matches the future API request
  * contract ({ q, status, page, limit }) and `total`/`totalPages` mirror the

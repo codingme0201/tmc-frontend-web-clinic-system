@@ -1,20 +1,17 @@
-// Campus health events data access. Mock-backed; swap for REST calls later.
+// Campus health events data access — backed by the Laravel REST API.
 
-import { delay } from './api'
-import { mockUpcomingEvents } from '../mocks/events'
+import { request } from './api'
 
-let eventsDb = mockUpcomingEvents.map((e) => ({ ...e }))
-
+/** Fetch upcoming campus health events. */
 export async function fetchEvents() {
-  await delay()
-  return eventsDb.map((e) => ({ ...e }))
+  const res = await request('/events')
+  return res.data
 }
 
+/** Schedule a new campus health event. */
 export async function createEvent(payload) {
-  await delay()
-  const event = { ...payload }
-  eventsDb = [...eventsDb, event]
-  return { ...event }
+  const res = await request('/events', { method: 'POST', body: payload })
+  return res.data
 }
 
 export const eventsService = {

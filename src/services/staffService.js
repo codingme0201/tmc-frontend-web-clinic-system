@@ -1,22 +1,17 @@
-// Medical staff roster data access. Mock-backed; swap for REST calls later.
+// Medical staff roster data access — backed by the Laravel REST API.
 
-import { delay } from './api'
-import { medicalStaffToday } from '../mocks/staff'
+import { request } from './api'
 
-let staffDb = medicalStaffToday.map((m) => ({ ...m }))
-
+/** Fetch today's staff roster. */
 export async function fetchStaff() {
-  await delay()
-  return staffDb.map((m) => ({ ...m }))
+  const res = await request('/staff')
+  return res.data
 }
 
+/** Update a staff member's duty status (On duty / Break / Off duty). */
 export async function updateStaffStatus(name, newStatus) {
-  await delay()
-  const index = staffDb.findIndex((m) => m.name === name)
-  if (index === -1) throw new Error('Staff member not found')
-  const updated = { ...staffDb[index], status: newStatus }
-  staffDb[index] = updated
-  return { ...updated }
+  const res = await request('/staff/status', { method: 'PATCH', body: { name, status: newStatus } })
+  return res.data
 }
 
 export const staffService = {

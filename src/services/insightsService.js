@@ -1,17 +1,15 @@
-// Dashboard static insight charts (activity bars + peak hours).
-// Mock-backed; swap for REST calls later.
+// Dashboard insight charts (activity bars + peak hours) — Laravel REST API.
 
-import { delay } from './api'
-import { clinicActivity, mockPeakHours } from '../mocks/insights'
+import { request } from './api'
 
+/** Clinic activity bars: [{ label, percent }]. */
 export async function fetchClinicActivity() {
-  await delay()
-  return clinicActivity.map((item) => ({ ...item }))
+  return request('/insights/activity')
 }
 
+/** Peak visit hours: [{ label, count, percent }]. */
 export async function fetchPeakHours() {
-  await delay()
-  return mockPeakHours.map((item) => ({ ...item }))
+  return request('/insights/peak-hours')
 }
 
 export const insightsService = {
