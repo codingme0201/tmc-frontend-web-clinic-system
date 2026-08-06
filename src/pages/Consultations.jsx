@@ -13,7 +13,8 @@ import {
 } from '../lib/ui'
 import StatusBadge from '../components/StatusBadge'
 import Pagination from '../components/Pagination'
-import { EmptyState, ErrorState, LoadingState } from '../components/AsyncState'
+import Skeleton from '../components/Skeleton'
+import { EmptyState, ErrorState } from '../components/AsyncState'
 
 // Roles permitted to start/record/complete consultations.
 const MEDICAL_ROLES = ['admin', 'doctor', 'nurse']
@@ -361,7 +362,42 @@ function Consultations({ page }) {
           {error ? (
             <ErrorState message={error} onRetry={refetch} />
           ) : isLoading ? (
-            <LoadingState label="Loading consultations..." />
+            <table className={TABLE}>
+              <thead>
+                <tr>
+                  <th>Reference</th>
+                  <th>Patient</th>
+                  <th>Schedule</th>
+                  <th>Attending Staff</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: 6 }, (_, i) => (
+                  <tr key={i}>
+                    <td>
+                      <Skeleton width={96} height={14} />
+                    </td>
+                    <td>
+                      <Skeleton width={140} height={14} />
+                    </td>
+                    <td>
+                      <Skeleton width={110} height={14} />
+                    </td>
+                    <td>
+                      <Skeleton width={120} height={14} />
+                    </td>
+                    <td>
+                      <Skeleton width={64} height={18} />
+                    </td>
+                    <td>
+                      <Skeleton width={120} height={28} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           ) : (
             <table className={TABLE}>
               <thead>
