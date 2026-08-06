@@ -31,7 +31,7 @@ function StatusBadge({ status }) {
   const key = status.toLowerCase().replace(/ /g, '-')
   return (
     <span
-      className={`inline-flex rounded-full px-[10px] py-1 text-[11px] font-extrabold uppercase ${BADGE_CLASSES[key] ?? DEFAULT_BADGE}`}
+      className={`inline-flex whitespace-nowrap rounded-full px-[10px] py-1 text-[11px] font-extrabold uppercase ${BADGE_CLASSES[key] ?? DEFAULT_BADGE}`}
     >
       {status}
     </span>
