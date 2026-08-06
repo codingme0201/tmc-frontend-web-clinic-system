@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../hooks/useAuth'
+import { useToast } from '../hooks/useToast'
 import InlineSpinner from '../components/Spinner'
 import BackendStatusBanner from '../components/BackendStatusBanner'
 import heroImage from '../assets/hero.png'
 
 function Login() {
   const { login } = useAuth()
+  const { showToast } = useToast()
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const {
@@ -21,7 +23,8 @@ function Login() {
 
     setSubmitting(true)
     try {
-      await login(email, password)
+      const signedIn = await login(email, password)
+      showToast(`Welcome back, ${signedIn.name}!`)
     } catch (err) {
       setError(err?.message || 'Unable to sign in. Please try again.')
     } finally {

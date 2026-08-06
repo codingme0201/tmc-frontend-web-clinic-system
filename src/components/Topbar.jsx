@@ -1,12 +1,16 @@
 import { useEffect, useRef } from 'react'
 import Icon from './Icon'
 import InlineSpinner from './Spinner'
+import ConfirmLogoutModal from './ConfirmLogoutModal'
 import { useAuth } from '../hooks/useAuth'
+import { useToast } from '../hooks/useToast'
 import { useToggle } from '../hooks/useToggle'
 
 function Topbar({ onToggleSidebar }) {
-  const { logout, isLoggingOut } = useAuth()
+  const { logout, isLoggingOut, user } = useAuth()
+  const { showToast } = useToast()
   const [dropdownOpen, toggleDropdown, , closeDropdown] = useToggle(false)
+  const [logoutOpen, , openLogout, closeLogout] = useToggle(false)
   const dropdownRef = useRef(null)
 
   useEffect(() => {
@@ -19,15 +23,22 @@ function Topbar({ onToggleSidebar }) {
     return () => document.removeEventListener('mousedown', handler)
   }, [closeDropdown])
 
-  const handleLogout = () => {
+  const openLogoutConfirm = () => {
     closeDropdown()
     if (isLoggingOut) return
-    const confirmed = window.confirm('Sign out of Admin Panel? You will be returned to the login page.')
-    if (confirmed) logout()
+    openLogout()
+  }
+
+  const confirmLogout = async () => {
+    if (isLoggingOut) return
+    await logout()
+    closeLogout()
+    showToast('Signed out successfully.')
   }
 
   return (
-    <header className="sticky top-0 z-[5] flex min-h-[82px] items-center justify-between gap-[18px] border-b border-[#dce8e5] bg-white/85 px-[28px] py-[18px] backdrop-blur-[14px] max-[620px]:items-start max-[620px]:px-4 max-[620px]:py-4">
+    <>
+      <header className="sticky top-0 z-[5] flex min-h-[82px] items-center justify-between gap-[18px] border-b border-[#dce8e5] bg-white/85 px-[28px] py-[18px] backdrop-blur-[14px] max-[620px]:items-start max-[620px]:px-4 max-[620px]:py-4">
       <div className="flex min-w-0 items-center gap-[14px]">
         <button
           type="button"
@@ -86,7 +97,7 @@ function Topbar({ onToggleSidebar }) {
               <button
                 type="button"
                 className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-4 py-3 text-left font-bold text-danger hover:bg-[#fdf1ec] disabled:cursor-not-allowed"
-                onClick={handleLogout}
+                onClick={openLogoutConfirm}
                 disabled={isLoggingOut}
               >
                 {isLoggingOut ? <InlineSpinner /> : <Icon name="logout" />}
@@ -97,6 +108,14 @@ function Topbar({ onToggleSidebar }) {
         </div>
       </div>
     </header>
+    <ConfirmLogoutModal
+      open={logoutOpen}
+      user={user}
+      busy={isLoggingOut}
+      onClose={closeLogout}
+      onConfirm={confirmLogout}
+    />
+    </>
   )
 }
 

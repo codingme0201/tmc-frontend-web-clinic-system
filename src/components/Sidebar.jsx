@@ -1,12 +1,17 @@
 import Icon from './Icon'
 import InlineSpinner from './Spinner'
+import ConfirmLogoutModal from './ConfirmLogoutModal'
 import { useAppContext } from '../context/AppContext'
 import { useAuth } from '../hooks/useAuth'
+import { useToast } from '../hooks/useToast'
+import { useToggle } from '../hooks/useToggle'
 import { navSections } from '../lib/navigation'
 
 function Sidebar({ collapsed = false, mobileOpen = false, onNavigate }) {
   const { activePage, navigate } = useAppContext()
-  const { logout, isLoggingOut, can } = useAuth()
+  const { logout, isLoggingOut, can, user } = useAuth()
+  const { showToast } = useToast()
+  const [logoutOpen, , openLogout, closeLogout] = useToggle(false)
 
   // Module access control: only show nav items the user's role permits.
   const visibleSections = navSections
@@ -19,6 +24,13 @@ function Sidebar({ collapsed = false, mobileOpen = false, onNavigate }) {
   const handleNavigate = (pageId) => {
     navigate(pageId)
     onNavigate?.()
+  }
+
+  const confirmLogout = async () => {
+    if (isLoggingOut) return
+    await logout()
+    closeLogout()
+    showToast('Signed out successfully.')
   }
 
   return (
@@ -80,7 +92,7 @@ function Sidebar({ collapsed = false, mobileOpen = false, onNavigate }) {
           collapsed ? 'desktop:justify-center desktop:px-[10px]' : '',
         ].join(' ')}
         title={collapsed ? (isLoggingOut ? 'Logging out...' : 'Logout') : undefined}
-        onClick={logout}
+        onClick={openLogout}
         disabled={isLoggingOut}
         aria-label={isLoggingOut ? 'Logging out' : 'Logout'}
       >
@@ -89,6 +101,14 @@ function Sidebar({ collapsed = false, mobileOpen = false, onNavigate }) {
           {isLoggingOut ? 'Logging out...' : 'Logout'}
         </span>
       </button>
+
+      <ConfirmLogoutModal
+        open={logoutOpen}
+        user={user}
+        busy={isLoggingOut}
+        onClose={closeLogout}
+        onConfirm={confirmLogout}
+      />
     </aside>
   )
 }

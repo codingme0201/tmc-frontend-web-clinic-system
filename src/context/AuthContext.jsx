@@ -73,8 +73,10 @@ export function AuthProvider({ children }) {
     setUserRole(authenticatedUser.role)
     setIsAuthenticated(true)
     // Move the user onto the dashboard — sign-in always lands on the home
-    // page rather than a stale protected route.
+    // page rather than a stale protected route. The authenticated user is
+    // returned so callers (e.g. the login page) can greet them.
     navigate('/dashboard')
+    return authenticatedUser
   }, [navigate])
 
   // Frontend convenience for UI gating (hiding buttons/menu items). The
