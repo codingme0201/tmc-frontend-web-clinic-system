@@ -26,7 +26,11 @@ function Login() {
       const signedIn = await login(email, password)
       showToast(`Welcome back, ${signedIn.name}!`)
     } catch (err) {
-      setError(err?.message || 'Unable to sign in. Please try again.')
+      // Surface the failure as a toast too (e.g. "Invalid email or password.")
+      // while keeping the inline box for persistent, accessible feedback.
+      const message = err?.message || 'Unable to sign in. Please try again.'
+      setError(message)
+      showToast(message, 'error')
     } finally {
       setSubmitting(false)
     }

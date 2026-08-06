@@ -80,3 +80,35 @@ input {
 #root {
   min-height: 100svh;
 }
+
+/*
+ * Toast entrance — slide in from the right edge.
+ *
+ * Sonner 2 animates toasts via its `--y` custom property (slide-up + fade by
+ * default). We override the entrance with a dedicated keyframe so toasts
+ * glide in from the right, matching the bottom-right toaster position. No
+ * fill-mode is used: once the entrance finishes, the toast returns to its
+ * normal cascade transform, so the auto-lift positioning (when several
+ * toasts are stacked) keeps working.
+ */
+[data-sonner-toaster][data-y-position='bottom'][data-x-position='right'] [data-sonner-toast][data-mounted='true'] {
+  animation: toast-slide-in-right 0.4s cubic-bezier(0.21, 1.02, 0.73, 1);
+}
+
+@keyframes toast-slide-in-right {
+  from {
+    transform: translateX(calc(100% + 48px));
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Respect the user's reduced-motion preference. */
+@media (prefers-reduced-motion: reduce) {
+  [data-sonner-toaster] [data-sonner-toast][data-mounted='true'] {
+    animation: none;
+  }
+}
