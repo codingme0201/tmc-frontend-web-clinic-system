@@ -1,33 +1,52 @@
-import { useCallback, useContext, useEffect, useRef } from 'react'
-import { AppContext } from '../context/AppContext'
+import { useCallback, useEffect, useRef } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useAppContext } from '../context/AppContext'
 import { eventsService } from '../services/eventsService'
-import { useResource } from './useResource'
 
-/** Campus events store — instantiated once by AppProvider. */
+/**
+ * Campus events store — instantiated once by AppProvider so every page
+ * shares the same data. Backed by TanStack Query:
+ *   - `useQuery(['events'])` loads the calendar from the Laravel API.
+ *   - `addEvent` calls the API and invalidates the list so the UI
+ *     refreshes from the server.
+ */
 export function useClinicEventsStore({ onLog } = {}) {
-  const { data, setData, isLoading, error, refetch } = useResource(eventsService.fetchEvents)
-
+  const queryClient = useQueryClient()
   const onLogRef = useRef(onLog)
   useEffect(() => {
     onLogRef.current = onLog
   }, [onLog])
 
-  const addEvent = useCallback(
-    async (payload) => {
-      const created = await eventsService.createEvent(payload)
-      setData((prev) => [...(prev || []), created])
+  const { data, isLoading, error, refetch, isRefetching } = useQuery({
+    queryKey: ['events'],
+    queryFn: eventsService.fetchEvents,
+  })
+
+  const createMutation = useMutation({
+    mutationFn: eventsService.createEvent,
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: ['events'] })
       onLogRef.current?.(`Scheduled new clinic event: ${created.title}`)
-      return created
     },
-    [setData],
+  })
+
+  const addEvent = useCallback(
+    async (payload) => createMutation.mutateAsync(payload),
+    [createMutation],
   )
 
-  return { data: data || [], isLoading, error, refetch, addEvent }
+  return {
+    data: data || [],
+    isLoading,
+    error: error?.message ?? null,
+    refetch,
+    isRefetching,
+    addEvent,
+  }
 }
 
-/** Public hook — returns the shared clinic events store. */
+/** Public hook — pages call this on mount (page-scoped fetch + app-level audit log). */
 export function useClinicEvents() {
-  const context = useContext(AppContext)
-  if (!context) throw new Error('useClinicEvents must be used within an AppProvider')
-  return context.clinicEvents
+  const { log } = useAppContext()
+  return useClinicEventsStore({ onLog: log })
 }

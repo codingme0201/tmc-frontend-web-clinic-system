@@ -1,6 +1,6 @@
-import { useCallback, useContext, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AppContext } from '../context/AppContext'
+import { useAppContext } from '../context/AppContext'
 import { appointmentsService } from '../services/appointmentsService'
 
 /**
@@ -19,7 +19,7 @@ export function useAppointmentsStore({ onLog } = {}) {
     onLogRef.current = onLog
   }, [onLog])
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ['appointments'],
     queryFn: appointmentsService.fetchAppointments,
   })
@@ -69,6 +69,7 @@ export function useAppointmentsStore({ onLog } = {}) {
     isLoading,
     error: error?.message ?? null,
     refetch,
+    isRefetching,
     createAppointment,
     updateStatus,
     reschedule,
@@ -76,11 +77,14 @@ export function useAppointmentsStore({ onLog } = {}) {
 }
 
 /**
- * Public hook — pages consume the shared appointment store through context.
- * Returns { data, isLoading, error, refetch, createAppointment, updateStatus, reschedule }.
+ * Public hook — pages call this on mount. The query is page-scoped (data
+ * fetches when the page opens, so its skeleton shows on first load, exactly
+ * like the Roles & Permissions page), while the shared React Query cache
+ * keeps revisits instant. Mutations route their audit activity through the
+ * app-level `log`.
+ * Returns { data, isLoading, error, refetch, isRefetching, createAppointment, updateStatus, reschedule }.
  */
 export function useAppointments() {
-  const context = useContext(AppContext)
-  if (!context) throw new Error('useAppointments must be used within an AppProvider')
-  return context.appointments
+  const { log } = useAppContext()
+  return useAppointmentsStore({ onLog: log })
 }

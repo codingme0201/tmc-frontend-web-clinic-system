@@ -12,13 +12,21 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,
+      // gcTime defaults to 5 minutes — cached data stays available for that
+      // window, so returning to a page shows data immediately instead of
+      // re-skeletoning. Navigations within the session never flash skeletons
+      // for data that was already fetched.
+      //
       // Retries are handled centrally in services/api.js `request()`: idempotent
       // GET fetches retry transient 502/503/504 and network failures with a
       // backoff before surfacing an error. Keeping retry disabled here avoids
       // re-running whole queries on top of that (request multiplication when
       // the single-threaded PHP dev server is under a burst of parallel loads).
       retry: false,
-      refetchOnWindowFocus: false,
+      // Refocusing the window background-refetches stale queries only — cached
+      // data stays on screen (pages show a subtle "Refreshing…" indicator via
+      // `isRefetching`), so this never interrupts the UI.
+      refetchOnWindowFocus: true,
     },
   },
 })

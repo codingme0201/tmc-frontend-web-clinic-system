@@ -1,6 +1,6 @@
-import { useCallback, useContext, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AppContext } from '../context/AppContext'
+import { useAppContext } from '../context/AppContext'
 import { consultationsService } from '../services/consultationsService'
 
 /**
@@ -20,7 +20,7 @@ export function useConsultationsStore({ onLog } = {}) {
     onLogRef.current = onLog
   }, [onLog])
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ['consultations'],
     queryFn: consultationsService.fetchConsultations,
   })
@@ -85,6 +85,7 @@ export function useConsultationsStore({ onLog } = {}) {
     isLoading,
     error: error?.message ?? null,
     refetch,
+    isRefetching,
     addConsultation,
     startConsultation,
     saveConsultation,
@@ -93,12 +94,11 @@ export function useConsultationsStore({ onLog } = {}) {
 }
 
 /**
- * Public hook — pages consume the shared consultation store through context.
- * Returns { data, isLoading, error, refetch, addConsultation,
- * startConsultation, saveConsultation, completeConsultation }.
+ * Public hook — pages call this on mount (page-scoped fetch + app-level
+ * audit log). Returns { data, isLoading, error, refetch, isRefetching,
+ * addConsultation, startConsultation, saveConsultation, completeConsultation }.
  */
 export function useConsultations() {
-  const context = useContext(AppContext)
-  if (!context) throw new Error('useConsultations must be used within an AppProvider')
-  return context.consultations
+  const { log } = useAppContext()
+  return useConsultationsStore({ onLog: log })
 }

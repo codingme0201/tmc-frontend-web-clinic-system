@@ -2,32 +2,25 @@
 // The context object, provider, and consumer hook intentionally live in one
 // file as a single composition root. Fast Refresh falls back to a full
 // reload when this file changes — an acceptable trade-off for the merge.
-import { createContext, useContext, useMemo } from 'react'
+import { createContext, useCallback, useContext, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useAppointmentsStore } from '../hooks/useAppointments'
-import { usePatientsStore } from '../hooks/usePatients'
-import { useConsultationsStore } from '../hooks/useConsultations'
-import { useMedicalRecordsStore } from '../hooks/useMedicalRecords'
-import { useStaffStore } from '../hooks/useStaff'
 import { useActivityLogsStore } from '../hooks/useActivityLogs'
-import { useClinicEventsStore } from '../hooks/useClinicEvents'
-import { useClinicInsightsStore } from '../hooks/useClinicInsights'
 
 export const AppContext = createContext(undefined)
 
 /**
- * Composition root for app-wide page/navigation + domain state.
+ * Composition root for app-wide page/navigation state.
  *
- * - Routing now lives in react-router (see App.jsx): this provider derives
- *   `activePage` from the current location and exposes `navigate(pageId)`
- *   so components keep the same navigation API as before.
- * - Each domain store hook (appointments, patients, etc.) is instantiated
- *   exactly once here and exposed through context, so every page consumes a
- *   single shared instance via the matching use* hook.
+ * - Routing lives in react-router (see App.jsx): this provider derives
+ *   `activePage` from the current location and exposes `navigate(pageId)`.
+ * - The global audit logger (`log`) lives here — every page's store
+ *   mutations route their activity through it. Data stores themselves are
+ *   **page-scoped**: each page fetches its own data when it mounts, so a
+ *   page shows its skeletons on first load exactly like the Roles &
+ *   Permissions page, while TanStack Query's shared cache (same query keys)
+ *   keeps revisits instant with a background refetch.
  *
  * Must be rendered inside an AuthProvider and a Router (HashRouter).
- * The store hooks talk to the service layer only; pages never touch the
- * API or services directly.
  */
 export function AppProvider({ children }) {
   const location = useLocation()
@@ -36,45 +29,19 @@ export function AppProvider({ children }) {
   // The active page is the current route segment ('' → 'dashboard').
   const activePage = location.pathname.replace(/^\//, '') || 'dashboard'
 
-  // --- Domain stores (one instance, shared app-wide) -----------------------
+  // Global audit trail (small, app-wide) — also the target of `log`, which
+  // every page store calls after a successful mutation.
   const activityLogs = useActivityLogsStore()
-  // Plain callback — the store hooks keep it in a ref, so there is no stale
-  // closure even though this is recreated on every render.
-  const log = (action) => activityLogs.addActivityLog(action)
-
-  const appointments = useAppointmentsStore({ onLog: log })
-  const patients = usePatientsStore({ onLog: log })
-  const consultations = useConsultationsStore({ onLog: log })
-  const medicalRecords = useMedicalRecordsStore({ onLog: log })
-  const staff = useStaffStore({ onLog: log })
-  const clinicEvents = useClinicEventsStore({ onLog: log })
-  const clinicInsights = useClinicInsightsStore()
+  const log = useCallback((action) => activityLogs.addActivityLog(action), [activityLogs])
 
   const value = useMemo(
     () => ({
       activePage,
       navigate: (pageId) => navigate('/' + pageId),
-      appointments,
-      patients,
-      consultations,
-      medicalRecords,
-      staff,
       activityLogs,
-      clinicEvents,
-      clinicInsights,
+      log,
     }),
-    [
-      activePage,
-      navigate,
-      appointments,
-      patients,
-      consultations,
-      medicalRecords,
-      staff,
-      activityLogs,
-      clinicEvents,
-      clinicInsights,
-    ],
+    [activePage, navigate, activityLogs, log],
   )
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

@@ -1,33 +1,55 @@
-import { useCallback, useContext, useEffect, useRef } from 'react'
-import { AppContext } from '../context/AppContext'
+import { useCallback, useEffect, useRef } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useAppContext } from '../context/AppContext'
 import { staffService } from '../services/staffService'
-import { useResource } from './useResource'
 
-/** Medical staff store — instantiated once by AppProvider. */
+/**
+ * Medical staff store — instantiated once by AppProvider so every page
+ * shares the same data. Backed by TanStack Query (same pattern as the
+ * appointments store):
+ *   - `useQuery(['staff'])` loads the roster from the Laravel API.
+ *   - `updateStaffStatus` calls the API and invalidates the list so the
+ *     UI refreshes from the server.
+ * `isRefetching` lets pages show a subtle indicator when a background
+ * refetch runs without hiding the existing content.
+ */
 export function useStaffStore({ onLog } = {}) {
-  const { data, setData, isLoading, error, refetch } = useResource(staffService.fetchStaff)
-
+  const queryClient = useQueryClient()
   const onLogRef = useRef(onLog)
   useEffect(() => {
     onLogRef.current = onLog
   }, [onLog])
 
-  const updateStaffStatus = useCallback(
-    async (name, newStatus) => {
-      const updated = await staffService.updateStaffStatus(name, newStatus)
-      setData((prev) => (prev || []).map((m) => (m.name === name ? updated : m)))
-      onLogRef.current?.(`Updated status of ${name} to: ${newStatus}`)
-      return updated
+  const { data, isLoading, error, refetch, isRefetching } = useQuery({
+    queryKey: ['staff'],
+    queryFn: staffService.fetchStaff,
+  })
+
+  const statusMutation = useMutation({
+    mutationFn: ({ name, status }) => staffService.updateStaffStatus(name, status),
+    onSuccess: (updated, { name, status }) => {
+      queryClient.invalidateQueries({ queryKey: ['staff'] })
+      onLogRef.current?.(`Updated status of ${name} to: ${status}`)
     },
-    [setData],
+  })
+
+  const updateStaffStatus = useCallback(
+    async (name, newStatus) => statusMutation.mutateAsync({ name, status: newStatus }),
+    [statusMutation],
   )
 
-  return { data: data || [], isLoading, error, refetch, updateStaffStatus }
+  return {
+    data: data || [],
+    isLoading,
+    error: error?.message ?? null,
+    refetch,
+    isRefetching,
+    updateStaffStatus,
+  }
 }
 
-/** Public hook — returns the shared staff store. */
+/** Public hook — pages call this on mount (page-scoped fetch + app-level audit log). */
 export function useStaff() {
-  const context = useContext(AppContext)
-  if (!context) throw new Error('useStaff must be used within an AppProvider')
-  return context.staff
+  const { log } = useAppContext()
+  return useStaffStore({ onLog: log })
 }

@@ -1,33 +1,52 @@
-import { useCallback, useContext, useEffect, useRef } from 'react'
-import { AppContext } from '../context/AppContext'
+import { useCallback, useEffect, useRef } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useAppContext } from '../context/AppContext'
 import { patientsService } from '../services/patientsService'
-import { useResource } from './useResource'
 
-/** Patient registry store — instantiated once by AppProvider. */
+/**
+ * Patient registry store — instantiated once by AppProvider so every page
+ * shares the same data. Backed by TanStack Query:
+ *   - `useQuery(['patients'])` loads the registry from the Laravel API.
+ *   - `addPatient` calls the API and invalidates the list so the UI
+ *     refreshes from the server.
+ */
 export function usePatientsStore({ onLog } = {}) {
-  const { data, setData, isLoading, error, refetch } = useResource(patientsService.fetchPatients)
-
+  const queryClient = useQueryClient()
   const onLogRef = useRef(onLog)
   useEffect(() => {
     onLogRef.current = onLog
   }, [onLog])
 
-  const addPatient = useCallback(
-    async (payload) => {
-      const created = await patientsService.createPatient(payload)
-      setData((prev) => [...(prev || []), created])
+  const { data, isLoading, error, refetch, isRefetching } = useQuery({
+    queryKey: ['patients'],
+    queryFn: patientsService.fetchPatients,
+  })
+
+  const createMutation = useMutation({
+    mutationFn: patientsService.createPatient,
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: ['patients'] })
       onLogRef.current?.(`Created new patient profile for ${created.name} (${created.type})`)
-      return created
     },
-    [setData],
+  })
+
+  const addPatient = useCallback(
+    async (payload) => createMutation.mutateAsync(payload),
+    [createMutation],
   )
 
-  return { data: data || [], isLoading, error, refetch, addPatient }
+  return {
+    data: data || [],
+    isLoading,
+    error: error?.message ?? null,
+    refetch,
+    isRefetching,
+    addPatient,
+  }
 }
 
-/** Public hook — returns the shared patient store. */
+/** Public hook — pages call this on mount (page-scoped fetch + app-level audit log). */
 export function usePatients() {
-  const context = useContext(AppContext)
-  if (!context) throw new Error('usePatients must be used within an AppProvider')
-  return context.patients
+  const { log } = useAppContext()
+  return usePatientsStore({ onLog: log })
 }

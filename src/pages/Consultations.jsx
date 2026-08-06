@@ -13,7 +13,8 @@ import {
 } from '../lib/ui'
 import StatusBadge from '../components/StatusBadge'
 import Pagination from '../components/Pagination'
-import Skeleton from '../components/Skeleton'
+import RefreshingBadge from '../components/RefreshingBadge'
+import TableSkeleton from '../components/skeletons/TableSkeleton'
 import { EmptyState, ErrorState } from '../components/AsyncState'
 
 // Roles permitted to start/record/complete consultations.
@@ -110,6 +111,7 @@ function Consultations({ page }) {
     isLoading,
     error,
     refetch,
+    isRefetching,
     startConsultation,
     saveConsultation,
     completeConsultation,
@@ -345,9 +347,12 @@ function Consultations({ page }) {
               </button>
             )}
             {!isLoading && !error && (
-              <span className="ml-auto whitespace-nowrap text-[12.5px] font-bold text-muted">
-                {filtered.length} of {consultations.length} consultations
-              </span>
+              <>
+                <RefreshingBadge refreshing={isRefetching} />
+                <span className="ml-auto whitespace-nowrap text-[12.5px] font-bold text-muted">
+                  {filtered.length} of {consultations.length} consultations
+                </span>
+              </>
             )}
           </div>
         </div>
@@ -362,42 +367,7 @@ function Consultations({ page }) {
           {error ? (
             <ErrorState message={error} onRetry={refetch} />
           ) : isLoading ? (
-            <table className={TABLE}>
-              <thead>
-                <tr>
-                  <th>Reference</th>
-                  <th>Patient</th>
-                  <th>Schedule</th>
-                  <th>Attending Staff</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Array.from({ length: 6 }, (_, i) => (
-                  <tr key={i}>
-                    <td>
-                      <Skeleton width={96} height={14} />
-                    </td>
-                    <td>
-                      <Skeleton width={140} height={14} />
-                    </td>
-                    <td>
-                      <Skeleton width={110} height={14} />
-                    </td>
-                    <td>
-                      <Skeleton width={120} height={14} />
-                    </td>
-                    <td>
-                      <Skeleton width={64} height={18} />
-                    </td>
-                    <td>
-                      <Skeleton width={120} height={28} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <TableSkeleton columns={6} />
           ) : (
             <table className={TABLE}>
               <thead>

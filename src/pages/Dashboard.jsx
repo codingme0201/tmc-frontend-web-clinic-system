@@ -13,7 +13,14 @@ import { formatDate, todayISO } from '../lib/format'
 import { PILL, PRIMARY_BTN, PANEL, PANEL_HEADER, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT, SIDEBAR_FORM, FORM_LABEL, FORM_FIELD, FORM_ROW } from '../lib/ui'
 import Pagination from '../components/Pagination'
 import StatusBadge from '../components/StatusBadge'
-import { EmptyState, ErrorState, LoadingState } from '../components/AsyncState'
+import { EmptyState, ErrorState } from '../components/AsyncState'
+import InlineSpinner from '../components/Spinner'
+import RefreshingBadge from '../components/RefreshingBadge'
+import DashboardCardSkeleton from '../components/skeletons/DashboardCardSkeleton'
+import TableSkeleton from '../components/skeletons/TableSkeleton'
+import ListSkeleton from '../components/skeletons/ListSkeleton'
+import CardSkeleton from '../components/skeletons/CardSkeleton'
+import FormSkeleton from '../components/skeletons/FormSkeleton'
 
 function Dashboard() {
   const [activeTab, setActiveTab] = useState('overview') // 'overview', 'appointments', 'consultations', 'patients', 'schedule', 'activity'
@@ -25,6 +32,7 @@ function Dashboard() {
     isLoading: appointmentsLoading,
     error: appointmentsError,
     refetch: refetchAppointments,
+    isRefetching: appointmentsRefetching,
     createAppointment,
     updateStatus: updateAppointmentStatus,
   } = useAppointments()
@@ -34,6 +42,7 @@ function Dashboard() {
     isLoading: staffLoading,
     error: staffError,
     refetch: refetchStaff,
+    isRefetching: staffRefetching,
     updateStaffStatus,
   } = useStaff()
 
@@ -55,7 +64,13 @@ function Dashboard() {
 
   const { data: activityLogs, isLoading: logsLoading, error: logsError, refetch: refetchLogs } = useActivityLogs()
   const { data: events, isLoading: eventsLoading, error: eventsError, refetch: refetchEvents, addEvent } = useClinicEvents()
-  const { data: clinicInsights, isLoading: insightsLoading, error: insightsError, refetch: refetchInsights } = useClinicInsights()
+  const {
+    data: clinicInsights,
+    isLoading: insightsLoading,
+    error: insightsError,
+    refetch: refetchInsights,
+    isRefetching: insightsRefetching,
+  } = useClinicInsights()
   const { showToast } = useToast()
 
   // Modals & Panels Active States
@@ -66,6 +81,10 @@ function Dashboard() {
   const [appType, setAppType] = useState('Check-up')
   const [appTime, setAppTime] = useState('09:00 AM')
   const [booking, setBooking] = useState(false)
+  const [logging, setLogging] = useState(false)
+  const [addingPatient, setAddingPatient] = useState(false)
+  const [addingEvent, setAddingEvent] = useState(false)
+  const [statusUpdating, setStatusUpdating] = useState(null) // staff name currently being toggled
 
   // Log Consultation Form State
   const [consPatient, setConsPatient] = useState('')
@@ -138,7 +157,8 @@ function Dashboard() {
   // Consultation Actions
   const handleLogConsultation = async (e) => {
     e.preventDefault()
-    if (!effectiveConsPatient.trim() || !consDiagnosis.trim()) return
+    if (logging || !effectiveConsPatient.trim() || !consDiagnosis.trim()) return
+    setLogging(true)
     try {
       await addConsultation({
         patient: effectiveConsPatient,
@@ -156,13 +176,16 @@ function Dashboard() {
       setConsTreatment('')
     } catch (err) {
       showToast(err?.message || 'Failed to log the consultation.', 'error')
+    } finally {
+      setLogging(false)
     }
   }
 
   // Patient Actions
   const handleAddPatient = async (e) => {
     e.preventDefault()
-    if (!patId.trim() || !patName.trim()) return
+    if (addingPatient || !patId.trim() || !patName.trim()) return
+    setAddingPatient(true)
     try {
       await addPatient({
         id: patId,
@@ -185,23 +208,30 @@ function Dashboard() {
       setPatHistory('')
     } catch (err) {
       showToast(err?.message || 'Failed to create the patient profile.', 'error')
+    } finally {
+      setAddingPatient(false)
     }
   }
 
   // Staff coverage action
   const handleUpdateStaffStatus = async (name, newStatus) => {
+    if (statusUpdating) return
+    setStatusUpdating(name)
     try {
       await updateStaffStatus(name, newStatus)
       showToast(`Status of ${name} updated to ${newStatus}.`)
     } catch (err) {
       showToast(err?.message || 'Failed to update staff status.', 'error')
+    } finally {
+      setStatusUpdating(null)
     }
   }
 
   // Event Action
   const handleAddEvent = async (e) => {
     e.preventDefault()
-    if (!evtTitle.trim() || !evtDate.trim()) return
+    if (addingEvent || !evtTitle.trim() || !evtDate.trim()) return
+    setAddingEvent(true)
     try {
       await addEvent({
         date: evtDate,
@@ -214,6 +244,8 @@ function Dashboard() {
       setEvtDesc('')
     } catch (err) {
       showToast(err?.message || 'Failed to schedule the event.', 'error')
+    } finally {
+      setAddingEvent(false)
     }
   }
 
@@ -295,14 +327,18 @@ function Dashboard() {
     return appointments.filter((a) => a.status === 'Pending' || a.status === 'Under Review')
   }, [appointments])
 
-  // Overview load gate
-  const overviewLoading = appointmentsLoading || staffLoading || patientsLoading || consultationsLoading || insightsLoading
-  const overviewError = appointmentsError || staffError || patientsError || consultationsError || insightsError
-  const retryOverview = () => {
+  // Overview load state — each widget loads independently, so a slow API
+  // never blocks the whole dashboard. These booleans drive the stat cards
+  // (derived from four stores) while every other widget manages its own
+  // loading/error state below.
+  const statsLoading = appointmentsLoading || staffLoading || patientsLoading || consultationsLoading
+  const statsError = appointmentsError || staffError || patientsError || consultationsError
+  const retryStats = () => {
     refetchAppointments()
     refetchStaff()
     refetchPatients()
     refetchConsultations()
+    refetchInsights()
   }
 
   const activity = clinicInsights?.clinicActivity || []
@@ -377,22 +413,26 @@ function Dashboard() {
         {/* ================= OVERVIEW TAB ================= */}
         {activeTab === 'overview' && (
           <div>
-            {overviewError ? (
-              <ErrorState message={overviewError} onRetry={retryOverview} />
-            ) : overviewLoading ? (
-              <LoadingState label="Loading clinic overview..." />
+            {/* Stat cards — one skeleton per card until the four core stores settle */}
+            {statsError ? (
+              <ErrorState message={statsError} onRetry={retryStats} />
+            ) : statsLoading ? (
+              <div className="mb-[18px] grid grid-cols-4 gap-[14px] max-[980px]:grid-cols-1">
+                {Array.from({ length: 4 }, (_, i) => (
+                  <DashboardCardSkeleton key={i} />
+                ))}
+              </div>
             ) : (
-              <>
-                {/* Stat Cards Grid */}
-                <div className="mb-[18px] grid grid-cols-4 gap-[14px] max-[980px]:grid-cols-1">
-                  {activeStats.map((item) => (
-                    <article key={item.label} className={PANEL}>
-                      <p className="m-0 text-[13px] text-muted">{item.label}</p>
-                      <strong className="mb-[5px] mt-[10px] block text-[32px] leading-none text-[#10393b]">{item.value}</strong>
-                      <span className="text-[12px] text-muted">{item.trend}</span>
-                    </article>
-                  ))}
-                </div>
+              <div className="mb-[18px] grid grid-cols-4 gap-[14px] max-[980px]:grid-cols-1">
+                {activeStats.map((item) => (
+                  <article key={item.label} className={PANEL}>
+                    <p className="m-0 text-[13px] text-muted">{item.label}</p>
+                    <strong className="mb-[5px] mt-[10px] block text-[32px] leading-none text-[#10393b]">{item.value}</strong>
+                    <span className="text-[12px] text-muted">{item.trend}</span>
+                  </article>
+                ))}
+              </div>
+            )}
 
                 {/* Overview Multi Grid */}
                 <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(280px,0.9fr)] gap-[18px] max-[980px]:grid-cols-1">
@@ -403,8 +443,16 @@ function Dashboard() {
                         <p className={KICKER}>Queue Management</p>
                         <h3 className="m-0 text-[18px] text-[#143d40]">Today's Pending Appointments</h3>
                       </div>
-                      <button type="button" className="cursor-pointer rounded-[7px] bg-bg px-3 py-2 font-extrabold text-primary" onClick={() => setActiveTab('appointments')}>Manage Queue</button>
+                      <div className="flex items-center gap-2">
+                        <RefreshingBadge refreshing={appointmentsRefetching && !appointmentsLoading} />
+                        <button type="button" className="cursor-pointer rounded-[7px] bg-bg px-3 py-2 font-extrabold text-primary" onClick={() => setActiveTab('appointments')}>Manage Queue</button>
+                      </div>
                     </div>
+                    {appointmentsError ? (
+                      <ErrorState message={appointmentsError} onRetry={refetchAppointments} />
+                    ) : appointmentsLoading ? (
+                      <ListSkeleton rows={3} />
+                    ) : (
                     <div className="grid gap-[10px]">
                       {pendingQueue.slice(0, 3).map((app) => (
                         <div className="grid grid-cols-[92px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-line p-3 max-[620px]:grid-cols-1" key={app.id}>
@@ -444,6 +492,7 @@ function Dashboard() {
                         <EmptyState message="No pending appointments today." />
                       )}
                     </div>
+                    )}
                   </article>
 
                   {/* Staff Shift Status Quick View */}
@@ -453,8 +502,16 @@ function Dashboard() {
                         <p className={KICKER}>Coverage Summary</p>
                         <h3 className="m-0 text-[18px] text-[#143d40]">Staff Status</h3>
                       </div>
-                      <button type="button" className="cursor-pointer rounded-[7px] bg-bg px-3 py-2 font-extrabold text-primary" onClick={() => setActiveTab('schedule')}>Adjust Shifts</button>
+                      <div className="flex items-center gap-2">
+                        <RefreshingBadge refreshing={staffRefetching && !staffLoading} />
+                        <button type="button" className="cursor-pointer rounded-[7px] bg-bg px-3 py-2 font-extrabold text-primary" onClick={() => setActiveTab('schedule')}>Adjust Shifts</button>
+                      </div>
                     </div>
+                    {staffError ? (
+                      <ErrorState message={staffError} onRetry={refetchStaff} />
+                    ) : staffLoading ? (
+                      <ListSkeleton rows={4} avatar />
+                    ) : (
                     <div className="grid gap-[10px]">
                       {staff.map((member) => (
                         <div className="grid grid-cols-[42px_minmax(0,1fr)] items-center gap-3 rounded-lg border border-line p-3" key={member.name}>
@@ -469,6 +526,7 @@ function Dashboard() {
                         </div>
                       ))}
                     </div>
+                    )}
                   </article>
 
                   {/* Clinic Activity Summary */}
@@ -478,8 +536,16 @@ function Dashboard() {
                         <p className={KICKER}>Records</p>
                         <h3 className="m-0 text-[18px] text-[#143d40]">Clinic Activity</h3>
                       </div>
-                      <button type="button" className="cursor-pointer rounded-[7px] bg-bg px-3 py-2 font-extrabold text-primary" onClick={() => setActiveTab('activity')}>View All</button>
+                      <div className="flex items-center gap-2">
+                        <RefreshingBadge refreshing={insightsRefetching && !insightsLoading} />
+                        <button type="button" className="cursor-pointer rounded-[7px] bg-bg px-3 py-2 font-extrabold text-primary" onClick={() => setActiveTab('activity')}>View All</button>
+                      </div>
                     </div>
+                    {insightsError ? (
+                      <ErrorState message={insightsError} onRetry={refetchInsights} />
+                    ) : insightsLoading ? (
+                      <CardSkeleton rows={4} />
+                    ) : (
                     <div className="grid gap-4">
                       {activity.map((item) => (
                         <div className="grid gap-[7px]" style={{ '--bar-size': `${item.percent}%` }} key={item.label}>
@@ -488,10 +554,9 @@ function Dashboard() {
                         </div>
                       ))}
                     </div>
+                    )}
                   </article>
                 </div>
-              </>
-            )}
           </div>
         )}
 
@@ -534,7 +599,7 @@ function Dashboard() {
                 {appointmentsError ? (
                   <ErrorState message={appointmentsError} onRetry={refetchAppointments} />
                 ) : appointmentsLoading ? (
-                  <LoadingState label="Loading appointment queue..." />
+                  <TableSkeleton columns={5} />
                 ) : (
                   <table className={TABLE}>
                     <thead>
@@ -691,7 +756,13 @@ function Dashboard() {
                 </label>
 
                 <button type="submit" className={`${PRIMARY_BTN} w-full`} disabled={booking}>
-                  {booking ? 'Booking...' : 'Book Appointment'}
+                  {booking ? (
+                    <>
+                      <InlineSpinner />Booking...
+                    </>
+                  ) : (
+                    'Book Appointment'
+                  )}
                 </button>
               </form>
             </div>
@@ -721,7 +792,7 @@ function Dashboard() {
                 {consultationsError ? (
                   <ErrorState message={consultationsError} onRetry={refetchConsultations} />
                 ) : consultationsLoading ? (
-                  <LoadingState label="Loading consultation logs..." />
+                  <TableSkeleton columns={6} />
                 ) : (
                   <table className={TABLE}>
                     <thead>
@@ -788,22 +859,33 @@ function Dashboard() {
               <h3 className="m-0 text-[18px] text-[#143d40]">Log New Consultation</h3>
               <p className="mt-0.5 text-[12px] text-muted">Log student symptoms and medication outcome</p>
 
+              {patientsLoading || staffLoading ? (
+                <FormSkeleton fields={6} />
+              ) : (
               <form onSubmit={handleLogConsultation} className={SIDEBAR_FORM}>
                 <label className={FORM_LABEL}>
                   Select Patient
-                  <select value={effectiveConsPatient} onChange={(e) => setConsPatient(e.target.value)} className={FORM_FIELD}>
-                    {patients.map((p) => (
-                      <option key={p.id} value={p.name}>{p.name} ({p.id})</option>
-                    ))}
+                  <select value={effectiveConsPatient} onChange={(e) => setConsPatient(e.target.value)} className={FORM_FIELD} disabled={patientsLoading}>
+                    {patientsLoading ? (
+                      <option value="">Loading patients…</option>
+                    ) : (
+                      patients.map((p) => (
+                        <option key={p.id} value={p.name}>{p.name} ({p.id})</option>
+                      ))
+                    )}
                   </select>
                 </label>
 
                 <label className={FORM_LABEL}>
                   Attending Medical Staff
-                  <select value={effectiveConsStaff} onChange={(e) => setConsStaff(e.target.value)} className={FORM_FIELD}>
-                    {staff.map((s) => (
-                      <option key={s.name} value={s.name}>{s.name} - {s.role}</option>
-                    ))}
+                  <select value={effectiveConsStaff} onChange={(e) => setConsStaff(e.target.value)} className={FORM_FIELD} disabled={staffLoading}>
+                    {staffLoading ? (
+                      <option value="">Loading staff…</option>
+                    ) : (
+                      staff.map((s) => (
+                        <option key={s.name} value={s.name}>{s.name} - {s.role}</option>
+                      ))
+                    )}
                   </select>
                 </label>
 
@@ -885,8 +967,17 @@ function Dashboard() {
                   </select>
                 </label>
 
-                <button type="submit" className={`${PRIMARY_BTN} w-full`}>Log Consultation</button>
+                <button type="submit" className={`${PRIMARY_BTN} w-full`} disabled={logging}>
+                  {logging ? (
+                    <>
+                      <InlineSpinner />Logging...
+                    </>
+                  ) : (
+                    'Log Consultation'
+                  )}
+                </button>
               </form>
+              )}
             </div>
           </div>
         )}
@@ -926,7 +1017,7 @@ function Dashboard() {
                 {patientsError ? (
                   <ErrorState message={patientsError} onRetry={refetchPatients} />
                 ) : patientsLoading ? (
-                  <LoadingState label="Loading patient registry..." />
+                  <TableSkeleton columns={6} />
                 ) : (
                   <table className={`${TABLE} [&_tbody_tr]:cursor-pointer [&_tbody_tr:hover]:bg-[#f7fbfb]`}>
                     <thead>
@@ -1075,7 +1166,15 @@ function Dashboard() {
                   />
                 </label>
 
-                <button type="submit" className={`${PRIMARY_BTN} w-full`}>Add Patient Profile</button>
+                <button type="submit" className={`${PRIMARY_BTN} w-full`} disabled={addingPatient}>
+                  {addingPatient ? (
+                    <>
+                      <InlineSpinner />Adding...
+                    </>
+                  ) : (
+                    'Add Patient Profile'
+                  )}
+                </button>
               </form>
             </div>
           </div>
@@ -1095,7 +1194,7 @@ function Dashboard() {
                 {staffError ? (
                   <ErrorState message={staffError} onRetry={refetchStaff} />
                 ) : staffLoading ? (
-                  <LoadingState label="Loading staff schedules..." />
+                  <TableSkeleton columns={5} />
                 ) : (
                   <table className={TABLE}>
                     <thead>
@@ -1121,6 +1220,7 @@ function Dashboard() {
                               value={member.status}
                               onChange={(e) => handleUpdateStaffStatus(member.name, e.target.value)}
                               className={SELECT_INPUT}
+                              disabled={statusUpdating === member.name}
                             >
                               <option value="On duty">On duty</option>
                               <option value="Break">Break</option>
@@ -1149,7 +1249,7 @@ function Dashboard() {
                 {eventsError ? (
                   <ErrorState message={eventsError} onRetry={refetchEvents} />
                 ) : eventsLoading ? (
-                  <LoadingState label="Loading events..." />
+                  <ListSkeleton rows={3} />
                 ) : (
                   <div className="mt-3 flex flex-col gap-3">
                     {events.map((evt, idx) => (
@@ -1210,7 +1310,15 @@ function Dashboard() {
                   />
                 </label>
 
-                <button type="submit" className={`${PRIMARY_BTN} w-full`}>Schedule Event</button>
+                <button type="submit" className={`${PRIMARY_BTN} w-full`} disabled={addingEvent}>
+                  {addingEvent ? (
+                    <>
+                      <InlineSpinner />Scheduling...
+                    </>
+                  ) : (
+                    'Schedule Event'
+                  )}
+                </button>
               </form>
             </div>
           </div>
@@ -1230,7 +1338,7 @@ function Dashboard() {
                 {insightsError ? (
                   <ErrorState message={insightsError} onRetry={refetchInsights} />
                 ) : insightsLoading ? (
-                  <LoadingState label="Loading peak hours..." />
+                  <CardSkeleton rows={4} />
                 ) : (
                   <div className="mt-[14px] grid gap-3">
                     {peakHours.map((hour) => (
@@ -1259,7 +1367,7 @@ function Dashboard() {
                 {logsError ? (
                   <ErrorState message={logsError} onRetry={refetchLogs} />
                 ) : logsLoading ? (
-                  <LoadingState label="Loading audit log..." />
+                  <ListSkeleton rows={4} />
                 ) : (
                   logsPagination.pageItems.map((log, idx) => (
                     <div className="flex gap-[10px] rounded-lg border border-line bg-[#fafcfb] p-[10px]" key={idx}>

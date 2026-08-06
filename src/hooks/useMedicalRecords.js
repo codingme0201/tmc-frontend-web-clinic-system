@@ -1,90 +1,121 @@
-import { useCallback, useContext, useEffect, useRef } from 'react'
-import { AppContext } from '../context/AppContext'
+import { useCallback, useEffect, useRef } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useAppContext } from '../context/AppContext'
 import { medicalRecordsService } from '../services/medicalRecordsService'
-import { useResource } from './useResource'
 
-/** Medical records store — instantiated once by AppProvider. */
+/**
+ * Medical records store — instantiated once by AppProvider so every page
+ * shares the same data. Backed by TanStack Query:
+ *   - `useQuery(['medical-records'])` loads the registry from the API.
+ *   - Each management mutation (conditions/allergies) calls the API and
+ *     invalidates the list so the UI refreshes from the server.
+ */
 export function useMedicalRecordsStore({ onLog } = {}) {
-  const { data, setData, isLoading, error, refetch } = useResource(medicalRecordsService.fetchMedicalRecords)
-
+  const queryClient = useQueryClient()
   const onLogRef = useRef(onLog)
   useEffect(() => {
     onLogRef.current = onLog
   }, [onLog])
 
-  // Replaces a record in the store with the updated copy returned by the service.
-  const applyRecord = useCallback(
-    (updated) => {
-      setData((prev) => (prev || []).map((r) => (r.id === updated.id ? updated : r)))
+  const { data, isLoading, error, refetch, isRefetching } = useQuery({
+    queryKey: ['medical-records'],
+    queryFn: medicalRecordsService.fetchMedicalRecords,
+  })
+
+  const refresh = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['medical-records'] })
+  }, [queryClient])
+
+  const addConditionMutation = useMutation({
+    mutationFn: ({ recordId, payload }) => medicalRecordsService.addCondition(recordId, payload),
+    onSuccess: (updated, { payload }) => {
+      refresh()
+      onLogRef.current?.(`Added condition "${payload.name}" to ${updated.name}'s medical record`)
     },
-    [setData],
-  )
+  })
+
+  const updateConditionMutation = useMutation({
+    mutationFn: ({ recordId, conditionId, patch }) =>
+      medicalRecordsService.updateCondition(recordId, conditionId, patch),
+    onSuccess: (updated) => {
+      refresh()
+      onLogRef.current?.(`Updated condition on ${updated.name}'s medical record`)
+    },
+  })
+
+  const removeConditionMutation = useMutation({
+    mutationFn: ({ recordId, conditionId }) => medicalRecordsService.removeCondition(recordId, conditionId),
+    onSuccess: (updated, { conditionName }) => {
+      refresh()
+      onLogRef.current?.(`Removed condition "${conditionName}" from ${updated.name}'s medical record`)
+    },
+  })
+
+  const addAllergyMutation = useMutation({
+    mutationFn: ({ recordId, payload }) => medicalRecordsService.addAllergy(recordId, payload),
+    onSuccess: (updated, { payload }) => {
+      refresh()
+      onLogRef.current?.(`Recorded "${payload.allergen}" allergy on ${updated.name}'s medical record`)
+    },
+  })
+
+  const updateAllergyMutation = useMutation({
+    mutationFn: ({ recordId, allergyId, patch }) =>
+      medicalRecordsService.updateAllergy(recordId, allergyId, patch),
+    onSuccess: (updated) => {
+      refresh()
+      onLogRef.current?.(`Updated allergy information on ${updated.name}'s medical record`)
+    },
+  })
+
+  const removeAllergyMutation = useMutation({
+    mutationFn: ({ recordId, allergyId }) => medicalRecordsService.removeAllergy(recordId, allergyId),
+    onSuccess: (updated, { allergen }) => {
+      refresh()
+      onLogRef.current?.(`Removed "${allergen}" allergy from ${updated.name}'s medical record`)
+    },
+  })
 
   const addCondition = useCallback(
-    async (recordId, payload) => {
-      const updated = await medicalRecordsService.addCondition(recordId, payload)
-      applyRecord(updated)
-      onLogRef.current?.(`Added condition "${payload.name}" to ${updated.name}'s medical record`)
-      return updated
-    },
-    [applyRecord],
+    async (recordId, payload) => addConditionMutation.mutateAsync({ recordId, payload }),
+    [addConditionMutation],
   )
 
   const updateCondition = useCallback(
-    async (recordId, conditionId, patch) => {
-      const updated = await medicalRecordsService.updateCondition(recordId, conditionId, patch)
-      applyRecord(updated)
-      onLogRef.current?.(`Updated condition on ${updated.name}'s medical record`)
-      return updated
-    },
-    [applyRecord],
+    async (recordId, conditionId, patch) =>
+      updateConditionMutation.mutateAsync({ recordId, conditionId, patch }),
+    [updateConditionMutation],
   )
 
   const removeCondition = useCallback(
-    async (recordId, conditionId, conditionName) => {
-      const updated = await medicalRecordsService.removeCondition(recordId, conditionId)
-      applyRecord(updated)
-      onLogRef.current?.(`Removed condition "${conditionName}" from ${updated.name}'s medical record`)
-      return updated
-    },
-    [applyRecord],
+    async (recordId, conditionId, conditionName) =>
+      removeConditionMutation.mutateAsync({ recordId, conditionId, conditionName }),
+    [removeConditionMutation],
   )
 
   const addAllergy = useCallback(
-    async (recordId, payload) => {
-      const updated = await medicalRecordsService.addAllergy(recordId, payload)
-      applyRecord(updated)
-      onLogRef.current?.(`Recorded "${payload.allergen}" allergy on ${updated.name}'s medical record`)
-      return updated
-    },
-    [applyRecord],
+    async (recordId, payload) => addAllergyMutation.mutateAsync({ recordId, payload }),
+    [addAllergyMutation],
   )
 
   const updateAllergy = useCallback(
-    async (recordId, allergyId, patch) => {
-      const updated = await medicalRecordsService.updateAllergy(recordId, allergyId, patch)
-      applyRecord(updated)
-      onLogRef.current?.(`Updated allergy information on ${updated.name}'s medical record`)
-      return updated
-    },
-    [applyRecord],
+    async (recordId, allergyId, patch) =>
+      updateAllergyMutation.mutateAsync({ recordId, allergyId, patch }),
+    [updateAllergyMutation],
   )
 
   const removeAllergy = useCallback(
-    async (recordId, allergyId, allergen) => {
-      const updated = await medicalRecordsService.removeAllergy(recordId, allergyId)
-      applyRecord(updated)
-      onLogRef.current?.(`Removed "${allergen}" allergy from ${updated.name}'s medical record`)
-      return updated
-    },
-    [applyRecord],
+    async (recordId, allergyId, allergen) =>
+      removeAllergyMutation.mutateAsync({ recordId, allergyId, allergen }),
+    [removeAllergyMutation],
   )
 
   return {
     data: data || [],
     isLoading,
-    error,
+    error: error?.message ?? null,
     refetch,
+    isRefetching,
     addCondition,
     updateCondition,
     removeCondition,
@@ -94,9 +125,8 @@ export function useMedicalRecordsStore({ onLog } = {}) {
   }
 }
 
-/** Public hook — returns the shared medical records store. */
+/** Public hook — pages call this on mount (page-scoped fetch + app-level audit log). */
 export function useMedicalRecords() {
-  const context = useContext(AppContext)
-  if (!context) throw new Error('useMedicalRecords must be used within an AppProvider')
-  return context.medicalRecords
+  const { log } = useAppContext()
+  return useMedicalRecordsStore({ onLog: log })
 }

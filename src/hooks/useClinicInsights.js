@@ -1,9 +1,13 @@
-import { useCallback, useContext } from 'react'
-import { AppContext } from '../context/AppContext'
+import { useCallback } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { insightsService } from '../services/insightsService'
-import { useResource } from './useResource'
 
-/** Static dashboard charts store (activity bars + peak hours) — once per app. */
+/**
+ * Static dashboard charts store (activity bars + peak hours) — once per app.
+ * Backed by TanStack Query: both insight endpoints are fetched together and
+ * cached under one key, so the dashboard keeps the previous chart data
+ * visible during background refetches.
+ */
 export function useClinicInsightsStore() {
   const fetcher = useCallback(async () => {
     const [clinicActivity, peakHours] = await Promise.all([
@@ -13,13 +17,15 @@ export function useClinicInsightsStore() {
     return { clinicActivity, peakHours }
   }, [])
 
-  const { data, isLoading, error, refetch } = useResource(fetcher)
-  return { data, isLoading, error, refetch }
+  const { data, isLoading, error, refetch, isRefetching } = useQuery({
+    queryKey: ['clinic-insights'],
+    queryFn: fetcher,
+  })
+
+  return { data, isLoading, error: error?.message ?? null, refetch, isRefetching }
 }
 
-/** Public hook — returns { data: { clinicActivity, peakHours }, isLoading, error, refetch }. */
+/** Public hook — pages call this on mount (page-scoped fetch). Returns { data: { clinicActivity, peakHours }, isLoading, error, refetch, isRefetching }. */
 export function useClinicInsights() {
-  const context = useContext(AppContext)
-  if (!context) throw new Error('useClinicInsights must be used within an AppProvider')
-  return context.clinicInsights
+  return useClinicInsightsStore()
 }

@@ -14,7 +14,8 @@ import {
 import Pagination from '../components/Pagination'
 import StatusBadge from '../components/StatusBadge'
 import { EmptyState, ErrorState } from '../components/AsyncState'
-import Skeleton from '../components/Skeleton'
+import RefreshingBadge from '../components/RefreshingBadge'
+import TableSkeleton from '../components/skeletons/TableSkeleton'
 
 const STATUSES = ['Pending', 'Under Review', 'Approved', 'Rescheduled', 'Rejected', 'Cancelled', 'Completed']
 const APPOINTMENT_TYPES = ['Check-up', 'Dental concern', 'Follow-up', 'Fever', 'Vaccination', 'Emergency']
@@ -44,6 +45,7 @@ function Appointments({ page }) {
     isLoading,
     error,
     refetch,
+    isRefetching,
     createAppointment,
     updateStatus,
     reschedule,
@@ -319,9 +321,12 @@ function Appointments({ page }) {
               </button>
             )}
             {!isLoading && !error && (
-              <span className="ml-auto whitespace-nowrap text-[12.5px] font-bold text-muted">
-                {filtered.length} of {appointments.length} appointments
-              </span>
+              <>
+                <RefreshingBadge refreshing={isRefetching} />
+                <span className="ml-auto whitespace-nowrap text-[12.5px] font-bold text-muted">
+                  {filtered.length} of {appointments.length} appointments
+                </span>
+              </>
             )}
           </div>
         </div>
@@ -329,6 +334,8 @@ function Appointments({ page }) {
         <div className="overflow-x-auto rounded-lg border border-line">
           {error ? (
             <ErrorState message={error} onRetry={refetch} />
+          ) : isLoading ? (
+            <TableSkeleton columns={7} />
           ) : (
             <table className={TABLE}>
               <thead>
@@ -343,33 +350,7 @@ function Appointments({ page }) {
                 </tr>
               </thead>
               <tbody>
-                {isLoading ? (
-                  Array.from({ length: 6 }, (_, i) => (
-                    <tr key={i}>
-                      <td>
-                        <Skeleton width={88} height={14} />
-                      </td>
-                      <td>
-                        <Skeleton width={140} height={14} />
-                      </td>
-                      <td>
-                        <Skeleton width={160} height={14} />
-                      </td>
-                      <td>
-                        <Skeleton width={110} height={14} />
-                      </td>
-                      <td>
-                        <Skeleton width={100} height={14} />
-                      </td>
-                      <td>
-                        <Skeleton width={64} height={18} />
-                      </td>
-                      <td>
-                        <Skeleton width={150} height={28} />
-                      </td>
-                    </tr>
-                  ))
-                ) : pageItems.map((app) => (
+                {pageItems.map((app) => (
                   <tr key={app.id}>
                     <td className="font-mono font-bold text-primary">{app.reference}</td>
                     <td>
@@ -398,7 +379,7 @@ function Appointments({ page }) {
                     </td>
                   </tr>
                 ))}
-                {!isLoading && filtered.length === 0 && (
+                {filtered.length === 0 && (
                   <tr>
                     <td colSpan="7">
                       <EmptyState message="No appointments matched your search or filters." />

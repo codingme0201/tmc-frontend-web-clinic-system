@@ -13,7 +13,9 @@ import {
 } from '../lib/ui'
 import StatusBadge from '../components/StatusBadge'
 import Pagination from '../components/Pagination'
-import { EmptyState, ErrorState, LoadingState } from '../components/AsyncState'
+import RefreshingBadge from '../components/RefreshingBadge'
+import TableSkeleton from '../components/skeletons/TableSkeleton'
+import { EmptyState, ErrorState } from '../components/AsyncState'
 
 // Roles permitted to manage clinical information (conditions/allergies).
 const MEDICAL_ROLES = ['admin', 'doctor', 'nurse']
@@ -228,6 +230,7 @@ function MedicalRecords({ page }) {
     isLoading,
     error,
     refetch,
+    isRefetching,
     addCondition,
     updateCondition,
     removeCondition,
@@ -500,9 +503,12 @@ function MedicalRecords({ page }) {
               </button>
             )}
             {!isLoading && !error && (
-              <span className="ml-auto whitespace-nowrap text-[12.5px] font-bold text-muted">
-                {filtered.length} of {records.length} records
-              </span>
+              <>
+                <RefreshingBadge refreshing={isRefetching} />
+                <span className="ml-auto whitespace-nowrap text-[12.5px] font-bold text-muted">
+                  {filtered.length} of {records.length} records
+                </span>
+              </>
             )}
           </div>
         </div>
@@ -511,7 +517,7 @@ function MedicalRecords({ page }) {
           {error ? (
             <ErrorState message={error} onRetry={refetch} />
           ) : isLoading ? (
-            <LoadingState label="Loading medical records..." />
+            <TableSkeleton columns={9} />
           ) : (
             <table className={`${TABLE} [&_tbody_tr]:cursor-pointer [&_tbody_tr:hover]:bg-[#f7fbfb]`}>
               <thead>
