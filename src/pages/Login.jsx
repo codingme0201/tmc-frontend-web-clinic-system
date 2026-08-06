@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../hooks/useAuth'
 import InlineSpinner from '../components/Spinner'
+import BackendStatusBanner from '../components/BackendStatusBanner'
 import heroImage from '../assets/hero.png'
 
 function Login() {
@@ -31,7 +32,9 @@ function Login() {
   const hasValidationErrors = Object.keys(errors).length > 0
 
   return (
-    <main className="grid min-h-svh grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)] bg-bg max-[980px]:grid-cols-1">
+    <div className="flex min-h-svh flex-col bg-bg">
+      <BackendStatusBanner />
+      <main className="grid flex-1 grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)] max-[980px]:grid-cols-1">
       <section
         className="flex flex-col justify-between bg-cover bg-center p-[34px] text-white max-[980px]:min-h-[38svh] max-[620px]:p-[22px]"
         style={{
@@ -109,7 +112,8 @@ function Login() {
           </button>
         </form>
       </section>
-    </main>
+      </main>
+    </div>
   )
 }
 

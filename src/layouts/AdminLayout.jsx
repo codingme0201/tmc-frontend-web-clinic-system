@@ -1,5 +1,6 @@
 import Sidebar from '../components/Sidebar'
 import Topbar from '../components/Topbar'
+import BackendStatusBanner from '../components/BackendStatusBanner'
 import { useToggle } from '../hooks/useToggle'
 
 function AdminLayout({ children }) {
@@ -34,6 +35,7 @@ function AdminLayout({ children }) {
       />
 
       <div className="flex h-svh min-w-0 flex-col overflow-hidden">
+        <BackendStatusBanner />
         <Topbar onToggleSidebar={toggleSidebar} />
         <main className="flex-1 overflow-y-auto p-[26px] max-[980px]:p-[20px_16px]">
           {children}
