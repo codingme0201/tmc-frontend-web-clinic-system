@@ -20,6 +20,12 @@ function getPageNumbers(currentPage, totalPages) {
 const BASE_PAGE_BTN =
   'cursor-pointer rounded-md border border-[#d4e4e0] bg-white px-[10px] py-[6px] text-[12.5px] font-extrabold text-ink transition-all duration-200 hover:border-primary hover:bg-[#f0faf8] hover:text-primary disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-[#d4e4e0] disabled:hover:bg-white disabled:hover:text-ink'
 
+// Current page gets its own full class list (no bg-white / text-ink / disabled
+// overrides) so the teal active style can never lose a CSS-order tie against
+// the base button's white background.
+const ACTIVE_PAGE_BTN =
+  'cursor-pointer rounded-md border border-primary bg-primary px-[10px] py-[6px] text-[12.5px] font-extrabold text-white shadow-[0_6px_16px_rgba(20,120,109,0.35)] transition-all duration-200 hover:border-primary hover:bg-primary hover:text-white'
+
 /**
  * Reusable pagination controls. Renders nothing when there is only one page,
  * so it can be dropped under any table/list without extra conditionals.
@@ -59,7 +65,7 @@ function Pagination({ currentPage, totalPages, onPageChange }) {
             <button
               type="button"
               key={item}
-              className={`${BASE_PAGE_BTN} ${item === currentPage ? 'border-primary bg-primary text-white shadow-[0_6px_16px_rgba(20,120,109,0.35)] hover:border-primary hover:bg-primary hover:text-white' : ''}`}
+              className={item === currentPage ? ACTIVE_PAGE_BTN : BASE_PAGE_BTN}
               aria-current={item === currentPage ? 'page' : undefined}
               onClick={() => onPageChange(item)}
             >
