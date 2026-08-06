@@ -82,33 +82,37 @@ input {
 }
 
 /*
- * Toast entrance — slide in from the right edge.
+ * Toast slide — glide in from the right edge and out to the right edge
+ * (bottom-right toaster), instead of sonner's default vertical slide.
  *
- * Sonner 2 animates toasts via its `--y` custom property (slide-up + fade by
- * default). We override the entrance with a dedicated keyframe so toasts
- * glide in from the right, matching the bottom-right toaster position. No
- * fill-mode is used: once the entrance finishes, the toast returns to its
- * normal cascade transform, so the auto-lift positioning (when several
- * toasts are stacked) keeps working.
+ * Sonner animates toasts by toggling `data-mounted` / `data-removed`, which
+ * flips the computed `transform` (via its `--y` custom property) and lets
+ * its own `transition: transform .4s` do the animating. We don't add a
+ * competing keyframe animation — we only change the start/end transform
+ * values for the bottom-right position, so sonner's own transition carries
+ * the toast:
+ *   - before mount: parked off-screen to the right
+ *   - after mount:  sonner's `[data-mounted]` rule restores the identity
+ *                    transform, sliding the toast in from the right
+ *   - on removal:   parked off-screen to the right again, sliding it out
+ * The lift positioning for stacked toasts is untouched.
  */
-[data-sonner-toaster][data-y-position='bottom'][data-x-position='right'] [data-sonner-toast][data-mounted='true'] {
-  animation: toast-slide-in-right 0.4s cubic-bezier(0.21, 1.02, 0.73, 1);
+[data-sonner-toast][data-y-position='bottom'][data-x-position='right'][data-mounted='false'] {
+  transform: translateX(calc(100% + 48px));
 }
 
-@keyframes toast-slide-in-right {
-  from {
-    transform: translateX(calc(100% + 48px));
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+[data-sonner-toast][data-removed='true'][data-front='true'] {
+  transform: translateX(calc(100% + 48px));
 }
 
-/* Respect the user's reduced-motion preference. */
-@media (prefers-reduced-motion: reduce) {
-  [data-sonner-toaster] [data-sonner-toast][data-mounted='true'] {
-    animation: none;
-  }
+/* Snappier, slightly springy ease for the horizontal slide. The longhand
+   would lose to sonner's injected `transition` shorthand, so override the
+   whole shorthand for the bottom-right toasts (sonner's reduced-motion
+   `transition: none !important` still wins, so that preference is kept). */
+[data-sonner-toast][data-y-position='bottom'][data-x-position='right'] {
+  transition:
+    transform 0.4s cubic-bezier(0.21, 1.02, 0.73, 1),
+    opacity 0.4s ease,
+    height 0.4s ease,
+    box-shadow 0.2s ease !important;
 }
