@@ -19,6 +19,8 @@ const BADGE_CLASSES = {
   rejected: 'bg-[#ffebe6] text-[#b3361f]',
   rescheduled: 'bg-[#efeafd] text-[#6b46c1]',
   scheduled: 'bg-[#e8f0fe] text-[#1a56c4]',
+  issued: 'bg-[#dff6dd] text-[#1e5a1b]',
+  void: 'bg-[#f0f3f2] text-[#5d6e6c]',
   'in-progress': 'bg-[#fff3d6] text-[#8a5a00]',
   moderate: 'bg-[#fff3d6] text-[#8a5a00]',
   severe: 'bg-[#ffebe0] text-[#a33c12]',

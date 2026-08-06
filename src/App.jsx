@@ -10,6 +10,7 @@ import Dashboard from './pages/Dashboard'
 import Appointments from './pages/Appointments'
 import Consultations from './pages/Consultations'
 import MedicalRecords from './pages/MedicalRecords'
+import MedicalCertificates from './pages/MedicalCertificates'
 import RolesPermissions from './pages/RolesPermissions'
 import Login from './pages/Login'
 import PlaceholderPage from './pages/PlaceholderPage'
@@ -23,6 +24,7 @@ const pageComponents = {
   appointments: Appointments,
   consultations: Consultations,
   medicalRecords: MedicalRecords,
+  medicalCertificates: MedicalCertificates,
   rolesPermissions: RolesPermissions,
 }
 

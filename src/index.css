@@ -116,3 +116,40 @@ input {
     height 0.4s ease,
     box-shadow 0.2s ease !important;
 }
+
+/* ---- Medical certificate printing ----------------------------------------
+   The certificate sheet is rendered a second time through a portal directly
+   under <body> (`print-only`), so no transformed modal ancestor can trap it.
+   On screen that copy is display:none. When printing, every element is made
+   invisible except the portal copy, which is anchored to the top of the page
+   and flows naturally onto multiple pages if needed. The page is A4 with
+   comfortable margins. */
+.print-only {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 16mm;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .print-only,
+  .print-only * {
+    visibility: visible;
+  }
+
+  .print-only {
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+}
