@@ -59,8 +59,7 @@ function Pagination({ currentPage, totalPages, onPageChange }) {
             <button
               type="button"
               key={item}
-              className={`${BASE_PAGE_BTN} ${item === currentPage ? 'border-primary bg-primary text-white disabled:hover:border-primary disabled:hover:bg-primary disabled:hover:text-white' : ''}`}
-              disabled={item === currentPage}
+              className={`${BASE_PAGE_BTN} ${item === currentPage ? 'border-primary bg-primary text-white shadow-[0_6px_16px_rgba(20,120,109,0.35)] hover:border-primary hover:bg-primary hover:text-white' : ''}`}
               aria-current={item === currentPage ? 'page' : undefined}
               onClick={() => onPageChange(item)}
             >

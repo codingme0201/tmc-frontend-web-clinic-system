@@ -7,7 +7,7 @@ function AdminLayout({ children }) {
   const [mobileOpen, toggleMobile, , closeMobile] = useToggle(false)
 
   const toggleSidebar = () => {
-    if (window.innerWidth < 980) {
+    if (window.innerWidth <= 980) {
       toggleMobile()
     } else {
       toggleDesktopCollapsed()
@@ -17,8 +17,10 @@ function AdminLayout({ children }) {
   return (
     <div
       className={[
-        'grid h-svh grid-cols-[292px_minmax(0,1fr)] overflow-hidden bg-bg transition-[grid-template-columns] duration-200 ease-out max-[980px]:grid-cols-1',
-        desktopCollapsed ? 'grid-cols-[76px_minmax(0,1fr)]' : '',
+        'grid h-svh overflow-hidden bg-bg transition-[grid-template-columns] duration-200 ease-out max-[980px]:grid-cols-1',
+        // Exactly one grid-cols utility is present at a time — keeping both
+        // in the class list lets equal-specificity CSS order decide the width.
+        desktopCollapsed ? 'grid-cols-[76px_minmax(0,1fr)]' : 'grid-cols-[292px_minmax(0,1fr)]',
       ].join(' ')}
     >
       {mobileOpen && (
