@@ -6,6 +6,11 @@ import { useForm } from '../hooks/useForm'
 import { useMedicalRecordList } from '../hooks/useMedicalRecordList'
 import { useAuth } from '../hooks/useAuth'
 import { formatDate, initials, todayISO } from '../lib/format'
+import {
+  PILL, PRIMARY_BTN, PANEL, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT, SIDEBAR_FORM,
+  FORM_LABEL, FORM_FIELD, FORM_ROW, BTN_SUCCESS, BTN_DANGER, BTN_INFO, BTN_VIEW, BTN_ACTION_DANGER,
+  DISPO_TAG, dispoClasses,
+} from '../lib/ui'
 import StatusBadge from '../components/StatusBadge'
 import Pagination from '../components/Pagination'
 import { EmptyState, ErrorState, LoadingState } from '../components/AsyncState'
@@ -27,14 +32,33 @@ const DETAIL_TABS = [
   { id: 'timeline', label: 'Timeline' },
 ]
 
-// Timeline event type → CSS class for the type tag.
+// Timeline event type → Tailwind classes for the type tag.
 const TIMELINE_CLASS = {
-  Consultation: 'tl-consultation',
-  'Medical Condition': 'tl-condition',
-  'Allergy Recorded': 'tl-allergy',
-  'Medication Prescribed': 'tl-medication',
-  'Medical History': 'tl-history',
+  Consultation: 'bg-[#e8f0fe] text-[#1a56c4]',
+  'Medical Condition': 'bg-[#fff3d6] text-[#8a5a00]',
+  'Allergy Recorded': 'bg-[#ffebe6] text-[#b3361f]',
+  'Medication Prescribed': 'bg-[#dff6dd] text-[#1e5a1b]',
+  'Medical History': 'bg-[#eef2f1] text-[#4d615e]',
 }
+
+const MODAL_CARD = 'flex max-h-[90vh] w-[min(650px,100%)] animate-modal-scale flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgba(8,20,20,0.22)]'
+const MODAL_CARD_SM = MODAL_CARD + ' w-[min(480px,100%)]'
+const MODAL_BACKDROP = 'fixed inset-0 z-[100] grid place-items-center bg-[rgba(8,20,20,0.45)] p-5 backdrop-blur-[4px]'
+const MODAL_HEADER = 'flex items-center justify-between border-b border-line p-[16px_20px]'
+const MODAL_CLOSE = 'cursor-pointer border-0 bg-transparent p-1 text-[16px] text-muted-soft'
+const MODAL_BODY = 'flex-1 overflow-y-auto p-5'
+const MODAL_FOOTER = 'flex justify-end border-t border-line bg-[#fafcfb] p-[14px_20px]'
+const MODAL_FOOTER_ACTIONS = 'flex flex-wrap items-center justify-end gap-2'
+const PROFILE_GRID = 'grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4'
+const PROFILE_LBL = 'mb-0.5 block text-[11px] font-extrabold uppercase text-muted'
+const PROFILE_VAL = 'm-0 text-[14px] font-bold text-ink'
+const REASON_BOX = 'rounded-lg border border-[#cfe5df] bg-[#f4faf8] p-[12px_14px]'
+const MINI_CARD = 'rounded-lg border border-line bg-[#fafcfb] p-[10px_12px]'
+const MINI_HEADER = 'mb-[5px] flex items-center justify-between'
+const MINI_BODY = 'm-0 text-[12px] leading-[1.4] text-muted'
+const EMPTY_MINI = 'rounded-lg border border-dashed border-[#c2dcd6] p-4 text-center text-[12.5px] text-muted'
+const SECTION_TITLE = 'm-0 mb-3 text-[16px] text-[#143d40]'
+const AUTH_NOTICE = 'mb-[14px] flex items-center gap-2 rounded-lg border border-dashed border-[#f2cfc2] bg-[#fdf1ec] p-[10px_14px] text-[12.5px] font-bold text-[#a33c12]'
 
 // Builds the chronological record timeline from the record + consultations.
 function buildTimeline(record, consults) {
@@ -60,45 +84,45 @@ function buildTimeline(record, consults) {
 // ---------- Read-only consultation details modal (reused in the Consultations tab) ----------
 function ConsultationDetailsModal({ cons, onClose }) {
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label={`Consultation ${cons.reference} details`} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="modal-card">
-        <div className="modal-header">
-          <h3>Consultation Details — {cons.reference}</h3>
-          <button type="button" className="btn-modal-close" onClick={onClose}>✕</button>
+    <div className={MODAL_BACKDROP} role="dialog" aria-modal="true" aria-label={`Consultation ${cons.reference} details`} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      <div className={MODAL_CARD}>
+        <div className={MODAL_HEADER}>
+          <h3 className="m-0 text-[18px] text-ink">Consultation Details — {cons.reference}</h3>
+          <button type="button" className={MODAL_CLOSE} onClick={onClose}>✕</button>
         </div>
-        <div className="modal-body">
-          <div className="appointment-detail-banner">
+        <div className={MODAL_BODY}>
+          <div className="mb-[18px] flex items-center gap-3 rounded-lg border border-line bg-[#f4faf8] p-[14px]">
             <StatusBadge status={cons.status} />
             <div>
-              <strong>{cons.patient}</strong>
-              <span className="block-sub muted-text">{cons.patientId} · {formatDate(cons.date)} at {cons.time}</span>
+              <strong className="block text-[15px] text-ink">{cons.patient}</strong>
+              <span className="block text-[12px] text-muted">{cons.patientId} · {formatDate(cons.date)} at {cons.time}</span>
             </div>
           </div>
 
-          <div className="profile-details-grid">
+          <div className={PROFILE_GRID}>
             <div>
-              <span className="profile-lbl">Attending Staff</span>
-              <p className="profile-val">{cons.staff}</p>
+              <span className={PROFILE_LBL}>Attending Staff</span>
+              <p className={PROFILE_VAL}>{cons.staff}</p>
             </div>
             <div>
-              <span className="profile-lbl">Started</span>
-              <p className="profile-val">{cons.startedAt || '—'}</p>
+              <span className={PROFILE_LBL}>Started</span>
+              <p className={PROFILE_VAL}>{cons.startedAt || '—'}</p>
             </div>
             <div>
-              <span className="profile-lbl">Completed</span>
-              <p className="profile-val">{cons.completedAt || '—'}</p>
+              <span className={PROFILE_LBL}>Completed</span>
+              <p className={PROFILE_VAL}>{cons.completedAt || '—'}</p>
             </div>
           </div>
 
-          <div className="profile-alert-box reason-box" style={{ marginTop: 12 }}>
-            <h4 className="text-teal">Chief Complaint</h4>
-            <p>{cons.chiefComplaint || '—'}</p>
+          <div className={`${REASON_BOX} mt-3`}>
+            <h4 className="mb-1 m-0 text-[13px] text-primary">Chief Complaint</h4>
+            <p className="m-0 text-[13px]">{cons.chiefComplaint || '—'}</p>
           </div>
 
           {cons.vitals && (
-            <div className="profile-alert-box reason-box" style={{ marginTop: 12 }}>
-              <h4 className="text-teal">Vital Signs</h4>
-              <div className="vitals-readout">
+            <div className={`${REASON_BOX} mt-3`}>
+              <h4 className="mb-1 m-0 text-[13px] text-primary">Vital Signs</h4>
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-[6px_14px] text-[13px] text-ink">
                 <span>Temp: {cons.vitals.temperature || '—'}</span>
                 <span>BP: {cons.vitals.bloodPressure || '—'}</span>
                 <span>Pulse: {cons.vitals.pulseRate || '—'}</span>
@@ -109,27 +133,27 @@ function ConsultationDetailsModal({ cons, onClose }) {
             </div>
           )}
 
-          <div className="profile-alert-box reason-box" style={{ marginTop: 12 }}>
-            <h4 className="text-teal">Clinical Findings</h4>
-            <p>{cons.clinicalFindings || '—'}</p>
+          <div className={`${REASON_BOX} mt-3`}>
+            <h4 className="mb-1 m-0 text-[13px] text-primary">Clinical Findings</h4>
+            <p className="m-0 text-[13px]">{cons.clinicalFindings || '—'}</p>
           </div>
-          <div className="profile-alert-box reason-box" style={{ marginTop: 12 }}>
-            <h4 className="text-teal">Assessment / Diagnosis</h4>
-            <p>{cons.diagnosis || '—'}</p>
+          <div className={`${REASON_BOX} mt-3`}>
+            <h4 className="mb-1 m-0 text-[13px] text-primary">Assessment / Diagnosis</h4>
+            <p className="m-0 text-[13px]">{cons.diagnosis || '—'}</p>
           </div>
-          <div className="profile-alert-box reason-box" style={{ marginTop: 12 }}>
-            <h4 className="text-teal">Treatment and Advice</h4>
-            <p>{cons.treatment || '—'}</p>
+          <div className={`${REASON_BOX} mt-3`}>
+            <h4 className="mb-1 m-0 text-[13px] text-primary">Treatment and Advice</h4>
+            <p className="m-0 text-[13px]">{cons.treatment || '—'}</p>
           </div>
           {cons.disposition && (
-            <div className="profile-alert-box reason-box" style={{ marginTop: 12 }}>
-              <h4 className="text-teal">Disposition</h4>
-              <span className={`dispo-tag dispo-${cons.disposition.toLowerCase().replace(/ /g, '-')}`}>{cons.disposition}</span>
+            <div className={`${REASON_BOX} mt-3`}>
+              <h4 className="mb-1 m-0 text-[13px] text-primary">Disposition</h4>
+              <span className={`${DISPO_TAG} ${dispoClasses(cons.disposition)}`}>{cons.disposition}</span>
             </div>
           )}
         </div>
-        <div className="modal-footer">
-          <button type="button" className="secondary-pill" onClick={onClose}>Close</button>
+        <div className={MODAL_FOOTER}>
+          <button type="button" className={PILL} onClick={onClose}>Close</button>
         </div>
       </div>
     </div>
@@ -139,59 +163,59 @@ function ConsultationDetailsModal({ cons, onClose }) {
 // ---------- Read-only medication details modal ----------
 function MedicationDetailsModal({ med, patientName, onClose }) {
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label={`Medication ${med.name} details`} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="modal-card modal-card-sm">
-        <div className="modal-header">
-          <h3>Medication Details</h3>
-          <button type="button" className="btn-modal-close" onClick={onClose}>✕</button>
+    <div className={MODAL_BACKDROP} role="dialog" aria-modal="true" aria-label={`Medication ${med.name} details`} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      <div className={MODAL_CARD_SM}>
+        <div className={MODAL_HEADER}>
+          <h3 className="m-0 text-[18px] text-ink">Medication Details</h3>
+          <button type="button" className={MODAL_CLOSE} onClick={onClose}>✕</button>
         </div>
-        <div className="modal-body">
-          <div className="appointment-detail-banner">
+        <div className={MODAL_BODY}>
+          <div className="mb-[18px] flex items-center gap-3 rounded-lg border border-line bg-[#f4faf8] p-[14px]">
             <StatusBadge status={med.status} />
             <div>
-              <strong>{med.name} {med.dosage}</strong>
-              <span className="block-sub muted-text">Prescribed to {patientName}</span>
+              <strong className="block text-[15px] text-ink">{med.name} {med.dosage}</strong>
+              <span className="block text-[12px] text-muted">Prescribed to {patientName}</span>
             </div>
           </div>
-          <div className="profile-details-grid">
+          <div className={PROFILE_GRID}>
             <div>
-              <span className="profile-lbl">Dosage</span>
-              <p className="profile-val">{med.dosage || '—'}</p>
+              <span className={PROFILE_LBL}>Dosage</span>
+              <p className={PROFILE_VAL}>{med.dosage || '—'}</p>
             </div>
             <div>
-              <span className="profile-lbl">Frequency</span>
-              <p className="profile-val">{med.frequency || '—'}</p>
+              <span className={PROFILE_LBL}>Frequency</span>
+              <p className={PROFILE_VAL}>{med.frequency || '—'}</p>
             </div>
             <div>
-              <span className="profile-lbl">Route</span>
-              <p className="profile-val">{med.route || '—'}</p>
+              <span className={PROFILE_LBL}>Route</span>
+              <p className={PROFILE_VAL}>{med.route || '—'}</p>
             </div>
             <div>
-              <span className="profile-lbl">Prescribed By</span>
-              <p className="profile-val">{med.prescribedBy || '—'}</p>
+              <span className={PROFILE_LBL}>Prescribed By</span>
+              <p className={PROFILE_VAL}>{med.prescribedBy || '—'}</p>
             </div>
             <div>
-              <span className="profile-lbl">Prescribed Date</span>
-              <p className="profile-val">{formatDate(med.prescribedDate)}</p>
+              <span className={PROFILE_LBL}>Prescribed Date</span>
+              <p className={PROFILE_VAL}>{formatDate(med.prescribedDate)}</p>
             </div>
             <div>
-              <span className="profile-lbl">Start Date</span>
-              <p className="profile-val">{med.startDate ? formatDate(med.startDate) : '—'}</p>
+              <span className={PROFILE_LBL}>Start Date</span>
+              <p className={PROFILE_VAL}>{med.startDate ? formatDate(med.startDate) : '—'}</p>
             </div>
             <div>
-              <span className="profile-lbl">End Date</span>
-              <p className="profile-val">{med.endDate ? formatDate(med.endDate) : '—'}</p>
+              <span className={PROFILE_LBL}>End Date</span>
+              <p className={PROFILE_VAL}>{med.endDate ? formatDate(med.endDate) : '—'}</p>
             </div>
           </div>
           {med.instructions && (
-            <div className="profile-alert-box reason-box" style={{ marginTop: 12 }}>
-              <h4 className="text-teal">Instructions</h4>
-              <p>{med.instructions}</p>
+            <div className={`${REASON_BOX} mt-3`}>
+              <h4 className="mb-1 m-0 text-[13px] text-primary">Instructions</h4>
+              <p className="m-0 text-[13px]">{med.instructions}</p>
             </div>
           )}
         </div>
-        <div className="modal-footer">
-          <button type="button" className="secondary-pill" onClick={onClose}>Close</button>
+        <div className={MODAL_FOOTER}>
+          <button type="button" className={PILL} onClick={onClose}>Close</button>
         </div>
       </div>
     </div>
@@ -429,36 +453,36 @@ function MedicalRecords({ page }) {
   const renderList = () => (
     <>
       {/* Status summary chips (click to filter) */}
-      <div className="appointments-summary mr-summary">
+      <div className="mb-[18px] grid grid-cols-3 gap-3 max-[900px]:grid-cols-2 max-[480px]:grid-cols-1">
         {['All', ...RECORD_STATUSES].map((status) => (
           <button
             type="button"
             key={status}
-            className={`summary-chip ${statusFilter === status ? 'active' : ''}`}
+            className={`flex cursor-pointer flex-col gap-[2px] rounded-lg border border-line-strong bg-white p-[14px_16px] text-left transition-all duration-200 hover:border-primary ${statusFilter === status ? 'border-primary bg-[#f0faf8] shadow-[inset_0_0_0_1px_var(--color-primary)]' : ''}`}
             onClick={() => setStatusFilter(statusFilter === status ? 'All' : status)}
           >
-            <small>{status === 'All' ? 'All Records' : status}</small>
-            <strong>{statusCounts[status] || 0}</strong>
+            <small className="text-[11px] font-extrabold uppercase tracking-[0.02em] text-muted">{status === 'All' ? 'All Records' : status}</small>
+            <strong className="text-[26px] leading-none text-ink">{statusCounts[status] || 0}</strong>
           </button>
         ))}
       </div>
 
-      <div className="panel main-panel medical-records-list-panel">
-        <div className="panel-header flex-header">
+      <div className={`${PANEL} p-5`}>
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3>Patient Medical Records</h3>
-            <p>Search patient records and open complete medical histories</p>
+            <h3 className="m-0 text-[18px] text-[#143d40]">Patient Medical Records</h3>
+            <p className={KICKER}>Search patient records and open complete medical histories</p>
           </div>
-          <div className="appointments-toolbar">
+          <div className="flex flex-wrap items-center justify-end gap-[10px]">
             <input
               type="text"
-              className="search-input toolbar-search"
+              className={`${SEARCH_INPUT} min-w-[200px] flex-[1_1_220px]`}
               placeholder="Search patient, ID, record no., condition, or allergen..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
             <select
-              className="filter-select"
+              className={SELECT_INPUT}
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               aria-label="Filter by record status"
@@ -471,25 +495,25 @@ function MedicalRecords({ page }) {
               ))}
             </select>
             {(search || statusFilter !== 'All') && (
-              <button type="button" className="secondary-pill" onClick={clearFilters}>
+              <button type="button" className={PILL} onClick={clearFilters}>
                 Clear filters
               </button>
             )}
             {!isLoading && !error && (
-              <span className="results-count">
+              <span className="ml-auto whitespace-nowrap text-[12.5px] font-bold text-muted">
                 {filtered.length} of {records.length} records
               </span>
             )}
           </div>
         </div>
 
-        <div className="records-table-container">
+        <div className="overflow-x-auto rounded-lg border border-line">
           {error ? (
             <ErrorState message={error} onRetry={refetch} />
           ) : isLoading ? (
             <LoadingState label="Loading medical records..." />
           ) : (
-            <table className="records-table clickable-rows">
+            <table className={`${TABLE} [&_tbody_tr]:cursor-pointer [&_tbody_tr:hover]:bg-[#f7fbfb]`}>
               <thead>
                 <tr>
                   <th>Record No.</th>
@@ -509,57 +533,57 @@ function MedicalRecords({ page }) {
                   const active = record.conditions.filter((c) => c.status === 'Active')
                   return (
                     <tr key={record.id} onClick={() => openRecord(record)}>
-                      <td className="bold-text text-teal font-monospace">{record.id}</td>
+                      <td className="font-mono font-bold text-primary">{record.id}</td>
                       <td>
-                        <div className="patient-cell">
-                          <span className="patient-avatar" aria-hidden="true">{initials(record.name)}</span>
+                        <div className="flex items-center gap-[10px]">
+                          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary text-[12px] font-extrabold tracking-[0.03em] text-white" aria-hidden="true">{initials(record.name)}</span>
                           <span>
-                            <strong className="bold-text">{record.name}</strong>
-                            <span className="block-sub muted-text">
+                            <strong className="font-bold text-ink">{record.name}</strong>
+                            <span className="block text-[12px] text-muted">
                               {record.patientId} · {record.age} · {record.sex}
                             </span>
                           </span>
                         </div>
                       </td>
-                      <td className="muted-text">{record.contact}</td>
+                      <td className="text-muted">{record.contact}</td>
                       <td>
                         {meta && meta.count > 0 ? (
                           <>
-                            <span className="bold-text">{formatDate(meta.last)}</span>
-                            <span className="block-sub muted-text">{meta.count} visit{meta.count > 1 ? 's' : ''}</span>
+                            <span className="font-bold text-ink">{formatDate(meta.last)}</span>
+                            <span className="block text-[12px] text-muted">{meta.count} visit{meta.count > 1 ? 's' : ''}</span>
                           </>
                         ) : (
-                          <span className="muted-text">No visits</span>
+                          <span className="text-muted">No visits</span>
                         )}
                       </td>
                       <td>
                         {active.length > 0 ? (
-                          <div className="chip-group">
+                          <div className="flex flex-wrap gap-[5px]">
                             {active.slice(0, 2).map((c) => (
-                              <span key={c.id} className="chip-tag">{c.name}</span>
+                              <span key={c.id} className="inline-flex items-center whitespace-nowrap rounded-full bg-bg px-[9px] py-[3px] text-[11px] font-extrabold text-[#4d615e]">{c.name}</span>
                             ))}
-                            {active.length > 2 && <span className="chip-tag muted">+{active.length - 2}</span>}
+                            {active.length > 2 && <span className="inline-flex items-center whitespace-nowrap rounded-full bg-bg px-[9px] py-[3px] text-[11px] font-extrabold text-muted">+{active.length - 2}</span>}
                           </div>
                         ) : (
-                          <span className="muted-text">None</span>
+                          <span className="text-muted">None</span>
                         )}
                       </td>
                       <td>
                         {record.allergies.length > 0 ? (
-                          <span className="chip-tag chip-danger">
+                          <span className="inline-flex items-center whitespace-nowrap rounded-full bg-[#ffebe6] px-[9px] py-[3px] text-[11px] font-extrabold text-[#b3361f]">
                             ⚠ {record.allergies.length} allergy{record.allergies.length > 1 ? 'ies' : 'y'}
                           </span>
                         ) : (
-                          <span className="muted-text">None</span>
+                          <span className="text-muted">None</span>
                         )}
                       </td>
-                      <td className="muted-text">{formatDate(record.lastUpdated)}</td>
+                      <td className="text-muted">{formatDate(record.lastUpdated)}</td>
                       <td>
                         <StatusBadge status={record.status} />
                       </td>
-                      <td className="actions-cell" onClick={(e) => e.stopPropagation()}>
-                        <div className="row-actions">
-                          <button type="button" className="btn-view-small" onClick={() => openRecord(record)}>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <div className="flex flex-wrap gap-[6px]">
+                          <button type="button" className={BTN_VIEW} onClick={() => openRecord(record)}>
                             View Record
                           </button>
                         </div>
@@ -591,64 +615,64 @@ function MedicalRecords({ page }) {
         : null
     return (
     <>
-      <div className="panel main-panel">
-        <h3 className="mr-section-title">Patient Information</h3>
-        <div className="profile-details-grid">
+      <div className={`${PANEL} p-5`}>
+        <h3 className={SECTION_TITLE}>Patient Information</h3>
+        <div className={PROFILE_GRID}>
           <div>
-            <span className="profile-lbl">Patient</span>
-            <p className="profile-val">{selected.name}</p>
+            <span className={PROFILE_LBL}>Patient</span>
+            <p className={PROFILE_VAL}>{selected.name}</p>
           </div>
           <div>
-            <span className="profile-lbl">Patient ID</span>
-            <p className="profile-val">{selected.patientId}</p>
+            <span className={PROFILE_LBL}>Patient ID</span>
+            <p className={PROFILE_VAL}>{selected.patientId}</p>
           </div>
           <div>
-            <span className="profile-lbl">Age</span>
-            <p className="profile-val">{selected.age} years</p>
+            <span className={PROFILE_LBL}>Age</span>
+            <p className={PROFILE_VAL}>{selected.age} years</p>
           </div>
           <div>
-            <span className="profile-lbl">Sex</span>
-            <p className="profile-val">{selected.sex}</p>
+            <span className={PROFILE_LBL}>Sex</span>
+            <p className={PROFILE_VAL}>{selected.sex}</p>
           </div>
           <div>
-            <span className="profile-lbl">Type</span>
-            <p className="profile-val">{selected.type}</p>
+            <span className={PROFILE_LBL}>Type</span>
+            <p className={PROFILE_VAL}>{selected.type}</p>
           </div>
           <div>
-            <span className="profile-lbl">Course / Dept.</span>
-            <p className="profile-val">{selected.courseDept}</p>
+            <span className={PROFILE_LBL}>Course / Dept.</span>
+            <p className={PROFILE_VAL}>{selected.courseDept}</p>
           </div>
           <div>
-            <span className="profile-lbl">Contact</span>
-            <p className="profile-val">{selected.contact}</p>
+            <span className={PROFILE_LBL}>Contact</span>
+            <p className={PROFILE_VAL}>{selected.contact}</p>
           </div>
           <div>
-            <span className="profile-lbl">Emergency Contact</span>
-            <p className="profile-val">{selected.emergencyContact}</p>
+            <span className={PROFILE_LBL}>Emergency Contact</span>
+            <p className={PROFILE_VAL}>{selected.emergencyContact}</p>
           </div>
           <div>
-            <span className="profile-lbl">Record No.</span>
-            <p className="profile-val">{selected.id}</p>
+            <span className={PROFILE_LBL}>Record No.</span>
+            <p className={PROFILE_VAL}>{selected.id}</p>
           </div>
           <div>
-            <span className="profile-lbl">Last Updated</span>
-            <p className="profile-val">{formatDate(selected.lastUpdated)}</p>
+            <span className={PROFILE_LBL}>Last Updated</span>
+            <p className={PROFILE_VAL}>{formatDate(selected.lastUpdated)}</p>
           </div>
         </div>
       </div>
 
-      <div className="mr-overview-grid">
-        <div className="panel main-panel">
-          <h3 className="mr-section-title">Current Conditions</h3>
+      <div className="mt-4 grid grid-cols-2 gap-4 max-[900px]:grid-cols-1">
+        <div className={`${PANEL} p-5`}>
+          <h3 className={SECTION_TITLE}>Current Conditions</h3>
           {activeConditions.length > 0 ? (
-            <div className="mini-log-list">
+            <div className="grid gap-[10px]">
               {activeConditions.map((c) => (
-                <div className="mini-log-card" key={c.id}>
-                  <div className="mini-log-header">
-                    <strong>{c.name}</strong>
+                <div className={MINI_CARD} key={c.id}>
+                  <div className={MINI_HEADER}>
+                    <strong className="text-[12px] text-primary">{c.name}</strong>
                     <StatusBadge status={c.status} />
                   </div>
-                  <p className="mini-log-body">
+                  <p className={MINI_BODY}>
                     Diagnosed {formatDate(c.diagnosedDate)}
                     {c.notes ? ` — ${c.notes}` : ''}
                   </p>
@@ -656,35 +680,35 @@ function MedicalRecords({ page }) {
               ))}
             </div>
           ) : (
-            <div className="empty-mini-state">No active conditions on file.</div>
+            <div className={EMPTY_MINI}>No active conditions on file.</div>
           )}
         </div>
 
-        <div className="panel main-panel">
-          <h3 className="mr-section-title">Latest Consultation</h3>
+        <div className={`${PANEL} p-5`}>
+          <h3 className={SECTION_TITLE}>Latest Consultation</h3>
           {latestConsult ? (
-            <div className="mini-log-card">
-              <div className="mini-log-header">
-                <strong>{latestConsult.reference}</strong>
+            <div className={MINI_CARD}>
+              <div className={MINI_HEADER}>
+                <strong className="text-[12px] text-primary">{latestConsult.reference}</strong>
                 <StatusBadge status={latestConsult.status} />
               </div>
-              <p className="mini-log-body">
+              <p className={MINI_BODY}>
                 {formatDate(latestConsult.date)} at {latestConsult.time} — {latestConsult.staff}
               </p>
-              <p className="mini-log-body">
+              <p className={MINI_BODY}>
                 <strong>Complaint:</strong> {latestConsult.chiefComplaint || '—'}
               </p>
-              <p className="mini-log-body">
+              <p className={MINI_BODY}>
                 <strong>Diagnosis:</strong> {latestConsult.diagnosis || '—'}
               </p>
-              <div className="status-manage-row" style={{ marginTop: 10 }}>
-                <button type="button" className="btn-view-small" onClick={() => setConsultDetails(latestConsult)}>
+              <div className="mt-[10px] flex flex-wrap items-center gap-[10px] border-t border-line pt-4">
+                <button type="button" className={BTN_VIEW} onClick={() => setConsultDetails(latestConsult)}>
                   View Details
                 </button>
               </div>
             </div>
           ) : (
-            <div className="empty-mini-state">No consultations recorded yet.</div>
+            <div className={EMPTY_MINI}>No consultations recorded yet.</div>
           )}
         </div>
       </div>
@@ -693,11 +717,11 @@ function MedicalRecords({ page }) {
   }
 
   const renderHistory = () => (
-    <div className="panel main-panel">
-      <h3 className="mr-section-title">Medical History</h3>
+    <div className={`${PANEL} p-5`}>
+      <h3 className={SECTION_TITLE}>Medical History</h3>
       {selected.medicalHistory.length > 0 ? (
-        <div className="records-table-container">
-          <table className="records-table">
+        <div className="overflow-x-auto rounded-lg border border-line">
+          <table className={TABLE}>
             <thead>
               <tr>
                 <th>Date</th>
@@ -708,39 +732,39 @@ function MedicalRecords({ page }) {
             <tbody>
               {[...selected.medicalHistory].sort((a, b) => (a.date < b.date ? 1 : -1)).map((h) => (
                 <tr key={h.id}>
-                  <td className="bold-text">{formatDate(h.date)}</td>
-                  <td className="bold-text">{h.condition}</td>
-                  <td className="muted-text">{h.notes || '—'}</td>
+                  <td className="font-bold text-ink">{formatDate(h.date)}</td>
+                  <td className="font-bold text-ink">{h.condition}</td>
+                  <td className="text-muted">{h.notes || '—'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       ) : (
-        <div className="empty-mini-state">No previous medical history recorded.</div>
+        <div className={EMPTY_MINI}>No previous medical history recorded.</div>
       )}
     </div>
   )
 
   const renderConditions = () => (
-    <div className="panel main-panel">
-      <div className="mr-section-header">
+    <div className={`${PANEL} p-5`}>
+      <div className="mb-[14px] flex flex-wrap items-center justify-between gap-[10px]">
         <div>
-          <h3 className="mr-section-title" style={{ marginBottom: 2 }}>Medical Conditions</h3>
-          <p className="muted-text" style={{ margin: 0 }}>Track active, inactive, and resolved conditions.</p>
+          <h3 className="m-0 mb-0.5 text-[16px] text-[#143d40]">Medical Conditions</h3>
+          <p className="m-0 text-muted">Track active, inactive, and resolved conditions.</p>
         </div>
         {canEdit && (
-          <button type="button" className="primary-action" onClick={() => openConditionModal(selected)} disabled={busy}>
+          <button type="button" className={`${PRIMARY_BTN} min-h-[38px] text-[13px]`} onClick={() => openConditionModal(selected)} disabled={busy}>
             + Add Condition
           </button>
         )}
       </div>
 
-      {!canEdit && <div className="auth-notice">⚠ You have view-only access. Only authorized medical personnel can manage conditions.</div>}
+      {!canEdit && <div className={AUTH_NOTICE}>⚠ You have view-only access. Only authorized medical personnel can manage conditions.</div>}
 
       {selected.conditions.length > 0 ? (
-        <div className="records-table-container">
-          <table className="records-table">
+        <div className="overflow-x-auto rounded-lg border border-line">
+          <table className={TABLE}>
             <thead>
               <tr>
                 <th>Condition</th>
@@ -753,22 +777,22 @@ function MedicalRecords({ page }) {
             <tbody>
               {selected.conditions.map((c) => (
                 <tr key={c.id}>
-                  <td className="bold-text">{c.name}</td>
+                  <td className="font-bold text-ink">{c.name}</td>
                   <td>
                     <StatusBadge status={c.status} />
                   </td>
                   <td>{formatDate(c.diagnosedDate)}</td>
-                  <td className="muted-text">{c.notes || '—'}</td>
+                  <td className="text-muted">{c.notes || '—'}</td>
                   {canEdit && (
-                    <td className="actions-cell">
-                      <div className="row-actions">
-                        <button type="button" className="btn-info-small" onClick={() => openConditionModal(selected, c)} disabled={busy}>
+                    <td>
+                      <div className="flex flex-wrap gap-[6px]">
+                        <button type="button" className={BTN_INFO} onClick={() => openConditionModal(selected, c)} disabled={busy}>
                           Edit
                         </button>
-                        <button type="button" className={c.status === 'Resolved' ? 'btn-success-small' : 'btn-primary-small'} onClick={() => quickToggleCondition(selected, c)} disabled={busy}>
+                        <button type="button" className={c.status === 'Resolved' ? BTN_SUCCESS : BTN_INFO} onClick={() => quickToggleCondition(selected, c)} disabled={busy}>
                           {c.status === 'Resolved' ? 'Mark Active' : 'Mark Resolved'}
                         </button>
-                        <button type="button" className="btn-danger-small" onClick={() => setRemoveTarget({ kind: 'condition', record: selected, item: c })} disabled={busy}>
+                        <button type="button" className={BTN_DANGER} onClick={() => setRemoveTarget({ kind: 'condition', record: selected, item: c })} disabled={busy}>
                           Remove
                         </button>
                       </div>
@@ -780,47 +804,50 @@ function MedicalRecords({ page }) {
           </table>
         </div>
       ) : (
-        <div className="empty-mini-state">No medical conditions on file.</div>
+        <div className={EMPTY_MINI}>No medical conditions on file.</div>
       )}
     </div>
   )
 
   const renderAllergies = () => (
-    <div className="panel main-panel">
-      <div className="mr-section-header">
+    <div className={`${PANEL} p-5`}>
+      <div className="mb-[14px] flex flex-wrap items-center justify-between gap-[10px]">
         <div>
-          <h3 className="mr-section-title" style={{ marginBottom: 2 }}>Allergies</h3>
-          <p className="muted-text" style={{ margin: 0 }}>Known allergens with reaction and severity.</p>
+          <h3 className="m-0 mb-0.5 text-[16px] text-[#143d40]">Allergies</h3>
+          <p className="m-0 text-muted">Known allergens with reaction and severity.</p>
         </div>
         {canEdit && (
-          <button type="button" className="primary-action" onClick={() => openAllergyModal(selected)} disabled={busy}>
+          <button type="button" className={`${PRIMARY_BTN} min-h-[38px] text-[13px]`} onClick={() => openAllergyModal(selected)} disabled={busy}>
             + Add Allergy
           </button>
         )}
       </div>
 
-      {!canEdit && <div className="auth-notice">⚠ You have view-only access. Only authorized medical personnel can manage allergies.</div>}
+      {!canEdit && <div className={AUTH_NOTICE}>⚠ You have view-only access. Only authorized medical personnel can manage allergies.</div>}
 
       {selected.allergies.length > 0 ? (
-        <div className="allergy-grid">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3">
           {selected.allergies.map((a) => (
-            <div className={`allergy-card sev-${a.severity.toLowerCase()}`} key={a.id}>
-              <div className="allergy-card-head">
-                <strong>⚠ {a.allergen}</strong>
+            <div
+              className={`rounded-lg border border-line border-l-4 bg-white p-[12px_14px] ${a.severity.toLowerCase() === 'mild' ? 'border-l-[#2fa96b]' : a.severity.toLowerCase() === 'severe' ? 'border-l-[#d95f35]' : 'border-l-[#e0a13c]'}`}
+              key={a.id}
+            >
+              <div className="mb-[6px] flex items-center justify-between gap-2">
+                <strong className="text-[14px] text-danger">⚠ {a.allergen}</strong>
                 <StatusBadge status={a.severity} />
               </div>
-              <p className="allergy-reaction">
-                <span className="profile-lbl">Reaction</span>
+              <p className="mb-1 m-0 text-[13px] text-ink">
+                <span className="mb-0.5 block text-[11px] font-extrabold uppercase text-muted">Reaction</span>
                 {a.reaction || '—'}
               </p>
-              <p className="allergy-meta muted-text">Recorded {formatDate(a.dateRecorded)}</p>
-              {a.notes && <p className="allergy-notes">{a.notes}</p>}
+              <p className="m-0 text-[12px] text-muted">Recorded {formatDate(a.dateRecorded)}</p>
+              {a.notes && <p className="mt-2 rounded-md bg-[#f4faf8] p-[8px_10px] text-[12px] text-muted">{a.notes}</p>}
               {canEdit && (
-                <div className="row-actions" style={{ marginTop: 10 }}>
-                  <button type="button" className="btn-info-small" onClick={() => openAllergyModal(selected, a)} disabled={busy}>
+                <div className="mt-[10px] flex flex-wrap gap-[6px]">
+                  <button type="button" className={BTN_INFO} onClick={() => openAllergyModal(selected, a)} disabled={busy}>
                     Edit
                   </button>
-                  <button type="button" className="btn-danger-small" onClick={() => setRemoveTarget({ kind: 'allergy', record: selected, item: a })} disabled={busy}>
+                  <button type="button" className={BTN_DANGER} onClick={() => setRemoveTarget({ kind: 'allergy', record: selected, item: a })} disabled={busy}>
                     Remove
                   </button>
                 </div>
@@ -829,17 +856,17 @@ function MedicalRecords({ page }) {
           ))}
         </div>
       ) : (
-        <div className="empty-mini-state">No known allergies on file.</div>
+        <div className={EMPTY_MINI}>No known allergies on file.</div>
       )}
     </div>
   )
 
   const renderConsultations = () => (
-    <div className="panel main-panel">
-      <div className="mr-section-header">
+    <div className={`${PANEL} p-5`}>
+      <div className="mb-[14px] flex flex-wrap items-center justify-between gap-[10px]">
         <div>
-          <h3 className="mr-section-title" style={{ marginBottom: 2 }}>Consultation History</h3>
-          <p className="muted-text" style={{ margin: 0 }}>
+          <h3 className="m-0 mb-0.5 text-[16px] text-[#143d40]">Consultation History</h3>
+          <p className="m-0 text-muted">
             {patientConsults.length > 0
               ? `${patientConsults.length} consultation${patientConsults.length > 1 ? 's' : ''} on record (read-only view).`
               : 'No consultations on record for this patient.'}
@@ -848,8 +875,8 @@ function MedicalRecords({ page }) {
       </div>
 
       {patientConsults.length > 0 ? (
-        <div className="records-table-container">
-          <table className="records-table">
+        <div className="overflow-x-auto rounded-lg border border-line">
+          <table className={TABLE}>
             <thead>
               <tr>
                 <th>Reference</th>
@@ -863,18 +890,18 @@ function MedicalRecords({ page }) {
             <tbody>
               {patientConsults.map((c) => (
                 <tr key={c.id}>
-                  <td className="bold-text text-teal font-monospace">{c.reference}</td>
+                  <td className="font-mono font-bold text-primary">{c.reference}</td>
                   <td>
-                    <span className="bold-text">{formatDate(c.date)}</span>
-                    <span className="block-sub muted-text">{c.time}</span>
+                    <span className="font-bold text-ink">{formatDate(c.date)}</span>
+                    <span className="block text-[12px] text-muted">{c.time}</span>
                   </td>
                   <td>{c.staff}</td>
-                  <td className="muted-text">{c.chiefComplaint || '—'}</td>
+                  <td className="text-muted">{c.chiefComplaint || '—'}</td>
                   <td>
                     <StatusBadge status={c.status} />
                   </td>
-                  <td className="actions-cell">
-                    <button type="button" className="btn-view-small" onClick={() => setConsultDetails(c)}>
+                  <td>
+                    <button type="button" className={BTN_VIEW} onClick={() => setConsultDetails(c)}>
                       View
                     </button>
                   </td>
@@ -884,35 +911,35 @@ function MedicalRecords({ page }) {
           </table>
         </div>
       ) : (
-        <div className="empty-mini-state">This patient has no consultation history yet.</div>
+        <div className={EMPTY_MINI}>This patient has no consultation history yet.</div>
       )}
     </div>
   )
 
   const renderMedications = () => (
-    <div className="panel main-panel">
-      <h3 className="mr-section-title">Medication History</h3>
+    <div className={`${PANEL} p-5`}>
+      <h3 className={SECTION_TITLE}>Medication History</h3>
       {selected.medications.length > 0 ? (
-        <div className="med-list">
+        <div className="grid gap-[10px]">
           {selected.medications.map((m) => (
-            <div className="med-card" key={m.id}>
-              <div className="med-card-head">
+            <div className="rounded-lg border border-line bg-white p-[12px_14px]" key={m.id}>
+              <div className="flex items-center justify-between gap-2">
                 <div>
-                  <strong>{m.name}</strong>
-                  <span className="med-dosage">{m.dosage}</span>
+                  <strong className="text-[14px] text-ink">{m.name}</strong>
+                  <span className="ml-[6px] font-extrabold text-primary">{m.dosage}</span>
                 </div>
                 <StatusBadge status={m.status} />
               </div>
-              <div className="med-card-meta">
+              <div className="mt-[6px] flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-ink">
                 <span>{m.frequency}</span>
-                <span className="muted-text">{m.route ? `Route: ${m.route}` : ''}</span>
-                <span className="muted-text">
+                <span className="text-muted">{m.route ? `Route: ${m.route}` : ''}</span>
+                <span className="text-muted">
                   {m.prescribedBy} · {formatDate(m.prescribedDate)}
                 </span>
               </div>
-              {m.instructions && <p className="med-instructions muted-text">{m.instructions}</p>}
-              <div className="status-manage-row" style={{ marginTop: 10, paddingTop: 10 }}>
-                <button type="button" className="btn-view-small" onClick={() => setMedDetails({ med: m, patientName: selected.name })}>
+              {m.instructions && <p className="mt-2 text-[12.5px] text-muted">{m.instructions}</p>}
+              <div className="mt-[10px] flex flex-wrap items-center gap-[10px] border-t border-line pt-[10px]">
+                <button type="button" className={BTN_VIEW} onClick={() => setMedDetails({ med: m, patientName: selected.name })}>
                   View Details
                 </button>
               </div>
@@ -920,63 +947,63 @@ function MedicalRecords({ page }) {
           ))}
         </div>
       ) : (
-        <div className="empty-mini-state">No medications recorded for this patient.</div>
+        <div className={EMPTY_MINI}>No medications recorded for this patient.</div>
       )}
     </div>
   )
 
   const renderTimeline = () => (
-    <div className="panel main-panel">
-      <h3 className="mr-section-title">Medical Record Timeline</h3>
+    <div className={`${PANEL} p-5`}>
+      <h3 className={SECTION_TITLE}>Medical Record Timeline</h3>
       {timeline.length > 0 ? (
-        <div className="timeline">
+        <div className="grid">
           {timeline.map((event) => (
-            <div className="timeline-item" key={event.id}>
-              <span className="timeline-dot" aria-hidden="true" />
-              <div className="timeline-date">{formatDate(event.date)}</div>
-              <span className={`tl-type ${TIMELINE_CLASS[event.type] || 'tl-history'}`}>{event.type}</span>
+            <div className="relative ml-[9px] border-l-2 border-[#dce8e5] p-[0_0_22px_24px] last:border-l-transparent last:pb-0" key={event.id}>
+              <span className="absolute -left-2 top-0.5 size-[13px] rounded-full border-2 border-white bg-primary shadow-[0_0_0_2px_#dce8e5]" aria-hidden="true" />
+              <div className="text-[11px] font-extrabold uppercase tracking-[0.03em] text-primary">{formatDate(event.date)}</div>
+              <span className={`mb-[5px] mt-[3px] inline-flex rounded-full px-[9px] py-[2px] text-[10.5px] font-extrabold uppercase tracking-[0.02em] ${TIMELINE_CLASS[event.type] || TIMELINE_CLASS['Medical History']}`}>{event.type}</span>
               {event.consultation ? (
-                <button type="button" className="timeline-title timeline-link" onClick={() => setConsultDetails(event.consultation)}>
+                <button type="button" className="m-0 cursor-pointer border-0 bg-transparent p-0 text-left text-[14px] font-extrabold text-primary hover:underline" onClick={() => setConsultDetails(event.consultation)}>
                   {event.title}
                 </button>
               ) : (
-                <h4 className="timeline-title">{event.title}</h4>
+                <h4 className="m-0 text-[14px] text-ink">{event.title}</h4>
               )}
-              {event.subtitle && <p className="timeline-sub">{event.subtitle}</p>}
-              {event.staff && <p className="timeline-sub muted-text">{event.staff}</p>}
+              {event.subtitle && <p className="mt-0.5 text-[12.5px] text-muted">{event.subtitle}</p>}
+              {event.staff && <p className="mt-0.5 text-[12.5px] text-muted">{event.staff}</p>}
             </div>
           ))}
         </div>
       ) : (
-        <div className="empty-mini-state">No timeline events recorded yet.</div>
+        <div className={EMPTY_MINI}>No timeline events recorded yet.</div>
       )}
     </div>
   )
 
   const renderDetail = () => (
-    <div className="mr-detail">
-      <div className="mr-back-row">
-        <button type="button" className="secondary-pill" onClick={closeRecord}>
+    <div>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <button type="button" className={PILL} onClick={closeRecord}>
           ← Back to Records
         </button>
-        <span className="muted-text">{selected.id}</span>
+        <span className="text-muted">{selected.id}</span>
       </div>
 
-      <div className="panel main-panel mr-patient-header">
-        <span className="mr-avatar-lg" aria-hidden="true">{initials(selected.name)}</span>
-        <div className="mr-patient-id">
-          <h3>{selected.name}</h3>
-          <p>{selected.patientId} · {selected.type} · {selected.courseDept}</p>
-          <p className="muted-text">{selected.age} years old · {selected.sex} · {selected.contact}</p>
+      <div className={`${PANEL} flex flex-wrap items-center gap-4 p-5`}>
+        <span className="grid size-14 shrink-0 place-items-center rounded-full bg-primary text-[17px] font-extrabold text-white" aria-hidden="true">{initials(selected.name)}</span>
+        <div>
+          <h3 className="m-0 mb-0.5 text-[20px] text-ink">{selected.name}</h3>
+          <p className="m-0 text-[12.5px] text-muted">{selected.patientId} · {selected.type} · {selected.courseDept}</p>
+          <p className="m-0 text-[12.5px] text-muted">{selected.age} years old · {selected.sex} · {selected.contact}</p>
         </div>
-        <div className="mr-header-right">
+        <div className="ml-auto flex flex-col items-end gap-[6px]">
           <StatusBadge status={selected.status} />
-          <span className="block-sub muted-text">Updated {formatDate(selected.lastUpdated)}</span>
+          <span className="block text-[12px] text-muted">Updated {formatDate(selected.lastUpdated)}</span>
         </div>
       </div>
 
       {selected.allergies.length > 0 && (
-        <div className="mr-allergy-warning">
+        <div className="mt-[14px] flex items-center gap-2 rounded-lg border border-[#f2cfc2] bg-[#fdf1ec] p-[10px_14px] text-[12.5px] font-bold text-danger">
           <span>⚠</span>
           <span>
             Allergies on file: <strong>{selected.allergies.map((a) => a.allergen).join(', ')}</strong>
@@ -984,31 +1011,31 @@ function MedicalRecords({ page }) {
         </div>
       )}
 
-      <div className="mr-stats-strip">
-        <div className="mr-stat">
-          <small>Consultations</small>
-          <strong>{patientConsults.length}</strong>
+      <div className="my-[14px] mb-[18px] grid grid-cols-4 gap-3 max-[760px]:grid-cols-2">
+        <div className="rounded-lg border border-line-strong bg-white p-[12px_14px]">
+          <small className="block text-[11px] font-extrabold uppercase tracking-[0.02em] text-muted">Consultations</small>
+          <strong className="mt-1 block text-[22px] leading-none text-ink">{patientConsults.length}</strong>
         </div>
-        <div className="mr-stat">
-          <small>Active Conditions</small>
-          <strong>{activeConditions.length}</strong>
+        <div className="rounded-lg border border-line-strong bg-white p-[12px_14px]">
+          <small className="block text-[11px] font-extrabold uppercase tracking-[0.02em] text-muted">Active Conditions</small>
+          <strong className="mt-1 block text-[22px] leading-none text-ink">{activeConditions.length}</strong>
         </div>
-        <div className="mr-stat">
-          <small>Allergies</small>
-          <strong>{selected.allergies.length}</strong>
+        <div className="rounded-lg border border-line-strong bg-white p-[12px_14px]">
+          <small className="block text-[11px] font-extrabold uppercase tracking-[0.02em] text-muted">Allergies</small>
+          <strong className="mt-1 block text-[22px] leading-none text-ink">{selected.allergies.length}</strong>
         </div>
-        <div className="mr-stat">
-          <small>Active Medications</small>
-          <strong>{activeMedications.length}</strong>
+        <div className="rounded-lg border border-line-strong bg-white p-[12px_14px]">
+          <small className="block text-[11px] font-extrabold uppercase tracking-[0.02em] text-muted">Active Medications</small>
+          <strong className="mt-1 block text-[22px] leading-none text-ink">{activeMedications.length}</strong>
         </div>
       </div>
 
-      <nav className="dashboard-tabs" aria-label="Record sections">
+      <nav className="mt-[14px] flex gap-2 overflow-x-auto border-b-2 border-[#dce8e5] pb-px" aria-label="Record sections">
         {DETAIL_TABS.map((tab) => (
           <button
             type="button"
             key={tab.id}
-            className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+            className={`cursor-pointer whitespace-nowrap border-0 border-b-[3px] border-transparent bg-transparent px-4 py-[10px] font-bold text-muted-soft transition-all duration-200 hover:border-[#a9d1ca] hover:text-primary ${activeTab === tab.id ? 'border-primary text-primary' : ''}`}
             onClick={() => setActiveTab(tab.id)}
           >
             {tab.label}
@@ -1016,7 +1043,7 @@ function MedicalRecords({ page }) {
         ))}
       </nav>
 
-      <div className="mr-tab-view">
+      <div className="mt-[18px] grid gap-4">
         {activeTab === 'overview' && renderOverview()}
         {activeTab === 'history' && renderHistory()}
         {activeTab === 'conditions' && renderConditions()}
@@ -1029,13 +1056,13 @@ function MedicalRecords({ page }) {
   )
 
   return (
-    <div className="medical-records-page">
+    <div>
       {/* Page header */}
-      <section className="page-heading">
+      <section className="mb-5 flex items-center justify-between gap-4 max-[620px]:flex-col max-[620px]:items-start">
         <div>
-          <p>{page.eyebrow}</p>
-          <h2>{page.title}</h2>
-          <span className="page-heading-description">{page.description}</span>
+          <p className={KICKER}>{page.eyebrow}</p>
+          <h2 className="m-0 text-[clamp(30px,5vw,48px)] leading-[1.02] text-ink">{page.title}</h2>
+          <span className="mt-[6px] block text-[13px] text-muted">{page.description}</span>
         </div>
       </section>
 
@@ -1044,7 +1071,7 @@ function MedicalRecords({ page }) {
       {/* ============ CONDITION FORM MODAL ============ */}
       {conditionModal && (
         <div
-          className="modal-backdrop"
+          className={MODAL_BACKDROP}
           role="dialog"
           aria-modal="true"
           aria-label="Medical condition form"
@@ -1052,60 +1079,63 @@ function MedicalRecords({ page }) {
             if (e.target === e.currentTarget && !busy) setConditionModal(null)
           }}
         >
-          <div className="modal-card modal-card-sm">
-            <div className="modal-header">
-              <h3>{conditionModal.condition ? 'Edit Condition' : 'Add Medical Condition'}</h3>
-              <button type="button" className="btn-modal-close" onClick={() => { if (!busy) setConditionModal(null) }}>✕</button>
+          <div className={MODAL_CARD_SM}>
+            <div className={MODAL_HEADER}>
+              <h3 className="m-0 text-[18px] text-ink">{conditionModal.condition ? 'Edit Condition' : 'Add Medical Condition'}</h3>
+              <button type="button" className={MODAL_CLOSE} onClick={() => { if (!busy) setConditionModal(null) }}>✕</button>
             </div>
-            <div className="modal-body">
-              <div className="sidebar-form">
-                <label>
+            <div className={MODAL_BODY}>
+              <div className={SIDEBAR_FORM}>
+                <label className={FORM_LABEL}>
                   Condition name *
                   <input
                     type="text"
                     placeholder="e.g. Hypertension"
+                    className={FORM_FIELD}
                     value={conditionForm.values.name}
                     onChange={(e) => conditionForm.setValue('name', e.target.value)}
                     disabled={busy}
                   />
                 </label>
-                <div className="form-row-grid">
-                  <label>
+                <div className={FORM_ROW}>
+                  <label className={FORM_LABEL}>
                     Status
-                    <select value={conditionForm.values.status} onChange={(e) => conditionForm.setValue('status', e.target.value)} disabled={busy}>
+                    <select className={FORM_FIELD} value={conditionForm.values.status} onChange={(e) => conditionForm.setValue('status', e.target.value)} disabled={busy}>
                       {CONDITION_STATUSES.map((s) => (
                         <option key={s} value={s}>{s}</option>
                       ))}
                     </select>
                   </label>
-                  <label>
+                  <label className={FORM_LABEL}>
                     Date diagnosed
                     <input
                       type="date"
+                      className={FORM_FIELD}
                       value={conditionForm.values.diagnosedDate}
                       onChange={(e) => conditionForm.setValue('diagnosedDate', e.target.value)}
                       disabled={busy}
                     />
                   </label>
                 </div>
-                <label>
+                <label className={FORM_LABEL}>
                   Notes
                   <textarea
                     placeholder="e.g. Patient advised to monitor blood pressure regularly."
+                    className={`${FORM_FIELD} min-h-20 resize-y`}
                     value={conditionForm.values.notes}
                     onChange={(e) => conditionForm.setValue('notes', e.target.value)}
                     disabled={busy}
                   />
                 </label>
-                {conditionForm.errors.name && <p className="section-error">{conditionForm.errors.name}</p>}
+                {conditionForm.errors.name && <p className="mt-2 text-[12px] font-bold text-danger">{conditionForm.errors.name}</p>}
               </div>
             </div>
-            <div className="modal-footer">
-              <div className="modal-footer-actions">
-                <button type="button" className="secondary-pill" onClick={() => { if (!busy) setConditionModal(null) }} disabled={busy}>
+            <div className={MODAL_FOOTER}>
+              <div className={MODAL_FOOTER_ACTIONS}>
+                <button type="button" className={PILL} onClick={() => { if (!busy) setConditionModal(null) }} disabled={busy}>
                   Cancel
                 </button>
-                <button type="button" className="primary-action" onClick={handleSaveCondition} disabled={busy}>
+                <button type="button" className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`} onClick={handleSaveCondition} disabled={busy}>
                   {busy ? 'Saving...' : 'Save Condition'}
                 </button>
               </div>
@@ -1117,7 +1147,7 @@ function MedicalRecords({ page }) {
       {/* ============ ALLERGY FORM MODAL ============ */}
       {allergyModal && (
         <div
-          className="modal-backdrop"
+          className={MODAL_BACKDROP}
           role="dialog"
           aria-modal="true"
           aria-label="Allergy form"
@@ -1125,70 +1155,74 @@ function MedicalRecords({ page }) {
             if (e.target === e.currentTarget && !busy) setAllergyModal(null)
           }}
         >
-          <div className="modal-card modal-card-sm">
-            <div className="modal-header">
-              <h3>{allergyModal.allergy ? 'Edit Allergy' : 'Record Allergy'}</h3>
-              <button type="button" className="btn-modal-close" onClick={() => { if (!busy) setAllergyModal(null) }}>✕</button>
+          <div className={MODAL_CARD_SM}>
+            <div className={MODAL_HEADER}>
+              <h3 className="m-0 text-[18px] text-ink">{allergyModal.allergy ? 'Edit Allergy' : 'Record Allergy'}</h3>
+              <button type="button" className={MODAL_CLOSE} onClick={() => { if (!busy) setAllergyModal(null) }}>✕</button>
             </div>
-            <div className="modal-body">
-              <div className="sidebar-form">
-                <label>
+            <div className={MODAL_BODY}>
+              <div className={SIDEBAR_FORM}>
+                <label className={FORM_LABEL}>
                   Allergen *
                   <input
                     type="text"
                     placeholder="e.g. Penicillin"
+                    className={FORM_FIELD}
                     value={allergyForm.values.allergen}
                     onChange={(e) => allergyForm.setValue('allergen', e.target.value)}
                     disabled={busy}
                   />
                 </label>
-                <label>
+                <label className={FORM_LABEL}>
                   Reaction
                   <input
                     type="text"
                     placeholder="e.g. Skin rash"
+                    className={FORM_FIELD}
                     value={allergyForm.values.reaction}
                     onChange={(e) => allergyForm.setValue('reaction', e.target.value)}
                     disabled={busy}
                   />
                 </label>
-                <div className="form-row-grid">
-                  <label>
+                <div className={FORM_ROW}>
+                  <label className={FORM_LABEL}>
                     Severity
-                    <select value={allergyForm.values.severity} onChange={(e) => allergyForm.setValue('severity', e.target.value)} disabled={busy}>
+                    <select className={FORM_FIELD} value={allergyForm.values.severity} onChange={(e) => allergyForm.setValue('severity', e.target.value)} disabled={busy}>
                       {ALLERGY_SEVERITIES.map((s) => (
                         <option key={s} value={s}>{s}</option>
                       ))}
                     </select>
                   </label>
-                  <label>
+                  <label className={FORM_LABEL}>
                     Date recorded
                     <input
                       type="date"
+                      className={FORM_FIELD}
                       value={allergyForm.values.dateRecorded}
                       onChange={(e) => allergyForm.setValue('dateRecorded', e.target.value)}
                       disabled={busy}
                     />
                   </label>
                 </div>
-                <label>
+                <label className={FORM_LABEL}>
                   Notes
                   <textarea
                     placeholder="e.g. Avoid penicillin-based antibiotics."
+                    className={`${FORM_FIELD} min-h-20 resize-y`}
                     value={allergyForm.values.notes}
                     onChange={(e) => allergyForm.setValue('notes', e.target.value)}
                     disabled={busy}
                   />
                 </label>
-                {allergyForm.errors.allergen && <p className="section-error">{allergyForm.errors.allergen}</p>}
+                {allergyForm.errors.allergen && <p className="mt-2 text-[12px] font-bold text-danger">{allergyForm.errors.allergen}</p>}
               </div>
             </div>
-            <div className="modal-footer">
-              <div className="modal-footer-actions">
-                <button type="button" className="secondary-pill" onClick={() => { if (!busy) setAllergyModal(null) }} disabled={busy}>
+            <div className={MODAL_FOOTER}>
+              <div className={MODAL_FOOTER_ACTIONS}>
+                <button type="button" className={PILL} onClick={() => { if (!busy) setAllergyModal(null) }} disabled={busy}>
                   Cancel
                 </button>
-                <button type="button" className="primary-action" onClick={handleSaveAllergy} disabled={busy}>
+                <button type="button" className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`} onClick={handleSaveAllergy} disabled={busy}>
                   {busy ? 'Saving...' : 'Save Allergy'}
                 </button>
               </div>
@@ -1200,7 +1234,7 @@ function MedicalRecords({ page }) {
       {/* ============ REMOVE CONFIRMATION MODAL ============ */}
       {removeTarget && (
         <div
-          className="modal-backdrop"
+          className={MODAL_BACKDROP}
           role="dialog"
           aria-modal="true"
           aria-label="Confirm removal"
@@ -1208,26 +1242,26 @@ function MedicalRecords({ page }) {
             if (e.target === e.currentTarget && !busy) setRemoveTarget(null)
           }}
         >
-          <div className="modal-card modal-card-sm">
-            <div className="modal-header">
-              <h3>{removeTarget.kind === 'condition' ? 'Remove Condition' : 'Remove Allergy'}</h3>
-              <button type="button" className="btn-modal-close" onClick={() => { if (!busy) setRemoveTarget(null) }}>✕</button>
+          <div className={MODAL_CARD_SM}>
+            <div className={MODAL_HEADER}>
+              <h3 className="m-0 text-[18px] text-ink">{removeTarget.kind === 'condition' ? 'Remove Condition' : 'Remove Allergy'}</h3>
+              <button type="button" className={MODAL_CLOSE} onClick={() => { if (!busy) setRemoveTarget(null) }}>✕</button>
             </div>
-            <div className="modal-body">
-              <p style={{ marginTop: 0 }}>
+            <div className={MODAL_BODY}>
+              <p className="mt-0">
                 Remove <strong>{removeTarget.kind === 'condition' ? removeTarget.item.name : removeTarget.item.allergen}</strong>{' '}
                 from <strong>{removeTarget.record.name}</strong>&apos;s medical record?
               </p>
-              <p className="muted-text" style={{ marginBottom: 0 }}>
+              <p className="mb-0 text-muted">
                 This will permanently delete the entry. This action cannot be undone.
               </p>
             </div>
-            <div className="modal-footer">
-              <div className="modal-footer-actions">
-                <button type="button" className="secondary-pill" onClick={() => { if (!busy) setRemoveTarget(null) }} disabled={busy}>
+            <div className={MODAL_FOOTER}>
+              <div className={MODAL_FOOTER_ACTIONS}>
+                <button type="button" className={PILL} onClick={() => { if (!busy) setRemoveTarget(null) }} disabled={busy}>
                   Cancel
                 </button>
-                <button type="button" className="btn-action-danger" onClick={handleConfirmRemove} disabled={busy}>
+                <button type="button" className={`${BTN_ACTION_DANGER} min-h-10 px-[14px] text-[13px]`} onClick={handleConfirmRemove} disabled={busy}>
                   {busy ? 'Removing...' : 'Confirm Remove'}
                 </button>
               </div>

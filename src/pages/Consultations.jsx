@@ -7,6 +7,10 @@ import { useModal } from '../hooks/useModal'
 import { usePagination } from '../hooks/usePagination'
 import { useAuth } from '../hooks/useAuth'
 import { formatDate, timeToMinutes } from '../lib/format'
+import {
+  PILL, PRIMARY_BTN, PANEL, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT,
+  BTN_SUCCESS, BTN_INFO, BTN_VIEW, DISPO_TAG, dispoClasses,
+} from '../lib/ui'
 import StatusBadge from '../components/StatusBadge'
 import Pagination from '../components/Pagination'
 import { EmptyState, ErrorState, LoadingState } from '../components/AsyncState'
@@ -29,6 +33,23 @@ const REQUIRED_FIELDS = [
   { key: 'diagnosis', label: 'Assessment / Diagnosis', section: 'diagnosis' },
   { key: 'treatment', label: 'Treatment and Advice', section: 'treatment' },
 ]
+
+const MODAL_CARD = 'flex max-h-[90vh] w-[min(650px,100%)] animate-modal-scale flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgba(8,20,20,0.22)]'
+const MODAL_CARD_SM = MODAL_CARD + ' w-[min(480px,100%)]'
+const MODAL_CARD_WIDE = MODAL_CARD + ' w-[min(780px,100%)]'
+const MODAL_BACKDROP = 'fixed inset-0 z-[100] grid place-items-center bg-[rgba(8,20,20,0.45)] p-5 backdrop-blur-[4px]'
+const MODAL_HEADER = 'flex items-center justify-between border-b border-line p-[16px_20px]'
+const MODAL_CLOSE = 'cursor-pointer border-0 bg-transparent p-1 text-[16px] text-muted-soft'
+const MODAL_BODY = 'flex-1 overflow-y-auto p-5'
+const MODAL_FOOTER = 'flex justify-end border-t border-line bg-[#fafcfb] p-[14px_20px]'
+const MODAL_FOOTER_ACTIONS = 'flex flex-wrap items-center justify-end gap-2'
+const PROFILE_GRID = 'grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4'
+const PROFILE_LBL = 'mb-0.5 block text-[11px] font-extrabold uppercase text-muted'
+const PROFILE_VAL = 'm-0 text-[14px] font-bold text-ink'
+const ALERT_BOX = 'rounded-lg border border-[#f2cfc2] bg-[#fdf1ec] p-[12px_14px]'
+const REASON_BOX = ALERT_BOX + ' border-[#cfe5df] bg-[#f4faf8]'
+const CONSULT_FIELD = 'flex flex-col gap-[5px] text-[12.5px] font-extrabold text-ink'
+const CONSULT_INPUT = 'w-full rounded-md border border-[#d4e4e0] bg-white p-[9px_10px] text-[13px] text-ink'
 
 // Maps a consultation record to editable draft fields.
 function consultationToDraft(consultation, defaultStaff = '') {
@@ -243,20 +264,20 @@ function Consultations({ page }) {
     const buttons = []
     if (cons.status === 'Scheduled' && canRecord) {
       buttons.push(
-        <button key="start" type="button" className="btn-success-small" onClick={() => handleStart(cons)} disabled={busy}>
+        <button key="start" type="button" className={BTN_SUCCESS} onClick={() => handleStart(cons)} disabled={busy}>
           Start Consultation
         </button>,
       )
     }
     if (cons.status === 'In Progress' && canRecord) {
       buttons.push(
-        <button key="continue" type="button" className="btn-info-small" onClick={() => openWorkspace(cons)} disabled={busy}>
+        <button key="continue" type="button" className={BTN_INFO} onClick={() => openWorkspace(cons)} disabled={busy}>
           Continue
         </button>,
       )
     }
     buttons.push(
-      <button key="view" type="button" className="btn-view-small" onClick={() => setDetails(cons)}>
+      <button key="view" type="button" className={BTN_VIEW} onClick={() => setDetails(cons)}>
         View
       </button>,
     )
@@ -264,48 +285,48 @@ function Consultations({ page }) {
   }
 
   return (
-    <div className="consultations-page">
+    <div>
       {/* Page header */}
-      <section className="page-heading">
+      <section className="mb-5 flex items-center justify-between gap-4 max-[620px]:flex-col max-[620px]:items-start">
         <div>
-          <p>{page.eyebrow}</p>
-          <h2>{page.title}</h2>
-          <span className="page-heading-description">{page.description}</span>
+          <p className={KICKER}>{page.eyebrow}</p>
+          <h2 className="m-0 text-[clamp(30px,5vw,48px)] leading-[1.02] text-ink">{page.title}</h2>
+          <span className="mt-[6px] block text-[13px] text-muted">{page.description}</span>
         </div>
       </section>
 
       {/* Status summary chips (click to filter) */}
-      <div className="consultations-summary">
+      <div className="mb-[18px] grid grid-cols-3 gap-3 max-[700px]:grid-cols-1">
         {STATUSES.map((status) => (
           <button
             type="button"
             key={status}
-            className={`summary-chip ${statusFilter === status ? 'active' : ''}`}
+            className={`flex cursor-pointer flex-col gap-[2px] rounded-lg border border-line-strong bg-white p-[14px_16px] text-left transition-all duration-200 hover:border-primary ${statusFilter === status ? 'border-primary bg-[#f0faf8] shadow-[inset_0_0_0_1px_var(--color-primary)]' : ''}`}
             onClick={() => setStatusFilter(statusFilter === status ? 'All' : status)}
           >
-            <small>{status}</small>
-            <strong>{counts[status]}</strong>
+            <small className="text-[11px] font-extrabold uppercase tracking-[0.02em] text-muted">{status}</small>
+            <strong className="text-[26px] leading-none text-ink">{counts[status]}</strong>
           </button>
         ))}
       </div>
 
       {/* List panel */}
-      <div className="panel main-panel consultations-list-panel">
-        <div className="panel-header flex-header">
+      <div className={`${PANEL} p-5`}>
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3>Consultation Records</h3>
-            <p>Review scheduled and completed patient consultations</p>
+            <h3 className="m-0 text-[18px] text-[#143d40]">Consultation Records</h3>
+            <p className={KICKER}>Review scheduled and completed patient consultations</p>
           </div>
-          <div className="appointments-toolbar">
+          <div className="flex flex-wrap items-center justify-end gap-[10px]">
             <input
               type="text"
-              className="search-input toolbar-search"
+              className={`${SEARCH_INPUT} min-w-[200px] flex-[1_1_220px]`}
               placeholder="Search patient, reference, complaint, or diagnosis..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
             <select
-              className="filter-select"
+              className={SELECT_INPUT}
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               aria-label="Filter by status"
@@ -318,12 +339,12 @@ function Consultations({ page }) {
               ))}
             </select>
             {(search || statusFilter !== 'All') && (
-              <button type="button" className="secondary-pill" onClick={clearFilters}>
+              <button type="button" className={PILL} onClick={clearFilters}>
                 Clear filters
               </button>
             )}
             {!isLoading && !error && (
-              <span className="results-count">
+              <span className="ml-auto whitespace-nowrap text-[12.5px] font-bold text-muted">
                 {filtered.length} of {consultations.length} consultations
               </span>
             )}
@@ -331,18 +352,18 @@ function Consultations({ page }) {
         </div>
 
         {!canRecord && (
-          <div className="auth-notice">
+          <div className="mb-[14px] flex items-center gap-2 rounded-lg border border-dashed border-[#f2cfc2] bg-[#fdf1ec] p-[10px_14px] text-[12.5px] font-bold text-[#a33c12]">
             ⚠ You have view-only access. Only authorized medical personnel can start or record consultations.
           </div>
         )}
 
-        <div className="records-table-container">
+        <div className="overflow-x-auto rounded-lg border border-line">
           {error ? (
             <ErrorState message={error} onRetry={refetch} />
           ) : isLoading ? (
             <LoadingState label="Loading consultations..." />
           ) : (
-            <table className="records-table">
+            <table className={TABLE}>
               <thead>
                 <tr>
                   <th>Reference</th>
@@ -356,21 +377,21 @@ function Consultations({ page }) {
               <tbody>
                 {pageItems.map((cons) => (
                   <tr key={cons.id}>
-                    <td className="bold-text text-teal font-monospace">{cons.reference}</td>
+                    <td className="font-mono font-bold text-primary">{cons.reference}</td>
                     <td>
-                      <strong className="bold-text">{cons.patient}</strong>
-                      {cons.patientId ? <span className="block-sub muted-text">{cons.patientId}</span> : null}
+                      <strong className="font-bold text-ink">{cons.patient}</strong>
+                      {cons.patientId ? <span className="block text-[12px] text-muted">{cons.patientId}</span> : null}
                     </td>
                     <td>
-                      <span className="bold-text">{formatDate(cons.date)}</span>
-                      <span className="block-sub muted-text">{cons.time}</span>
+                      <span className="font-bold text-ink">{formatDate(cons.date)}</span>
+                      <span className="block text-[12px] text-muted">{cons.time}</span>
                     </td>
                     <td>{cons.staff}</td>
                     <td>
                       <StatusBadge status={cons.status} />
                     </td>
-                    <td className="actions-cell">
-                      <div className="row-actions">{listActions(cons)}</div>
+                    <td>
+                      <div className="flex flex-wrap gap-[6px]">{listActions(cons)}</div>
                     </td>
                   </tr>
                 ))}
@@ -392,7 +413,7 @@ function Consultations({ page }) {
       {/* ============ RECORD CONSULTATION WORKSPACE MODAL ============ */}
       {workspace && (
         <div
-          className="modal-backdrop"
+          className={MODAL_BACKDROP}
           role="dialog"
           aria-modal="true"
           aria-label={`Record consultation ${workspace.reference}`}
@@ -400,12 +421,12 @@ function Consultations({ page }) {
             if (e.target === e.currentTarget && !busy) setWorkspace(null)
           }}
         >
-          <div className="modal-card modal-card-wide">
-            <div className="modal-header">
-              <h3>Record Consultation — {workspace.reference}</h3>
+          <div className={MODAL_CARD_WIDE}>
+            <div className={MODAL_HEADER}>
+              <h3 className="m-0 text-[18px] text-ink">Record Consultation — {workspace.reference}</h3>
               <button
                 type="button"
-                className="btn-modal-close"
+                className={MODAL_CLOSE}
                 onClick={() => {
                   if (!busy) setWorkspace(null)
                 }}
@@ -413,39 +434,40 @@ function Consultations({ page }) {
                 ✕
               </button>
             </div>
-            <div className="modal-body">
-              <div className="consultation-patient-banner">
+            <div className={MODAL_BODY}>
+              <div className="mb-4 flex items-center gap-3 rounded-lg border border-line bg-[#f4faf8] p-[12px_14px]">
                 <StatusBadge status={workspace.status} />
                 <div>
-                  <strong>{workspace.patient}</strong>
-                  <span className="block-sub muted-text">
+                  <strong className="block text-[15px] text-ink">{workspace.patient}</strong>
+                  <span className="block text-[12px] text-muted">
                     {workspace.patientId} · {formatDate(workspace.date)} at {workspace.time}
                   </span>
                 </div>
               </div>
 
-              <div className="consultation-sections">
+              <div className="grid gap-[14px]">
                 {/* Patient information */}
-                <section className="consultation-section">
-                  <h4>Patient Information</h4>
-                  <div className="profile-details-grid">
+                <section className="rounded-lg border border-line p-[14px_16px]">
+                  <h4 className="m-0 mb-[10px] text-[12px] uppercase tracking-[0.02em] text-ink">Patient Information</h4>
+                  <div className={PROFILE_GRID}>
                     <div>
-                      <span className="profile-lbl">Patient</span>
-                      <p className="profile-val">{workspace.patient}</p>
+                      <span className={PROFILE_LBL}>Patient</span>
+                      <p className={PROFILE_VAL}>{workspace.patient}</p>
                     </div>
                     <div>
-                      <span className="profile-lbl">Patient ID</span>
-                      <p className="profile-val">{workspace.patientId}</p>
+                      <span className={PROFILE_LBL}>Patient ID</span>
+                      <p className={PROFILE_VAL}>{workspace.patientId}</p>
                     </div>
                     <div>
-                      <span className="profile-lbl">Schedule</span>
-                      <p className="profile-val">
+                      <span className={PROFILE_LBL}>Schedule</span>
+                      <p className={PROFILE_VAL}>
                         {formatDate(workspace.date)} · {workspace.time}
                       </p>
                     </div>
-                    <label className="consultation-field">
+                    <label className={CONSULT_FIELD}>
                       <span>Attending Medical Staff</span>
                       <select
+                        className={CONSULT_INPUT}
                         value={draft.staff}
                         onChange={(e) => updateDraft('staff', e.target.value)}
                         disabled={busy}
@@ -461,81 +483,88 @@ function Consultations({ page }) {
                 </section>
 
                 {/* Chief complaint */}
-                <section className={`consultation-section ${draftErrors.complaint ? 'section-invalid' : ''}`}>
-                  <h4>Chief Complaint</h4>
-                  <label className="consultation-field">
+                <section className={`rounded-lg border border-line p-[14px_16px] ${draftErrors.complaint ? 'border-[#f2cfc2] bg-[#fffaf8]' : ''}`}>
+                  <h4 className="m-0 mb-[10px] text-[12px] uppercase tracking-[0.02em] text-ink">Chief Complaint</h4>
+                  <label className={CONSULT_FIELD}>
                     <span>Primary complaint or reason for consultation</span>
                     <textarea
                       placeholder="e.g. High fever and body aches since morning"
+                      className={`${CONSULT_INPUT} min-h-[72px] resize-y`}
                       value={draft.chiefComplaint}
                       onChange={(e) => updateDraft('chiefComplaint', e.target.value)}
                       disabled={busy}
                     />
                   </label>
                   {draftErrors.complaint && (
-                    <p className="section-error">Required: {draftErrors.complaint.join(', ')}</p>
+                    <p className="mt-2 text-[12px] font-bold text-danger">Required: {draftErrors.complaint.join(', ')}</p>
                   )}
                 </section>
 
                 {/* Vital signs */}
-                <section className={`consultation-section ${draftErrors.vitals ? 'section-invalid' : ''}`}>
-                  <h4>Vital Signs</h4>
-                  <div className="vitals-grid">
-                    <label>
+                <section className={`rounded-lg border border-line p-[14px_16px] ${draftErrors.vitals ? 'border-[#f2cfc2] bg-[#fffaf8]' : ''}`}>
+                  <h4 className="m-0 mb-[10px] text-[12px] uppercase tracking-[0.02em] text-ink">Vital Signs</h4>
+                  <div className="grid grid-cols-3 gap-[10px] max-[620px]:grid-cols-1">
+                    <label className={CONSULT_FIELD}>
                       Temperature
                       <input
                         type="text"
                         placeholder="36.5°C"
+                        className={CONSULT_INPUT}
                         value={draft.temperature}
                         onChange={(e) => updateDraft('temperature', e.target.value)}
                         disabled={busy}
                       />
                     </label>
-                    <label>
+                    <label className={CONSULT_FIELD}>
                       Blood Pressure
                       <input
                         type="text"
                         placeholder="120/80"
+                        className={CONSULT_INPUT}
                         value={draft.bloodPressure}
                         onChange={(e) => updateDraft('bloodPressure', e.target.value)}
                         disabled={busy}
                       />
                     </label>
-                    <label>
+                    <label className={CONSULT_FIELD}>
                       Pulse Rate
                       <input
                         type="text"
                         placeholder="75 bpm"
+                        className={CONSULT_INPUT}
                         value={draft.pulseRate}
                         onChange={(e) => updateDraft('pulseRate', e.target.value)}
                         disabled={busy}
                       />
                     </label>
-                    <label>
+                    <label className={CONSULT_FIELD}>
                       Respiratory Rate
                       <input
                         type="text"
                         placeholder="16 /min"
+                        className={CONSULT_INPUT}
                         value={draft.respiratoryRate}
                         onChange={(e) => updateDraft('respiratoryRate', e.target.value)}
                         disabled={busy}
                       />
                     </label>
-                    <label>
+                    <label className={CONSULT_FIELD}>
                       Height
                       <input
                         type="text"
                         placeholder="165 cm"
+                        className={CONSULT_INPUT}
                         value={draft.height}
                         onChange={(e) => updateDraft('height', e.target.value)}
                         disabled={busy}
                       />
                     </label>
-                    <label>
+                    <label className={CONSULT_FIELD}>
                       Weight
                       <input
                         type="text"
                         placeholder="55 kg"
+                        className={CONSULT_INPUT}
                         value={draft.weight}
                         onChange={(e) => updateDraft('weight', e.target.value)}
                         disabled={busy}
@@ -543,17 +572,18 @@ function Consultations({ page }) {
                     </label>
                   </div>
                   {draftErrors.vitals && (
-                    <p className="section-error">Required: {draftErrors.vitals.join(', ')}</p>
+                    <p className="mt-2 text-[12px] font-bold text-danger">Required: {draftErrors.vitals.join(', ')}</p>
                   )}
                 </section>
 
                 {/* Clinical findings */}
-                <section className="consultation-section">
-                  <h4>Clinical Findings</h4>
-                  <label className="consultation-field">
+                <section className="rounded-lg border border-line p-[14px_16px]">
+                  <h4 className="m-0 mb-[10px] text-[12px] uppercase tracking-[0.02em] text-ink">Clinical Findings</h4>
+                  <label className={CONSULT_FIELD}>
                     <span>Objective findings observed during the examination</span>
                     <textarea
                       placeholder="e.g. Flushed skin, mild dehydration. Throat slightly red."
+                      className={`${CONSULT_INPUT} min-h-[72px] resize-y`}
                       value={draft.clinicalFindings}
                       onChange={(e) => updateDraft('clinicalFindings', e.target.value)}
                       disabled={busy}
@@ -562,38 +592,41 @@ function Consultations({ page }) {
                 </section>
 
                 {/* Assessment / diagnosis */}
-                <section className={`consultation-section ${draftErrors.diagnosis ? 'section-invalid' : ''}`}>
-                  <h4>Assessment / Diagnosis</h4>
-                  <label className="consultation-field">
+                <section className={`rounded-lg border border-line p-[14px_16px] ${draftErrors.diagnosis ? 'border-[#f2cfc2] bg-[#fffaf8]' : ''}`}>
+                  <h4 className="m-0 mb-[10px] text-[12px] uppercase tracking-[0.02em] text-ink">Assessment / Diagnosis</h4>
+                  <label className={CONSULT_FIELD}>
                     <span>Clinical assessment or working diagnosis</span>
                     <input
                       type="text"
                       placeholder="e.g. Mild Flu Symptoms"
+                      className={CONSULT_INPUT}
                       value={draft.diagnosis}
                       onChange={(e) => updateDraft('diagnosis', e.target.value)}
                       disabled={busy}
                     />
                   </label>
                   {draftErrors.diagnosis && (
-                    <p className="section-error">Required: {draftErrors.diagnosis.join(', ')}</p>
+                    <p className="mt-2 text-[12px] font-bold text-danger">Required: {draftErrors.diagnosis.join(', ')}</p>
                   )}
                 </section>
 
                 {/* Treatment and advice */}
-                <section className={`consultation-section ${draftErrors.treatment ? 'section-invalid' : ''}`}>
-                  <h4>Treatment and Advice</h4>
-                  <label className="consultation-field">
+                <section className={`rounded-lg border border-line p-[14px_16px] ${draftErrors.treatment ? 'border-[#f2cfc2] bg-[#fffaf8]' : ''}`}>
+                  <h4 className="m-0 mb-[10px] text-[12px] uppercase tracking-[0.02em] text-ink">Treatment and Advice</h4>
+                  <label className={CONSULT_FIELD}>
                     <span>Treatment, recommendations, and medical advice</span>
                     <textarea
                       placeholder="e.g. Paracetamol 500mg every 4 hours. Hydrate well. Return if fever persists."
+                      className={`${CONSULT_INPUT} min-h-[72px] resize-y`}
                       value={draft.treatment}
                       onChange={(e) => updateDraft('treatment', e.target.value)}
                       disabled={busy}
                     />
                   </label>
-                  <label className="consultation-field" style={{ marginTop: 10 }}>
+                  <label className={`${CONSULT_FIELD} mt-[10px]`}>
                     <span>Disposition (outcome)</span>
                     <select
+                      className={CONSULT_INPUT}
                       value={draft.disposition}
                       onChange={(e) => updateDraft('disposition', e.target.value)}
                       disabled={busy}
@@ -607,16 +640,16 @@ function Consultations({ page }) {
                     </select>
                   </label>
                   {draftErrors.treatment && (
-                    <p className="section-error">Required: {draftErrors.treatment.join(', ')}</p>
+                    <p className="mt-2 text-[12px] font-bold text-danger">Required: {draftErrors.treatment.join(', ')}</p>
                   )}
                 </section>
               </div>
             </div>
-            <div className="modal-footer">
-              <div className="modal-footer-actions">
+            <div className={MODAL_FOOTER}>
+              <div className={MODAL_FOOTER_ACTIONS}>
                 <button
                   type="button"
-                  className="secondary-pill"
+                  className={PILL}
                   onClick={() => {
                     if (!busy) setWorkspace(null)
                   }}
@@ -624,10 +657,10 @@ function Consultations({ page }) {
                 >
                   Cancel
                 </button>
-                <button type="button" className="btn-info-small" onClick={handleSaveProgress} disabled={busy}>
+                <button type="button" className={BTN_INFO} onClick={handleSaveProgress} disabled={busy}>
                   Save Progress
                 </button>
-                <button type="button" className="primary-action" onClick={handleCompleteClick} disabled={busy}>
+                <button type="button" className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`} onClick={handleCompleteClick} disabled={busy}>
                   Complete Consultation
                 </button>
               </div>
@@ -639,7 +672,7 @@ function Consultations({ page }) {
       {/* ============ COMPLETE CONFIRMATION MODAL ============ */}
       {confirmComplete.isOpen && workspace && (
         <div
-          className="modal-backdrop"
+          className={MODAL_BACKDROP}
           role="dialog"
           aria-modal="true"
           aria-label="Confirm consultation completion"
@@ -647,12 +680,12 @@ function Consultations({ page }) {
             if (e.target === e.currentTarget && !busy) confirmComplete.close()
           }}
         >
-          <div className="modal-card modal-card-sm">
-            <div className="modal-header">
-              <h3>Complete Consultation</h3>
+          <div className={MODAL_CARD_SM}>
+            <div className={MODAL_HEADER}>
+              <h3 className="m-0 text-[18px] text-ink">Complete Consultation</h3>
               <button
                 type="button"
-                className="btn-modal-close"
+                className={MODAL_CLOSE}
                 onClick={() => {
                   if (!busy) confirmComplete.close()
                 }}
@@ -660,29 +693,29 @@ function Consultations({ page }) {
                 ✕
               </button>
             </div>
-            <div className="modal-body">
-              <p style={{ marginTop: 0 }}>
+            <div className={MODAL_BODY}>
+              <p className="mt-0">
                 Mark consultation <strong>{workspace.reference}</strong> for <strong>{workspace.patient}</strong> as{' '}
                 <strong>Completed</strong>?
               </p>
-              <div className="profile-alert-box reason-box">
-                <h4 className="text-teal">Summary</h4>
-                <p>
+              <div className={REASON_BOX}>
+                <h4 className="mb-1 m-0 text-[13px] text-primary">Summary</h4>
+                <p className="m-0 text-[13px]">
                   <strong>Chief Complaint:</strong> {draft.chiefComplaint}
                 </p>
-                <p>
+                <p className="m-0 text-[13px]">
                   <strong>Diagnosis:</strong> {draft.diagnosis}
                 </p>
               </div>
-              <p className="muted-text" style={{ marginBottom: 0 }}>
+              <p className="mb-0 text-muted">
                 The consultation will be locked for editing once completed.
               </p>
             </div>
-            <div className="modal-footer">
-              <div className="modal-footer-actions">
+            <div className={MODAL_FOOTER}>
+              <div className={MODAL_FOOTER_ACTIONS}>
                 <button
                   type="button"
-                  className="secondary-pill"
+                  className={PILL}
                   onClick={() => {
                     if (!busy) confirmComplete.close()
                   }}
@@ -690,7 +723,7 @@ function Consultations({ page }) {
                 >
                   Cancel
                 </button>
-                <button type="button" className="primary-action" onClick={handleConfirmComplete} disabled={busy}>
+                <button type="button" className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`} onClick={handleConfirmComplete} disabled={busy}>
                   {busy ? 'Completing...' : 'Confirm Complete'}
                 </button>
               </div>
@@ -702,7 +735,7 @@ function Consultations({ page }) {
       {/* ============ CONSULTATION DETAILS MODAL (READ-ONLY) ============ */}
       {details && (
         <div
-          className="modal-backdrop"
+          className={MODAL_BACKDROP}
           role="dialog"
           aria-modal="true"
           aria-label={`Consultation ${details.reference} details`}
@@ -710,52 +743,52 @@ function Consultations({ page }) {
             if (e.target === e.currentTarget) setDetails(null)
           }}
         >
-          <div className="modal-card">
-            <div className="modal-header">
-              <h3>Consultation Details — {details.reference}</h3>
-              <button type="button" className="btn-modal-close" onClick={() => setDetails(null)}>
+          <div className={MODAL_CARD}>
+            <div className={MODAL_HEADER}>
+              <h3 className="m-0 text-[18px] text-ink">Consultation Details — {details.reference}</h3>
+              <button type="button" className={MODAL_CLOSE} onClick={() => setDetails(null)}>
                 ✕
               </button>
             </div>
-            <div className="modal-body">
-              <div className="appointment-detail-banner">
+            <div className={MODAL_BODY}>
+              <div className="mb-[18px] flex items-center gap-3 rounded-lg border border-line bg-[#f4faf8] p-[14px]">
                 <StatusBadge status={details.status} />
                 <div>
-                  <strong>{details.patient}</strong>
-                  <span className="block-sub muted-text">
+                  <strong className="block text-[15px] text-ink">{details.patient}</strong>
+                  <span className="block text-[12px] text-muted">
                     {details.patientId} · {formatDate(details.date)} at {details.time}
                   </span>
                 </div>
               </div>
 
-              <div className="profile-details-grid">
+              <div className={PROFILE_GRID}>
                 <div>
-                  <span className="profile-lbl">Reference</span>
-                  <p className="profile-val">{details.reference}</p>
+                  <span className={PROFILE_LBL}>Reference</span>
+                  <p className={PROFILE_VAL}>{details.reference}</p>
                 </div>
                 <div>
-                  <span className="profile-lbl">Attending Staff</span>
-                  <p className="profile-val">{details.staff}</p>
+                  <span className={PROFILE_LBL}>Attending Staff</span>
+                  <p className={PROFILE_VAL}>{details.staff}</p>
                 </div>
                 <div>
-                  <span className="profile-lbl">Started</span>
-                  <p className="profile-val">{details.startedAt || '—'}</p>
+                  <span className={PROFILE_LBL}>Started</span>
+                  <p className={PROFILE_VAL}>{details.startedAt || '—'}</p>
                 </div>
                 <div>
-                  <span className="profile-lbl">Completed</span>
-                  <p className="profile-val">{details.completedAt || '—'}</p>
+                  <span className={PROFILE_LBL}>Completed</span>
+                  <p className={PROFILE_VAL}>{details.completedAt || '—'}</p>
                 </div>
               </div>
 
-              <div className="profile-alert-box reason-box">
-                <h4 className="text-teal">Chief Complaint</h4>
-                <p>{details.chiefComplaint || '—'}</p>
+              <div className={REASON_BOX}>
+                <h4 className="mb-1 m-0 text-[13px] text-primary">Chief Complaint</h4>
+                <p className="m-0 text-[13px]">{details.chiefComplaint || '—'}</p>
               </div>
 
               {details.vitals && (
-                <div className="profile-alert-box reason-box" style={{ marginTop: 12 }}>
-                  <h4 className="text-teal">Vital Signs</h4>
-                  <div className="vitals-readout">
+                <div className={`${REASON_BOX} mt-3`}>
+                  <h4 className="mb-1 m-0 text-[13px] text-primary">Vital Signs</h4>
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-[6px_14px] text-[13px] text-ink">
                     <span>Temp: {details.vitals.temperature || '—'}</span>
                     <span>BP: {details.vitals.bloodPressure || '—'}</span>
                     <span>Pulse: {details.vitals.pulseRate || '—'}</span>
@@ -766,32 +799,32 @@ function Consultations({ page }) {
                 </div>
               )}
 
-              <div className="profile-alert-box reason-box" style={{ marginTop: 12 }}>
-                <h4 className="text-teal">Clinical Findings</h4>
-                <p>{details.clinicalFindings || '—'}</p>
+              <div className={`${REASON_BOX} mt-3`}>
+                <h4 className="mb-1 m-0 text-[13px] text-primary">Clinical Findings</h4>
+                <p className="m-0 text-[13px]">{details.clinicalFindings || '—'}</p>
               </div>
 
-              <div className="profile-alert-box reason-box" style={{ marginTop: 12 }}>
-                <h4 className="text-teal">Assessment / Diagnosis</h4>
-                <p>{details.diagnosis || '—'}</p>
+              <div className={`${REASON_BOX} mt-3`}>
+                <h4 className="mb-1 m-0 text-[13px] text-primary">Assessment / Diagnosis</h4>
+                <p className="m-0 text-[13px]">{details.diagnosis || '—'}</p>
               </div>
 
-              <div className="profile-alert-box reason-box" style={{ marginTop: 12 }}>
-                <h4 className="text-teal">Treatment and Advice</h4>
-                <p>{details.treatment || '—'}</p>
+              <div className={`${REASON_BOX} mt-3`}>
+                <h4 className="mb-1 m-0 text-[13px] text-primary">Treatment and Advice</h4>
+                <p className="m-0 text-[13px]">{details.treatment || '—'}</p>
               </div>
 
               {details.disposition && (
-                <div className="profile-alert-box reason-box" style={{ marginTop: 12 }}>
-                  <h4 className="text-teal">Disposition</h4>
-                  <span className={`dispo-tag dispo-${details.disposition.toLowerCase().replace(/ /g, '-')}`}>
+                <div className={`${REASON_BOX} mt-3`}>
+                  <h4 className="mb-1 m-0 text-[13px] text-primary">Disposition</h4>
+                  <span className={`${DISPO_TAG} ${dispoClasses(details.disposition)}`}>
                     {details.disposition}
                   </span>
                 </div>
               )}
             </div>
-            <div className="modal-footer">
-              <button type="button" className="secondary-pill" onClick={() => setDetails(null)}>
+            <div className={MODAL_FOOTER}>
+              <button type="button" className={PILL} onClick={() => setDetails(null)}>
                 Close
               </button>
             </div>

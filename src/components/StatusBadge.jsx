@@ -1,4 +1,4 @@
-// Status -> Tailwind classes, replicating the badge palette from App.css.
+// Status -> Tailwind classes, replicating the original badge palette.
 // Keys match the status values lowercased with spaces replaced by dashes.
 const BADGE_CLASSES = {
   pending: 'bg-[#fff2d5] text-[#815400]',

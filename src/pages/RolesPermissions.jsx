@@ -5,8 +5,22 @@ import { usePermissions } from '../hooks/usePermissions'
 import { useForm } from 'react-hook-form'
 import { useToast } from '../hooks/useToast'
 import { rolesService } from '../services/rolesService'
+import {
+  PILL, PRIMARY_BTN, PANEL, KICKER, TABLE, SIDEBAR_FORM, FORM_LABEL, FORM_FIELD,
+  BTN_INFO, BTN_PRIMARY, BTN_DANGER, BTN_ACTION_DANGER,
+} from '../lib/ui'
+import InlineSpinner from '../components/Spinner'
 import Skeleton from '../components/Skeleton'
 import { EmptyState, ErrorState } from '../components/AsyncState'
+
+const MODAL_CARD_SM = 'flex max-h-[90vh] w-[min(480px,100%)] animate-modal-scale flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgba(8,20,20,0.22)]'
+const MODAL_CARD_WIDE = 'flex max-h-[90vh] w-[min(780px,100%)] animate-modal-scale flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgba(8,20,20,0.22)]'
+const MODAL_BACKDROP = 'fixed inset-0 z-[100] grid place-items-center bg-[rgba(8,20,20,0.45)] p-5 backdrop-blur-[4px]'
+const MODAL_HEADER = 'flex items-center justify-between border-b border-line p-[16px_20px]'
+const MODAL_CLOSE = 'cursor-pointer border-0 bg-transparent p-1 text-[16px] text-muted-soft'
+const MODAL_BODY = 'flex-1 overflow-y-auto p-5'
+const MODAL_FOOTER = 'flex justify-end border-t border-line bg-[#fafcfb] p-[14px_20px]'
+const MODAL_FOOTER_ACTIONS = 'flex flex-wrap items-center justify-end gap-2'
 
 /** Capitalizes a role slug for display (admin → Admin, front-desk → Front desk). */
 function roleLabel(name) {
@@ -165,38 +179,38 @@ function RolesPermissions({ page }) {
   const totalPermissions = (permissions.data || []).length
 
   return (
-    <div className="roles-page">
+    <div>
       {/* Page header */}
-      <section className="page-heading">
+      <section className="mb-5 flex items-center justify-between gap-4 max-[620px]:flex-col max-[620px]:items-start">
         <div>
-          <p>{page.eyebrow}</p>
-          <h2>{page.title}</h2>
-          <span className="page-heading-description">{page.description}</span>
+          <p className={KICKER}>{page.eyebrow}</p>
+          <h2 className="m-0 text-[clamp(30px,5vw,48px)] leading-[1.02] text-ink">{page.title}</h2>
+          <span className="mt-[6px] block text-[13px] text-muted">{page.description}</span>
         </div>
         {canCreate && (
-          <button type="button" className="primary-action" onClick={openCreate}>
+          <button type="button" className={PRIMARY_BTN} onClick={openCreate}>
             + Create Role
           </button>
         )}
       </section>
 
       {/* Roles panel */}
-      <div className="panel main-panel">
-        <div className="panel-header flex-header">
+      <div className={`${PANEL} p-5`}>
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3>System Roles</h3>
-            <p>Roles control which modules and actions each user can access</p>
+            <h3 className="m-0 text-[18px] text-[#143d40]">System Roles</h3>
+            <p className={KICKER}>Roles control which modules and actions each user can access</p>
           </div>
           {!roles.isLoading && !roles.error && (
-            <span className="results-count">{roles.data.length} roles</span>
+            <span className="ml-auto whitespace-nowrap text-[12.5px] font-bold text-muted">{roles.data.length} roles</span>
           )}
         </div>
 
-        <div className="records-table-container">
+        <div className="overflow-x-auto rounded-lg border border-line">
           {roles.error ? (
             <ErrorState message={roles.error} onRetry={roles.refetch} />
           ) : (
-            <table className="records-table">
+            <table className={TABLE}>
               <thead>
                 <tr>
                   <th>Role</th>
@@ -237,32 +251,32 @@ function RolesPermissions({ page }) {
                   roles.data.map((role) => (
                     <tr key={role.id}>
                       <td>
-                        <div className="role-name-cell">
-                          <strong className="bold-text">{roleLabel(role.name)}</strong>
-                          {role.is_system ? <span className="chip-tag muted">System</span> : null}
+                        <div className="flex items-center gap-2">
+                          <strong className="font-bold text-ink">{roleLabel(role.name)}</strong>
+                          {role.is_system ? <span className="inline-flex items-center whitespace-nowrap rounded-full bg-bg px-[9px] py-[3px] text-[11px] font-extrabold text-muted">System</span> : null}
                         </div>
                       </td>
-                      <td className="muted-text">{role.description || '—'}</td>
+                      <td className="text-muted">{role.description || '—'}</td>
                       <td>
-                        <span className="bold-text">{role.permissions_count}</span>
+                        <span className="font-bold text-ink">{role.permissions_count}</span>
                       </td>
                       <td>
-                        <span className="bold-text">{role.users_count}</span>
+                        <span className="font-bold text-ink">{role.users_count}</span>
                       </td>
-                      <td className="actions-cell">
-                        <div className="row-actions">
+                      <td>
+                        <div className="flex flex-wrap gap-[6px]">
                           {canUpdate && (
-                            <button type="button" className="btn-info-small" onClick={() => openEdit(role)}>
+                            <button type="button" className={BTN_INFO} onClick={() => openEdit(role)}>
                               Edit
                             </button>
                           )}
                           {canAssign && (
-                            <button type="button" className="btn-primary-small" onClick={() => openPerms(role)}>
+                            <button type="button" className={BTN_PRIMARY} onClick={() => openPerms(role)}>
                               Permissions
                             </button>
                           )}
                           {canDelete && !role.is_system && (
-                            <button type="button" className="btn-danger-small" onClick={() => setDeleteTarget(role)}>
+                            <button type="button" className={BTN_DANGER} onClick={() => setDeleteTarget(role)}>
                               Delete
                             </button>
                           )}
@@ -280,7 +294,7 @@ function RolesPermissions({ page }) {
       {/* ================= CREATE / EDIT ROLE MODAL ================= */}
       {roleModalOpen && (
         <div
-          className="modal-backdrop"
+          className={MODAL_BACKDROP}
           role="dialog"
           aria-modal="true"
           aria-label={editing ? 'Edit role' : 'Create role'}
@@ -288,12 +302,12 @@ function RolesPermissions({ page }) {
             if (e.target === e.currentTarget && !busy) setRoleModalOpen(false)
           }}
         >
-          <div className="modal-card modal-card-sm">
-            <div className="modal-header">
-              <h3>{editing ? `Edit Role — ${roleLabel(editing.name)}` : 'Create Role'}</h3>
+          <div className={MODAL_CARD_SM}>
+            <div className={MODAL_HEADER}>
+              <h3 className="m-0 text-[18px] text-ink">{editing ? `Edit Role — ${roleLabel(editing.name)}` : 'Create Role'}</h3>
               <button
                 type="button"
-                className="btn-modal-close"
+                className={MODAL_CLOSE}
                 onClick={() => {
                   if (!busy) setRoleModalOpen(false)
                 }}
@@ -301,38 +315,40 @@ function RolesPermissions({ page }) {
                 ✕
               </button>
             </div>
-            <div className="modal-body">
-              <form className="sidebar-form" onSubmit={submitRoleForm}>
-                <label>
+            <div className={MODAL_BODY}>
+              <form className={SIDEBAR_FORM} onSubmit={submitRoleForm}>
+                <label className={FORM_LABEL}>
                   Role Name
                   <input
                     type="text"
                     placeholder="e.g. front-desk"
+                    className={FORM_FIELD}
                     {...roleForm.register('name', { required: 'Role name is required.' })}
                     disabled={busy}
                   />
                 </label>
-                <label>
+                <label className={FORM_LABEL}>
                   Description
                   <input
                     type="text"
                     placeholder="What is this role for?"
+                    className={FORM_FIELD}
                     {...roleForm.register('description')}
                     disabled={busy}
                   />
                 </label>
-                <p className="form-sub">Permissions can be assigned after creating the role.</p>
-                <div className="modal-footer-actions">
+                <p className="mt-0.5 text-[12px] text-muted">Permissions can be assigned after creating the role.</p>
+                <div className={MODAL_FOOTER_ACTIONS}>
                   <button
                     type="button"
-                    className="secondary-pill"
+                    className={PILL}
                     onClick={() => setRoleModalOpen(false)}
                     disabled={busy}
                   >
                     Cancel
                   </button>
-                  <button type="submit" className="primary-action" disabled={busy}>
-                    {busy && <span className="spinner-sm" aria-hidden="true" />}
+                  <button type="submit" className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`} disabled={busy}>
+                    {busy && <InlineSpinner />}
                     {busy ? 'Saving...' : editing ? 'Save Changes' : 'Create Role'}
                   </button>
                 </div>
@@ -345,7 +361,7 @@ function RolesPermissions({ page }) {
       {/* ================= ASSIGN PERMISSIONS MODAL ================= */}
       {permTarget && (
         <div
-          className="modal-backdrop"
+          className={MODAL_BACKDROP}
           role="dialog"
           aria-modal="true"
           aria-label={`Permissions for ${roleLabel(permTarget.name)}`}
@@ -353,12 +369,12 @@ function RolesPermissions({ page }) {
             if (e.target === e.currentTarget && !busy && !permLoading) setPermTarget(null)
           }}
         >
-          <div className="modal-card modal-card-wide">
-            <div className="modal-header">
-              <h3>Permissions — {roleLabel(permTarget.name)}</h3>
+          <div className={MODAL_CARD_WIDE}>
+            <div className={MODAL_HEADER}>
+              <h3 className="m-0 text-[18px] text-ink">Permissions — {roleLabel(permTarget.name)}</h3>
               <button
                 type="button"
-                className="btn-modal-close"
+                className={MODAL_CLOSE}
                 onClick={() => {
                   if (!busy && !permLoading) setPermTarget(null)
                 }}
@@ -366,13 +382,13 @@ function RolesPermissions({ page }) {
                 ✕
               </button>
             </div>
-            <div className="modal-body">
+            <div className={MODAL_BODY}>
               {permLoading ? (
-                <div className="perm-groups">
+                <div className="grid gap-[14px]">
                   {Array.from({ length: 4 }, (_, i) => (
-                    <div className="perm-group" key={i}>
+                    <div className="m-0 rounded-lg border border-line p-[12px_14px]" key={i}>
                       <Skeleton width={160} height={12} />
-                      <div className="perm-checkbox-grid">
+                      <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-[7px_14px]">
                         {Array.from({ length: 3 }, (_, j) => (
                           <Skeleton key={j} width="100%" height={18} />
                         ))}
@@ -381,28 +397,29 @@ function RolesPermissions({ page }) {
                   ))}
                 </div>
               ) : (
-                <div className="perm-groups">
-                  <p className="form-sub" style={{ marginTop: 0 }}>
+                <div className="grid gap-[14px]">
+                  <p className="mt-0 text-[12px] text-muted">
                     {totalSelected} of {totalPermissions} permissions selected
                   </p>
                   {Object.entries(permissionGroups).map(([module, perms]) => (
-                    <fieldset className="perm-group" key={module}>
-                      <legend className="perm-group-title">
+                    <fieldset className="m-0 rounded-lg border border-line p-[12px_14px]" key={module}>
+                      <legend className="flex w-full items-center justify-between gap-[10px] px-2 text-[12px] font-extrabold uppercase tracking-[0.02em] text-ink">
                         {module}
-                        <span className="perm-count-pill">
+                        <span className="rounded-full bg-bg px-2 py-[2px] text-[11px] font-extrabold text-primary">
                           {perms.filter((perm) => selectedIds.has(perm.id)).length}/{perms.length}
                         </span>
                       </legend>
-                      <div className="perm-checkbox-grid">
+                      <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-[7px_14px]">
                         {perms.map((perm) => (
-                          <label className="perm-checkbox" key={perm.id}>
+                          <label className="group flex cursor-pointer items-center gap-2 text-[13px] text-ink" key={perm.id}>
                             <input
                               type="checkbox"
+                              className="m-0 size-[15px] accent-primary"
                               checked={selectedIds.has(perm.id)}
                               onChange={() => togglePermission(perm.id)}
                               disabled={busy}
                             />
-                            <span>{perm.label}</span>
+                            <span className="group-has-checked:font-bold group-has-checked:text-primary">{perm.label}</span>
                           </label>
                         ))}
                       </div>
@@ -414,11 +431,11 @@ function RolesPermissions({ page }) {
                 </div>
               )}
             </div>
-            <div className="modal-footer">
-              <div className="modal-footer-actions">
+            <div className={MODAL_FOOTER}>
+              <div className={MODAL_FOOTER_ACTIONS}>
                 <button
                   type="button"
-                  className="secondary-pill"
+                  className={PILL}
                   onClick={() => setPermTarget(null)}
                   disabled={busy || permLoading}
                 >
@@ -426,11 +443,11 @@ function RolesPermissions({ page }) {
                 </button>
                 <button
                   type="button"
-                  className="primary-action"
+                  className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`}
                   onClick={handleSavePermissions}
                   disabled={busy || permLoading}
                 >
-                  {busy && <span className="spinner-sm" aria-hidden="true" />}
+                  {busy && <InlineSpinner />}
                   {busy ? 'Saving...' : 'Save Permissions'}
                 </button>
               </div>
@@ -442,7 +459,7 @@ function RolesPermissions({ page }) {
       {/* ================= DELETE CONFIRMATION MODAL ================= */}
       {deleteTarget && (
         <div
-          className="modal-backdrop"
+          className={MODAL_BACKDROP}
           role="dialog"
           aria-modal="true"
           aria-label={`Delete role ${roleLabel(deleteTarget.name)}`}
@@ -450,12 +467,12 @@ function RolesPermissions({ page }) {
             if (e.target === e.currentTarget && !busy) setDeleteTarget(null)
           }}
         >
-          <div className="modal-card modal-card-sm">
-            <div className="modal-header">
-              <h3>Delete Role</h3>
+          <div className={MODAL_CARD_SM}>
+            <div className={MODAL_HEADER}>
+              <h3 className="m-0 text-[18px] text-ink">Delete Role</h3>
               <button
                 type="button"
-                className="btn-modal-close"
+                className={MODAL_CLOSE}
                 onClick={() => {
                   if (!busy) setDeleteTarget(null)
                 }}
@@ -463,24 +480,24 @@ function RolesPermissions({ page }) {
                 ✕
               </button>
             </div>
-            <div className="modal-body">
-              <p style={{ marginTop: 0 }}>
+            <div className={MODAL_BODY}>
+              <p className="mt-0">
                 Delete the role <strong>{roleLabel(deleteTarget.name)}</strong>? Users assigned to it must be
                 moved to another role first, and this cannot be undone.
               </p>
             </div>
-            <div className="modal-footer">
-              <div className="modal-footer-actions">
+            <div className={MODAL_FOOTER}>
+              <div className={MODAL_FOOTER_ACTIONS}>
                 <button
                   type="button"
-                  className="secondary-pill"
+                  className={PILL}
                   onClick={() => setDeleteTarget(null)}
                   disabled={busy}
                 >
                   Keep Role
                 </button>
-                <button type="button" className="btn-action-danger" onClick={handleConfirmDelete} disabled={busy}>
-                  {busy && <span className="spinner-sm" aria-hidden="true" />}
+                <button type="button" className={`${BTN_ACTION_DANGER} min-h-10 px-[14px] text-[13px]`} onClick={handleConfirmDelete} disabled={busy}>
+                  {busy && <InlineSpinner />}
                   {busy ? 'Deleting...' : 'Delete Role'}
                 </button>
               </div>

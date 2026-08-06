@@ -10,6 +10,7 @@ import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { usePagination } from '../hooks/usePagination'
 import { formatDate, todayISO } from '../lib/format'
+import { PILL, PRIMARY_BTN, PANEL, PANEL_HEADER, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT, SIDEBAR_FORM, FORM_LABEL, FORM_FIELD, FORM_ROW } from '../lib/ui'
 import Pagination from '../components/Pagination'
 import StatusBadge from '../components/StatusBadge'
 import { EmptyState, ErrorState, LoadingState } from '../components/AsyncState'
@@ -308,66 +309,62 @@ function Dashboard() {
   const peakHours = clinicInsights?.peakHours || []
 
   return (
-    <div className="dashboard-page">
+    <div>
       {/* Dashboard Top Header & Tabs */}
-      <section className="dashboard-header-block">
-        <div className="page-heading">
+      <section className="mb-6">
+        <div className="mb-5 flex items-center justify-between gap-4 max-[620px]:flex-col max-[620px]:items-start">
           <div>
-            <p>TMC Clinic Administration</p>
-            <h2>Clinic Command Center</h2>
+            <p className={KICKER}>TMC Clinic Administration</p>
+            <h2 className="m-0 text-[clamp(30px,5vw,48px)] leading-[1.02] text-ink">Clinic Command Center</h2>
           </div>
-          <div className="quick-actions-bar">
+          <div>
             {activeTab !== 'overview' && (
-              <button
-                type="button"
-                className="secondary-pill"
-                onClick={() => setActiveTab('overview')}
-              >
+              <button type="button" className={PILL} onClick={() => setActiveTab('overview')}>
                 ← Back to Overview
               </button>
             )}
           </div>
         </div>
 
-        <nav className="dashboard-tabs">
+        <nav className="mt-[14px] flex gap-2 overflow-x-auto border-b-2 border-[#dce8e5] pb-px">
           <button
             type="button"
-            className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
+            className={`cursor-pointer whitespace-nowrap border-0 border-b-[3px] border-transparent bg-transparent px-4 py-[10px] font-bold text-muted-soft transition-all duration-200 hover:border-[#a9d1ca] hover:text-primary ${activeTab === 'overview' ? 'border-primary text-primary' : ''}`}
             onClick={() => setActiveTab('overview')}
           >
             Overview
           </button>
           <button
             type="button"
-            className={`tab-btn ${activeTab === 'appointments' ? 'active' : ''}`}
+            className={`cursor-pointer whitespace-nowrap border-0 border-b-[3px] border-transparent bg-transparent px-4 py-[10px] font-bold text-muted-soft transition-all duration-200 hover:border-[#a9d1ca] hover:text-primary ${activeTab === 'appointments' ? 'border-primary text-primary' : ''}`}
             onClick={() => setActiveTab('appointments')}
           >
             Appointment Queue ({pendingQueue.length})
           </button>
           <button
             type="button"
-            className={`tab-btn ${activeTab === 'consultations' ? 'active' : ''}`}
+            className={`cursor-pointer whitespace-nowrap border-0 border-b-[3px] border-transparent bg-transparent px-4 py-[10px] font-bold text-muted-soft transition-all duration-200 hover:border-[#a9d1ca] hover:text-primary ${activeTab === 'consultations' ? 'border-primary text-primary' : ''}`}
             onClick={() => setActiveTab('consultations')}
           >
             Consultation Logs
           </button>
           <button
             type="button"
-            className={`tab-btn ${activeTab === 'patients' ? 'active' : ''}`}
+            className={`cursor-pointer whitespace-nowrap border-0 border-b-[3px] border-transparent bg-transparent px-4 py-[10px] font-bold text-muted-soft transition-all duration-200 hover:border-[#a9d1ca] hover:text-primary ${activeTab === 'patients' ? 'border-primary text-primary' : ''}`}
             onClick={() => setActiveTab('patients')}
           >
             Patient Registry
           </button>
           <button
             type="button"
-            className={`tab-btn ${activeTab === 'schedule' ? 'active' : ''}`}
+            className={`cursor-pointer whitespace-nowrap border-0 border-b-[3px] border-transparent bg-transparent px-4 py-[10px] font-bold text-muted-soft transition-all duration-200 hover:border-[#a9d1ca] hover:text-primary ${activeTab === 'schedule' ? 'border-primary text-primary' : ''}`}
             onClick={() => setActiveTab('schedule')}
           >
             Staff Shifts & Events
           </button>
           <button
             type="button"
-            className={`tab-btn ${activeTab === 'activity' ? 'active' : ''}`}
+            className={`cursor-pointer whitespace-nowrap border-0 border-b-[3px] border-transparent bg-transparent px-4 py-[10px] font-bold text-muted-soft transition-all duration-200 hover:border-[#a9d1ca] hover:text-primary ${activeTab === 'activity' ? 'border-primary text-primary' : ''}`}
             onClick={() => setActiveTab('activity')}
           >
             Clinic Activity
@@ -376,10 +373,10 @@ function Dashboard() {
       </section>
 
       {/* Dynamic Tabs Content */}
-      <div className="dashboard-tab-content">
+      <div>
         {/* ================= OVERVIEW TAB ================= */}
         {activeTab === 'overview' && (
-          <div className="overview-tab-view">
+          <div>
             {overviewError ? (
               <ErrorState message={overviewError} onRetry={retryOverview} />
             ) : overviewLoading ? (
@@ -387,40 +384,40 @@ function Dashboard() {
             ) : (
               <>
                 {/* Stat Cards Grid */}
-                <div className="stats-grid">
+                <div className="mb-[18px] grid grid-cols-4 gap-[14px] max-[980px]:grid-cols-1">
                   {activeStats.map((item) => (
-                    <article key={item.label} className="stat-card">
-                      <p>{item.label}</p>
-                      <strong>{item.value}</strong>
-                      <span>{item.trend}</span>
+                    <article key={item.label} className={PANEL}>
+                      <p className="m-0 text-[13px] text-muted">{item.label}</p>
+                      <strong className="mb-[5px] mt-[10px] block text-[32px] leading-none text-[#10393b]">{item.value}</strong>
+                      <span className="text-[12px] text-muted">{item.trend}</span>
                     </article>
                   ))}
                 </div>
 
                 {/* Overview Multi Grid */}
-                <div className="dashboard-grid">
+                <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(280px,0.9fr)] gap-[18px] max-[980px]:grid-cols-1">
                   {/* Appointments Quick View */}
-                  <article className="panel appointments-panel">
-                    <div className="panel-header">
+                  <article className={`${PANEL} row-span-2 max-[980px]:row-auto`}>
+                    <div className={PANEL_HEADER}>
                       <div>
-                        <p>Queue Management</p>
-                        <h3>Today's Pending Appointments</h3>
+                        <p className={KICKER}>Queue Management</p>
+                        <h3 className="m-0 text-[18px] text-[#143d40]">Today's Pending Appointments</h3>
                       </div>
-                      <button type="button" onClick={() => setActiveTab('appointments')}>Manage Queue</button>
+                      <button type="button" className="cursor-pointer rounded-[7px] bg-bg px-3 py-2 font-extrabold text-primary" onClick={() => setActiveTab('appointments')}>Manage Queue</button>
                     </div>
-                    <div className="appointment-list">
+                    <div className="grid gap-[10px]">
                       {pendingQueue.slice(0, 3).map((app) => (
-                        <div className="appointment-row interactive-row" key={app.id}>
-                          <div className="appointment-time">{app.time}</div>
+                        <div className="grid grid-cols-[92px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-line p-3 max-[620px]:grid-cols-1" key={app.id}>
+                          <div className="text-[13px] font-extrabold text-primary">{app.time}</div>
                           <div>
-                            <strong>{app.patient}</strong>
-                            <span>{app.type}</span>
+                            <strong className="block text-ink">{app.patient}</strong>
+                            <span className="block text-[12px] text-muted">{app.type}</span>
                           </div>
-                          <div className="row-actions">
+                          <div className="flex flex-wrap gap-[6px]">
                             {app.status === 'Pending' && (
                               <button
                                 type="button"
-                                className="btn-reorder-fast"
+                                className="cursor-pointer rounded-md bg-primary px-[10px] py-[6px] text-[12px] font-extrabold text-white transition-all duration-200 hover:bg-[#08484d]"
                                 onClick={() => handleUpdateAppointmentStatus(app.id, 'Under Review')}
                               >
                                 Review
@@ -428,14 +425,14 @@ function Dashboard() {
                             )}
                             <button
                               type="button"
-                              className="btn-action-success"
+                              className="cursor-pointer rounded-md bg-success px-3 py-[6px] text-[12px] font-extrabold text-white transition-all duration-200 hover:bg-[#238b55]"
                               onClick={() => handleUpdateAppointmentStatus(app.id, 'Approved')}
                             >
                               Approve
                             </button>
                             <button
                               type="button"
-                              className="btn-action-danger"
+                              className="cursor-pointer rounded-md bg-accent px-3 py-[6px] text-[12px] font-extrabold text-white transition-all duration-200 hover:bg-[#b6451e]"
                               onClick={() => handleUpdateAppointmentStatus(app.id, 'Rejected')}
                             >
                               Reject
@@ -450,23 +447,23 @@ function Dashboard() {
                   </article>
 
                   {/* Staff Shift Status Quick View */}
-                  <article className="panel staff-panel">
-                    <div className="panel-header">
+                  <article className={PANEL}>
+                    <div className={PANEL_HEADER}>
                       <div>
-                        <p>Coverage Summary</p>
-                        <h3>Staff Status</h3>
+                        <p className={KICKER}>Coverage Summary</p>
+                        <h3 className="m-0 text-[18px] text-[#143d40]">Staff Status</h3>
                       </div>
-                      <button type="button" onClick={() => setActiveTab('schedule')}>Adjust Shifts</button>
+                      <button type="button" className="cursor-pointer rounded-[7px] bg-bg px-3 py-2 font-extrabold text-primary" onClick={() => setActiveTab('schedule')}>Adjust Shifts</button>
                     </div>
-                    <div className="staff-list">
+                    <div className="grid gap-[10px]">
                       {staff.map((member) => (
-                        <div className="staff-row" key={member.name}>
-                          <div className="staff-avatar">{member.name.slice(0, 2).toUpperCase()}</div>
+                        <div className="grid grid-cols-[42px_minmax(0,1fr)] items-center gap-3 rounded-lg border border-line p-3" key={member.name}>
+                          <div className="grid size-[42px] place-items-center rounded-full bg-accent text-[13px] font-extrabold text-[#fffaf3]">{member.name.slice(0, 2).toUpperCase()}</div>
                           <div>
-                            <strong>{member.name}</strong>
-                            <span>{member.role}</span>
+                            <strong className="block text-ink">{member.name}</strong>
+                            <span className="block text-[12px] text-muted">{member.role}</span>
                           </div>
-                          <div className="badge-wrapper">
+                          <div className="col-start-2">
                             <StatusBadge status={member.status} />
                           </div>
                         </div>
@@ -475,19 +472,19 @@ function Dashboard() {
                   </article>
 
                   {/* Clinic Activity Summary */}
-                  <article className="panel alerts-panel">
-                    <div className="panel-header">
+                  <article className={PANEL}>
+                    <div className={PANEL_HEADER}>
                       <div>
-                        <p>Records</p>
-                        <h3>Clinic Activity</h3>
+                        <p className={KICKER}>Records</p>
+                        <h3 className="m-0 text-[18px] text-[#143d40]">Clinic Activity</h3>
                       </div>
-                      <button type="button" onClick={() => setActiveTab('activity')}>View All</button>
+                      <button type="button" className="cursor-pointer rounded-[7px] bg-bg px-3 py-2 font-extrabold text-primary" onClick={() => setActiveTab('activity')}>View All</button>
                     </div>
-                    <div className="activity-bars">
+                    <div className="grid gap-4">
                       {activity.map((item) => (
-                        <div style={{ '--bar-size': `${item.percent}%` }} key={item.label}>
-                          <span>{item.label}</span>
-                          <b />
+                        <div className="grid gap-[7px]" style={{ '--bar-size': `${item.percent}%` }} key={item.label}>
+                          <span className="text-[13px] font-extrabold text-ink">{item.label}</span>
+                          <b className="block h-[10px] w-full rounded-full bg-[linear-gradient(90deg,var(--color-primary)_var(--bar-size),#e5efec_var(--bar-size))]" />
                         </div>
                       ))}
                     </div>
@@ -500,26 +497,26 @@ function Dashboard() {
 
         {/* ================= APPOINTMENTS TAB ================= */}
         {activeTab === 'appointments' && (
-          <div className="appointments-tab-view flex-grid-layout">
+          <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)] gap-5 max-[980px]:grid-cols-1">
             {/* Left Column: Appts List */}
-            <div className="panel main-panel">
-              <div className="panel-header flex-header">
+            <div className={`${PANEL} p-5`}>
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3>Interactive Appointment Queue</h3>
-                  <p>Students, staff, and faculty requests</p>
+                  <h3 className="m-0 text-[18px] text-[#143d40]">Interactive Appointment Queue</h3>
+                  <p className={KICKER}>Students, staff, and faculty requests</p>
                 </div>
-                <div className="filters-row">
+                <div className="flex gap-[10px]">
                   <input
                     type="text"
                     placeholder="Search patient..."
                     value={appSearch}
                     onChange={(e) => setAppSearch(e.target.value)}
-                    className="search-input"
+                    className={SEARCH_INPUT}
                   />
                   <select
                     value={appFilter}
                     onChange={(e) => setAppFilter(e.target.value)}
-                    className="filter-select"
+                    className={SELECT_INPUT}
                   >
                     <option value="All">All Statuses</option>
                     <option value="Pending">Pending</option>
@@ -533,13 +530,13 @@ function Dashboard() {
                 </div>
               </div>
 
-              <div className="records-table-container">
+              <div className="overflow-x-auto rounded-lg border border-line">
                 {appointmentsError ? (
                   <ErrorState message={appointmentsError} onRetry={refetchAppointments} />
                 ) : appointmentsLoading ? (
                   <LoadingState label="Loading appointment queue..." />
                 ) : (
-                  <table className="records-table">
+                  <table className={TABLE}>
                     <thead>
                       <tr>
                         <th>Time</th>
@@ -552,32 +549,32 @@ function Dashboard() {
                     <tbody>
                       {appPagination.pageItems.map((app) => (
                         <tr key={app.id}>
-                          <td className="bold-text text-teal">
+                          <td className="font-bold text-primary">
                             {app.time}
-                            <span className="block-sub">{formatDate(app.date)}</span>
+                            <span className="block text-[12px]">{formatDate(app.date)}</span>
                           </td>
-                          <td className="bold-text">{app.patient}</td>
+                          <td className="font-bold text-ink">{app.patient}</td>
                           <td>{app.type}</td>
                           <td>
                             <StatusBadge status={app.status} />
                           </td>
-                          <td className="actions-cell">
+                          <td>
                             {app.status === 'Pending' && (
                               <>
                                 <button
-                                  className="btn-info-small"
+                                  className="cursor-pointer rounded-md bg-bg px-2 py-1 text-[12px] font-extrabold text-primary transition-all duration-200"
                                   onClick={() => handleUpdateAppointmentStatus(app.id, 'Under Review')}
                                 >
                                   Review
                                 </button>
                                 <button
-                                  className="btn-success-small"
+                                  className="cursor-pointer rounded-md bg-[#dff6dd] px-2 py-1 text-[12px] font-extrabold text-[#1e5a1b] transition-all duration-200"
                                   onClick={() => handleUpdateAppointmentStatus(app.id, 'Approved')}
                                 >
                                   Approve
                                 </button>
                                 <button
-                                  className="btn-danger-small"
+                                  className="cursor-pointer rounded-md bg-[#ffebe0] px-2 py-1 text-[12px] font-extrabold text-[#a33c12] transition-all duration-200"
                                   onClick={() => handleUpdateAppointmentStatus(app.id, 'Rejected')}
                                 >
                                   Reject
@@ -587,13 +584,13 @@ function Dashboard() {
                             {app.status === 'Under Review' && (
                               <>
                                 <button
-                                  className="btn-success-small"
+                                  className="cursor-pointer rounded-md bg-[#dff6dd] px-2 py-1 text-[12px] font-extrabold text-[#1e5a1b] transition-all duration-200"
                                   onClick={() => handleUpdateAppointmentStatus(app.id, 'Approved')}
                                 >
                                   Approve
                                 </button>
                                 <button
-                                  className="btn-danger-small"
+                                  className="cursor-pointer rounded-md bg-[#ffebe0] px-2 py-1 text-[12px] font-extrabold text-[#a33c12] transition-all duration-200"
                                   onClick={() => handleUpdateAppointmentStatus(app.id, 'Rejected')}
                                 >
                                   Reject
@@ -602,7 +599,7 @@ function Dashboard() {
                             )}
                             {app.status === 'Approved' && (
                               <button
-                                className="btn-danger-small"
+                                className="cursor-pointer rounded-md bg-[#ffebe0] px-2 py-1 text-[12px] font-extrabold text-[#a33c12] transition-all duration-200"
                                 onClick={() => handleUpdateAppointmentStatus(app.id, 'Cancelled')}
                               >
                                 Cancel
@@ -611,13 +608,13 @@ function Dashboard() {
                             {app.status === 'Rescheduled' && (
                               <>
                                 <button
-                                  className="btn-success-small"
+                                  className="cursor-pointer rounded-md bg-[#dff6dd] px-2 py-1 text-[12px] font-extrabold text-[#1e5a1b] transition-all duration-200"
                                   onClick={() => handleUpdateAppointmentStatus(app.id, 'Approved')}
                                 >
                                   Approve
                                 </button>
                                 <button
-                                  className="btn-danger-small"
+                                  className="cursor-pointer rounded-md bg-[#ffebe0] px-2 py-1 text-[12px] font-extrabold text-[#a33c12] transition-all duration-200"
                                   onClick={() => handleUpdateAppointmentStatus(app.id, 'Rejected')}
                                 >
                                   Reject
@@ -625,7 +622,7 @@ function Dashboard() {
                               </>
                             )}
                             {(app.status === 'Rejected' || app.status === 'Cancelled' || app.status === 'Completed') && (
-                              <span className="muted-text">-</span>
+                              <span className="text-muted">-</span>
                             )}
                           </td>
                         </tr>
@@ -650,12 +647,12 @@ function Dashboard() {
             </div>
 
             {/* Right Column: Book Appointment Form */}
-            <div className="panel side-form-panel">
-              <h3>Book Appointment</h3>
-              <p className="form-sub">Register a walk-in or phone schedule</p>
+            <div className={`${PANEL} self-start p-5`}>
+              <h3 className="m-0 text-[18px] text-[#143d40]">Book Appointment</h3>
+              <p className="mt-0.5 text-[12px] text-muted">Register a walk-in or phone schedule</p>
 
-              <form onSubmit={handleAddAppointment} className="sidebar-form">
-                <label>
+              <form onSubmit={handleAddAppointment} className={SIDEBAR_FORM}>
+                <label className={FORM_LABEL}>
                   Patient Name
                   <input
                     type="text"
@@ -663,12 +660,13 @@ function Dashboard() {
                     value={appPatient}
                     onChange={(e) => setAppPatient(e.target.value)}
                     required
+                    className={FORM_FIELD}
                   />
                 </label>
 
-                <label>
+                <label className={FORM_LABEL}>
                   Appointment Type
-                  <select value={appType} onChange={(e) => setAppType(e.target.value)}>
+                  <select value={appType} onChange={(e) => setAppType(e.target.value)} className={FORM_FIELD}>
                     <option value="Check-up">General Check-up</option>
                     <option value="Dental concern">Dental Care</option>
                     <option value="Follow-up">Follow-up</option>
@@ -678,9 +676,9 @@ function Dashboard() {
                   </select>
                 </label>
 
-                <label>
+                <label className={FORM_LABEL}>
                   Time Slot
-                  <select value={appTime} onChange={(e) => setAppTime(e.target.value)}>
+                  <select value={appTime} onChange={(e) => setAppTime(e.target.value)} className={FORM_FIELD}>
                     <option value="08:00 AM">08:00 AM</option>
                     <option value="09:00 AM">09:00 AM</option>
                     <option value="10:00 AM">10:00 AM</option>
@@ -692,7 +690,7 @@ function Dashboard() {
                   </select>
                 </label>
 
-                <button type="submit" className="primary-action full-width" disabled={booking}>
+                <button type="submit" className={`${PRIMARY_BTN} w-full`} disabled={booking}>
                   {booking ? 'Booking...' : 'Book Appointment'}
                 </button>
               </form>
@@ -702,30 +700,30 @@ function Dashboard() {
 
         {/* ================= CONSULTATIONS TAB ================= */}
         {activeTab === 'consultations' && (
-          <div className="consultations-tab-view flex-grid-layout">
+          <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)] gap-5 max-[980px]:grid-cols-1">
             {/* Left Column: List of consults */}
-            <div className="panel main-panel">
-              <div className="panel-header flex-header">
+            <div className={`${PANEL} p-5`}>
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3>Clinical Consultation Logs</h3>
-                  <p>Detailed historical consultation diagnosis and treatment records</p>
+                  <h3 className="m-0 text-[18px] text-[#143d40]">Clinical Consultation Logs</h3>
+                  <p className={KICKER}>Detailed historical consultation diagnosis and treatment records</p>
                 </div>
                 <input
                   type="text"
                   placeholder="Search patient or diagnosis..."
                   value={consSearch}
                   onChange={(e) => setConsSearch(e.target.value)}
-                  className="search-input"
+                  className={SEARCH_INPUT}
                 />
               </div>
 
-              <div className="records-table-container">
+              <div className="overflow-x-auto rounded-lg border border-line">
                 {consultationsError ? (
                   <ErrorState message={consultationsError} onRetry={refetchConsultations} />
                 ) : consultationsLoading ? (
                   <LoadingState label="Loading consultation logs..." />
                 ) : (
-                  <table className="records-table">
+                  <table className={TABLE}>
                     <thead>
                       <tr>
                         <th>Date/Time</th>
@@ -740,28 +738,28 @@ function Dashboard() {
                       {consPagination.pageItems.map((cons) => (
                         <tr key={cons.id}>
                           <td>
-                            <span className="bold-text">{cons.date}</span>
-                            <span className="block-sub">{cons.time}</span>
+                            <span className="font-bold text-ink">{cons.date}</span>
+                            <span className="block text-[12px] text-muted">{cons.time}</span>
                           </td>
-                          <td className="bold-text">{cons.patient}</td>
-                          <td className="bold-text text-teal">{cons.staff}</td>
+                          <td className="font-bold text-ink">{cons.patient}</td>
+                          <td className="font-bold text-primary">{cons.staff}</td>
                           <td>
-                            <strong className="block-sub">Complaint: {cons.chiefComplaint || '—'}</strong>
-                            <span className="block-sub muted-text">
+                            <strong className="block text-[12px]">Complaint: {cons.chiefComplaint || '—'}</strong>
+                            <span className="block text-[12px] text-muted">
                               BP: {cons.vitals.bloodPressure || '—'} | Temp: {cons.vitals.temperature || '—'} | Pulse: {cons.vitals.pulseRate || '—'}
                             </span>
                           </td>
                           <td>
-                            <strong className="block-sub">{cons.diagnosis}</strong>
-                            <span className="block-sub muted-text">{cons.treatment}</span>
+                            <strong className="block text-[12px]">{cons.diagnosis}</strong>
+                            <span className="block text-[12px] text-muted">{cons.treatment}</span>
                           </td>
                           <td>
                             {cons.disposition ? (
-                              <span className={`dispo-tag dispo-${cons.disposition.toLowerCase().replace(/ /g, '-')}`}>
+                              <span className={`inline-flex rounded-[4px] px-2 py-[3px] text-[11px] font-bold ${cons.disposition.toLowerCase().includes('class') ? 'bg-[#e8f5e9] text-[#2e7d32]' : cons.disposition.toLowerCase().includes('home') ? 'bg-[#fff3e0] text-[#ef6c00]' : cons.disposition.toLowerCase().includes('clinic') ? 'bg-[#e3f2fd] text-[#1565c0]' : 'bg-[#ffebee] text-[#c62828]'}`}>
                                 {cons.disposition}
                               </span>
                             ) : (
-                              <span className="muted-text">—</span>
+                              <span className="text-muted">—</span>
                             )}
                           </td>
                         </tr>
@@ -786,30 +784,30 @@ function Dashboard() {
             </div>
 
             {/* Right Column: Add Consult form */}
-            <div className="panel side-form-panel">
-              <h3>Log New Consultation</h3>
-              <p className="form-sub">Log student symptoms and medication outcome</p>
+            <div className={`${PANEL} self-start p-5`}>
+              <h3 className="m-0 text-[18px] text-[#143d40]">Log New Consultation</h3>
+              <p className="mt-0.5 text-[12px] text-muted">Log student symptoms and medication outcome</p>
 
-              <form onSubmit={handleLogConsultation} className="sidebar-form">
-                <label>
+              <form onSubmit={handleLogConsultation} className={SIDEBAR_FORM}>
+                <label className={FORM_LABEL}>
                   Select Patient
-                  <select value={effectiveConsPatient} onChange={(e) => setConsPatient(e.target.value)}>
+                  <select value={effectiveConsPatient} onChange={(e) => setConsPatient(e.target.value)} className={FORM_FIELD}>
                     {patients.map((p) => (
                       <option key={p.id} value={p.name}>{p.name} ({p.id})</option>
                     ))}
                   </select>
                 </label>
 
-                <label>
+                <label className={FORM_LABEL}>
                   Attending Medical Staff
-                  <select value={effectiveConsStaff} onChange={(e) => setConsStaff(e.target.value)}>
+                  <select value={effectiveConsStaff} onChange={(e) => setConsStaff(e.target.value)} className={FORM_FIELD}>
                     {staff.map((s) => (
                       <option key={s.name} value={s.name}>{s.name} - {s.role}</option>
                     ))}
                   </select>
                 </label>
 
-                <label>
+                <label className={FORM_LABEL}>
                   Symptoms Reported
                   <input
                     type="text"
@@ -817,40 +815,44 @@ function Dashboard() {
                     value={consSymptoms}
                     onChange={(e) => setConsSymptoms(e.target.value)}
                     required
+                    className={FORM_FIELD}
                   />
                 </label>
 
-                <div className="form-row-grid">
-                  <label>
+                <div className={FORM_ROW}>
+                  <label className={FORM_LABEL}>
                     Blood Pressure
                     <input
                       type="text"
                       placeholder="120/80"
                       value={consBp}
                       onChange={(e) => setConsBp(e.target.value)}
+                      className={FORM_FIELD}
                     />
                   </label>
-                  <label>
+                  <label className={FORM_LABEL}>
                     Temperature
                     <input
                       type="text"
                       placeholder="36.5°C"
                       value={consTemp}
                       onChange={(e) => setConsTemp(e.target.value)}
+                      className={FORM_FIELD}
                     />
                   </label>
-                  <label>
+                  <label className={FORM_LABEL}>
                     Pulse
                     <input
                       type="text"
                       placeholder="75 bpm"
                       value={consPulse}
                       onChange={(e) => setConsPulse(e.target.value)}
+                      className={FORM_FIELD}
                     />
                   </label>
                 </div>
 
-                <label>
+                <label className={FORM_LABEL}>
                   Diagnosis
                   <input
                     type="text"
@@ -858,22 +860,24 @@ function Dashboard() {
                     value={consDiagnosis}
                     onChange={(e) => setConsDiagnosis(e.target.value)}
                     required
+                    className={FORM_FIELD}
                   />
                 </label>
 
-                <label>
+                <label className={FORM_LABEL}>
                   Treatment & Prescribed Meds
                   <textarea
                     placeholder="e.g. Paracetamol 500mg (1 tab), rest for 30 mins"
                     value={consTreatment}
                     onChange={(e) => setConsTreatment(e.target.value)}
                     required
+                    className={`${FORM_FIELD} min-h-20 resize-y`}
                   />
                 </label>
 
-                <label>
+                <label className={FORM_LABEL}>
                   Disposition
-                  <select value={consDisposition} onChange={(e) => setConsDisposition(e.target.value)}>
+                  <select value={consDisposition} onChange={(e) => setConsDisposition(e.target.value)} className={FORM_FIELD}>
                     <option value="Sent to Class">Sent to Class</option>
                     <option value="Sent Home">Sent Home</option>
                     <option value="Rest in Clinic">Rest in Clinic</option>
@@ -881,7 +885,7 @@ function Dashboard() {
                   </select>
                 </label>
 
-                <button type="submit" className="primary-action full-width">Log Consultation</button>
+                <button type="submit" className={`${PRIMARY_BTN} w-full`}>Log Consultation</button>
               </form>
             </div>
           </div>
@@ -889,26 +893,26 @@ function Dashboard() {
 
         {/* ================= PATIENT OVERVIEW ================= */}
         {activeTab === 'patients' && (
-          <div className="patients-tab-view flex-grid-layout">
+          <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)] gap-5 max-[980px]:grid-cols-1">
             {/* Main Patients Database */}
-            <div className="panel main-panel">
-              <div className="panel-header flex-header">
+            <div className={`${PANEL} p-5`}>
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3>Patient Registry</h3>
-                  <p>Comprehensive record of students, faculty, and school personnel</p>
+                  <h3 className="m-0 text-[18px] text-[#143d40]">Patient Registry</h3>
+                  <p className={KICKER}>Comprehensive record of students, faculty, and school personnel</p>
                 </div>
-                <div className="filters-row">
+                <div className="flex gap-[10px]">
                   <input
                     type="text"
                     placeholder="Search by name or ID..."
                     value={patSearch}
                     onChange={(e) => setPatSearch(e.target.value)}
-                    className="search-input"
+                    className={SEARCH_INPUT}
                   />
                   <select
                     value={patFilter}
                     onChange={(e) => setPatFilter(e.target.value)}
-                    className="filter-select"
+                    className={SELECT_INPUT}
                   >
                     <option value="All">All Types</option>
                     <option value="Student">Student</option>
@@ -918,13 +922,13 @@ function Dashboard() {
                 </div>
               </div>
 
-              <div className="records-table-container">
+              <div className="overflow-x-auto rounded-lg border border-line">
                 {patientsError ? (
                   <ErrorState message={patientsError} onRetry={refetchPatients} />
                 ) : patientsLoading ? (
                   <LoadingState label="Loading patient registry..." />
                 ) : (
-                  <table className="records-table clickable-rows">
+                  <table className={`${TABLE} [&_tbody_tr]:cursor-pointer [&_tbody_tr:hover]:bg-[#f7fbfb]`}>
                     <thead>
                       <tr>
                         <th>Patient ID</th>
@@ -940,18 +944,18 @@ function Dashboard() {
                         <tr
                           key={pat.id}
                           onClick={() => setSelectedPatient(pat)}
-                          className="patient-selectable-row"
+                          className="hover:[&_td]:text-primary"
                           title="Click to view full health record profile"
                         >
-                          <td className="bold-text text-teal">{pat.id}</td>
-                          <td className="bold-text">{pat.name}</td>
+                          <td className="font-bold text-primary">{pat.id}</td>
+                          <td className="font-bold text-ink">{pat.name}</td>
                           <td>{pat.type}</td>
                           <td>{pat.courseDept}</td>
-                          <td className={pat.allergies !== 'None' ? 'alert-danger-text' : ''}>
+                          <td className={pat.allergies !== 'None' ? 'font-bold text-danger' : ''}>
                             {pat.allergies}
                           </td>
                           <td>
-                            <span className="status-badge badge-in-clinic">Active</span>
+                            <span className="inline-flex rounded-full bg-[#dff6dd] px-[10px] py-1 text-[11px] font-extrabold uppercase text-[#1e5a1b]">Active</span>
                           </td>
                         </tr>
                       ))}
@@ -975,13 +979,13 @@ function Dashboard() {
             </div>
 
             {/* Right Column: Register New Patient Form */}
-            <div className="panel side-form-panel">
-              <h3>Create Patient Profile</h3>
-              <p className="form-sub">Register new student or campus staff</p>
+            <div className={`${PANEL} self-start p-5`}>
+              <h3 className="m-0 text-[18px] text-[#143d40]">Create Patient Profile</h3>
+              <p className="mt-0.5 text-[12px] text-muted">Register new student or campus staff</p>
 
-              <form onSubmit={handleAddPatient} className="sidebar-form">
-                <div className="form-row-grid">
-                  <label>
+              <form onSubmit={handleAddPatient} className={SIDEBAR_FORM}>
+                <div className={FORM_ROW}>
+                  <label className={FORM_LABEL}>
                     Patient ID
                     <input
                       type="text"
@@ -989,9 +993,10 @@ function Dashboard() {
                       value={patId}
                       onChange={(e) => setPatId(e.target.value)}
                       required
+                      className={FORM_FIELD}
                     />
                   </label>
-                  <label>
+                  <label className={FORM_LABEL}>
                     Full Name
                     <input
                       type="text"
@@ -999,20 +1004,21 @@ function Dashboard() {
                       value={patName}
                       onChange={(e) => setPatName(e.target.value)}
                       required
+                      className={FORM_FIELD}
                     />
                   </label>
                 </div>
 
-                <div className="form-row-grid">
-                  <label>
+                <div className={FORM_ROW}>
+                  <label className={FORM_LABEL}>
                     Category
-                    <select value={patType} onChange={(e) => setPatType(e.target.value)}>
+                    <select value={patType} onChange={(e) => setPatType(e.target.value)} className={FORM_FIELD}>
                       <option value="Student">Student</option>
                       <option value="Faculty">Faculty</option>
                       <option value="Staff">Staff</option>
                     </select>
                   </label>
-                  <label>
+                  <label className={FORM_LABEL}>
                     Course/Dept
                     <input
                       type="text"
@@ -1020,21 +1026,23 @@ function Dashboard() {
                       value={patDept}
                       onChange={(e) => setPatDept(e.target.value)}
                       required
+                      className={FORM_FIELD}
                     />
                   </label>
                 </div>
 
-                <label>
+                <label className={FORM_LABEL}>
                   Contact Number
                   <input
                     type="text"
                     placeholder="09xx-xxx-xxxx"
                     value={patContact}
                     onChange={(e) => setPatContact(e.target.value)}
+                    className={FORM_FIELD}
                   />
                 </label>
 
-                <label>
+                <label className={FORM_LABEL}>
                   Emergency Contact (Name & Phone)
                   <input
                     type="text"
@@ -1042,29 +1050,32 @@ function Dashboard() {
                     value={patEmergency}
                     onChange={(e) => setPatEmergency(e.target.value)}
                     required
+                    className={FORM_FIELD}
                   />
                 </label>
 
-                <label>
+                <label className={FORM_LABEL}>
                   Known Allergies
                   <input
                     type="text"
                     placeholder="e.g. Penicillin, Nuts, None"
                     value={patAllergies}
                     onChange={(e) => setPatAllergies(e.target.value)}
+                    className={FORM_FIELD}
                   />
                 </label>
 
-                <label>
+                <label className={FORM_LABEL}>
                   Medical History
                   <textarea
                     placeholder="e.g. Hypertension, Asthma, None"
                     value={patHistory}
                     onChange={(e) => setPatHistory(e.target.value)}
+                    className={`${FORM_FIELD} min-h-20 resize-y`}
                   />
                 </label>
 
-                <button type="submit" className="primary-action full-width">Add Patient Profile</button>
+                <button type="submit" className={`${PRIMARY_BTN} w-full`}>Add Patient Profile</button>
               </form>
             </div>
           </div>
@@ -1072,21 +1083,21 @@ function Dashboard() {
 
         {/* ================= STAFF SHIFTS & EVENTS ================= */}
         {activeTab === 'schedule' && (
-          <div className="schedule-tab-view flex-grid-layout">
+          <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)] gap-5 max-[980px]:grid-cols-1">
             {/* Left: Medical Staff Schedule Table */}
-            <div className="panel main-panel">
-              <div className="panel-header">
-                <h3>Medical Staff Shift Coverage</h3>
-                <p>Track doctor/nurse shifts and set active duty status</p>
+            <div className={`${PANEL} p-5`}>
+              <div className={PANEL_HEADER}>
+                <h3 className="m-0 text-[18px] text-[#143d40]">Medical Staff Shift Coverage</h3>
+                <p className={KICKER}>Track doctor/nurse shifts and set active duty status</p>
               </div>
 
-              <div className="records-table-container">
+              <div className="overflow-x-auto rounded-lg border border-line">
                 {staffError ? (
                   <ErrorState message={staffError} onRetry={refetchStaff} />
                 ) : staffLoading ? (
                   <LoadingState label="Loading staff schedules..." />
                 ) : (
-                  <table className="records-table">
+                  <table className={TABLE}>
                     <thead>
                       <tr>
                         <th>Staff Member</th>
@@ -1099,9 +1110,9 @@ function Dashboard() {
                     <tbody>
                       {staffPagination.pageItems.map((member) => (
                         <tr key={member.name}>
-                          <td className="bold-text">{member.name}</td>
+                          <td className="font-bold text-ink">{member.name}</td>
                           <td>{member.role}</td>
-                          <td className="text-teal font-monospace">{member.shift}</td>
+                          <td className="font-mono text-primary">{member.shift}</td>
                           <td>
                             <StatusBadge status={member.status} />
                           </td>
@@ -1109,7 +1120,7 @@ function Dashboard() {
                             <select
                               value={member.status}
                               onChange={(e) => handleUpdateStaffStatus(member.name, e.target.value)}
-                              className="status-selector-table"
+                              className={SELECT_INPUT}
                             >
                               <option value="On duty">On duty</option>
                               <option value="Break">Break</option>
@@ -1130,23 +1141,23 @@ function Dashboard() {
               />
 
               {/* Upcoming Clinic Events List */}
-              <div className="clinic-events-container" style={{ marginTop: '24px' }}>
-                <div className="panel-header">
-                  <h3>Campus Health Campaigns & Events</h3>
-                  <p>Calendar events and scheduled immunization campaigns</p>
+              <div className="mt-6">
+                <div className={PANEL_HEADER}>
+                  <h3 className="m-0 text-[18px] text-[#143d40]">Campus Health Campaigns & Events</h3>
+                  <p className={KICKER}>Calendar events and scheduled immunization campaigns</p>
                 </div>
                 {eventsError ? (
                   <ErrorState message={eventsError} onRetry={refetchEvents} />
                 ) : eventsLoading ? (
                   <LoadingState label="Loading events..." />
                 ) : (
-                  <div className="events-timeline">
+                  <div className="mt-3 flex flex-col gap-3">
                     {events.map((evt, idx) => (
-                      <div className="event-timeline-card" key={idx}>
-                        <div className="event-date-pill">{evt.date}</div>
-                        <div className="event-body">
-                          <h4>{evt.title}</h4>
-                          <p>{evt.description}</p>
+                      <div className="border-l-[3px] border-primary pl-[14px]" key={idx}>
+                        <div className="text-[11px] font-extrabold uppercase text-primary">{evt.date}</div>
+                        <div>
+                          <h4 className="my-[3px] text-[14px] text-ink">{evt.title}</h4>
+                          <p className="m-0 text-[12.5px] text-muted">{evt.description}</p>
                         </div>
                       </div>
                     ))}
@@ -1159,12 +1170,12 @@ function Dashboard() {
             </div>
 
             {/* Right: Schedule New Campus Event Form */}
-            <div className="panel side-form-panel">
-              <h3>Schedule Clinic Event</h3>
-              <p className="form-sub">Broadcast health event details to campus</p>
+            <div className={`${PANEL} self-start p-5`}>
+              <h3 className="m-0 text-[18px] text-[#143d40]">Schedule Clinic Event</h3>
+              <p className="mt-0.5 text-[12px] text-muted">Broadcast health event details to campus</p>
 
-              <form onSubmit={handleAddEvent} className="sidebar-form">
-                <label>
+              <form onSubmit={handleAddEvent} className={SIDEBAR_FORM}>
+                <label className={FORM_LABEL}>
                   Event Date
                   <input
                     type="text"
@@ -1172,10 +1183,11 @@ function Dashboard() {
                     value={evtDate}
                     onChange={(e) => setEvtDate(e.target.value)}
                     required
+                    className={FORM_FIELD}
                   />
                 </label>
 
-                <label>
+                <label className={FORM_LABEL}>
                   Event Title
                   <input
                     type="text"
@@ -1183,20 +1195,22 @@ function Dashboard() {
                     value={evtTitle}
                     onChange={(e) => setEvtTitle(e.target.value)}
                     required
+                    className={FORM_FIELD}
                   />
                 </label>
 
-                <label>
+                <label className={FORM_LABEL}>
                   Description
                   <textarea
                     placeholder="Details about the campaign, venue, requirements..."
                     value={evtDesc}
                     onChange={(e) => setEvtDesc(e.target.value)}
                     required
+                    className={`${FORM_FIELD} min-h-20 resize-y`}
                   />
                 </label>
 
-                <button type="submit" className="primary-action full-width">Schedule Event</button>
+                <button type="submit" className={`${PRIMARY_BTN} w-full`}>Schedule Event</button>
               </form>
             </div>
           </div>
@@ -1204,31 +1218,31 @@ function Dashboard() {
 
         {/* ================= CLINIC ACTIVITY ================= */}
         {activeTab === 'activity' && (
-          <div className="activity-tab-view flex-grid-layout">
+          <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)] gap-5 max-[980px]:grid-cols-1">
             {/* Left: Peak Hours and Activity */}
-            <div className="panel main-panel">
+            <div className={`${PANEL} p-5`}>
               {/* Peak Hours Chart */}
-              <div className="peak-hours-widget">
-                <div className="panel-header">
-                  <h3>Clinic Peak Activity Hours</h3>
-                  <p>Distribution load of patients visit by hour slot</p>
+              <div>
+                <div className={PANEL_HEADER}>
+                  <h3 className="m-0 text-[18px] text-[#143d40]">Clinic Peak Activity Hours</h3>
+                  <p className={KICKER}>Distribution load of patients visit by hour slot</p>
                 </div>
                 {insightsError ? (
                   <ErrorState message={insightsError} onRetry={refetchInsights} />
                 ) : insightsLoading ? (
                   <LoadingState label="Loading peak hours..." />
                 ) : (
-                  <div className="peak-chart-container">
+                  <div className="mt-[14px] grid gap-3">
                     {peakHours.map((hour) => (
-                      <div className="peak-bar-row" key={hour.label}>
-                        <span className="peak-time-lbl">{hour.label}</span>
-                        <div className="peak-bar-wrapper">
+                      <div className="grid grid-cols-[150px_1fr_80px] items-center gap-3 max-[580px]:grid-cols-1" key={hour.label}>
+                        <span className="text-[12.5px] font-bold text-ink">{hour.label}</span>
+                        <div className="h-[10px] w-full rounded-full bg-[#e5efec]">
                           <div
-                            className="peak-bar-fill"
+                            className="h-full rounded-full bg-primary transition-[width] duration-300"
                             style={{ width: `${hour.percent}%` }}
                           />
                         </div>
-                        <span className="peak-count-lbl bold-text">{hour.count} visits</span>
+                        <span className="text-right text-[12.5px] font-bold text-ink">{hour.count} visits</span>
                       </div>
                     ))}
                   </div>
@@ -1237,22 +1251,22 @@ function Dashboard() {
             </div>
 
             {/* Right: Live System Audit Log */}
-            <div className="panel side-form-panel">
-              <h3>Live Activity Audit Log</h3>
-              <p className="form-sub">Audit trail of administrator actions in real-time</p>
+            <div className={`${PANEL} self-start p-5`}>
+              <h3 className="m-0 text-[18px] text-[#143d40]">Live Activity Audit Log</h3>
+              <p className="mt-0.5 text-[12px] text-muted">Audit trail of administrator actions in real-time</p>
 
-              <div className="audit-log-scroller">
+              <div className="mt-[14px] flex max-h-[480px] flex-col gap-[10px] overflow-y-auto pr-1">
                 {logsError ? (
                   <ErrorState message={logsError} onRetry={refetchLogs} />
                 ) : logsLoading ? (
                   <LoadingState label="Loading audit log..." />
                 ) : (
                   logsPagination.pageItems.map((log, idx) => (
-                    <div className="audit-log-card" key={idx}>
-                      <div className="audit-time">{log.time}</div>
-                      <div className="audit-details">
-                        <strong>{log.user}</strong>
-                        <p>{log.action}</p>
+                    <div className="flex gap-[10px] rounded-lg border border-line bg-[#fafcfb] p-[10px]" key={idx}>
+                      <div className="font-mono text-[11px] font-extrabold text-primary">{log.time}</div>
+                      <div>
+                        <strong className="block text-[12.5px] text-ink">{log.user}</strong>
+                        <p className="mt-0.5 text-[12px] leading-[1.3] text-muted">{log.action}</p>
                       </div>
                     </div>
                   ))
@@ -1271,75 +1285,75 @@ function Dashboard() {
 
       {/* ================= PATIENT PROFILE VIEW MODAL ================= */}
       {selectedPatient && (
-        <div className="modal-backdrop">
-          <div className="modal-card">
-            <div className="modal-header">
-              <h3>Patient Health Profile Card</h3>
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-[rgba(8,20,20,0.45)] p-5 backdrop-blur-[4px]">
+          <div className="flex max-h-[90vh] w-[min(650px,100%)] animate-modal-scale flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgba(8,20,20,0.22)]">
+            <div className="flex items-center justify-between border-b border-line p-[16px_20px]">
+              <h3 className="m-0 text-[18px] text-ink">Patient Health Profile Card</h3>
               <button
                 type="button"
-                className="btn-modal-close"
+                className="cursor-pointer border-0 bg-transparent p-1 text-[16px] text-muted-soft"
                 onClick={() => setSelectedPatient(null)}
               >
                 ✕
               </button>
             </div>
 
-            <div className="modal-body">
-              <div className="profile-details-grid">
+            <div className="flex-1 overflow-y-auto p-5">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
                 <div>
-                  <label className="profile-lbl">Patient ID</label>
-                  <p className="profile-val">{selectedPatient.id}</p>
+                  <label className="mb-0.5 block text-[11px] font-extrabold uppercase text-muted">Patient ID</label>
+                  <p className="m-0 text-[14px] font-bold text-ink">{selectedPatient.id}</p>
                 </div>
                 <div>
-                  <label className="profile-lbl">Full Name</label>
-                  <p className="profile-val">{selectedPatient.name}</p>
+                  <label className="mb-0.5 block text-[11px] font-extrabold uppercase text-muted">Full Name</label>
+                  <p className="m-0 text-[14px] font-bold text-ink">{selectedPatient.name}</p>
                 </div>
                 <div>
-                  <label className="profile-lbl">Category</label>
-                  <p className="profile-val">{selectedPatient.type}</p>
+                  <label className="mb-0.5 block text-[11px] font-extrabold uppercase text-muted">Category</label>
+                  <p className="m-0 text-[14px] font-bold text-ink">{selectedPatient.type}</p>
                 </div>
                 <div>
-                  <label className="profile-lbl">Course/Department</label>
-                  <p className="profile-val">{selectedPatient.courseDept}</p>
+                  <label className="mb-0.5 block text-[11px] font-extrabold uppercase text-muted">Course/Department</label>
+                  <p className="m-0 text-[14px] font-bold text-ink">{selectedPatient.courseDept}</p>
                 </div>
                 <div>
-                  <label className="profile-lbl">Phone Contact</label>
-                  <p className="profile-val">{selectedPatient.contact}</p>
+                  <label className="mb-0.5 block text-[11px] font-extrabold uppercase text-muted">Phone Contact</label>
+                  <p className="m-0 text-[14px] font-bold text-ink">{selectedPatient.contact}</p>
                 </div>
                 <div>
-                  <label className="profile-lbl">Emergency Contact</label>
-                  <p className="profile-val">{selectedPatient.emergencyContact}</p>
+                  <label className="mb-0.5 block text-[11px] font-extrabold uppercase text-muted">Emergency Contact</label>
+                  <p className="m-0 text-[14px] font-bold text-ink">{selectedPatient.emergencyContact}</p>
                 </div>
               </div>
 
-              <div className="profile-alert-box" style={{ marginTop: '16px' }}>
-                <h4 className="alert-danger-text">⚠ Allergies</h4>
-                <p className="bold-text">{selectedPatient.allergies}</p>
+              <div className="mt-4 rounded-lg border border-[#f2cfc2] bg-[#fdf1ec] p-[12px_14px]">
+                <h4 className="mb-1 m-0 text-[13px] font-bold text-danger">⚠ Allergies</h4>
+                <p className="m-0 text-[13px] font-bold text-ink">{selectedPatient.allergies}</p>
               </div>
 
-              <div className="profile-alert-box" style={{ marginTop: '12px' }}>
-                <h4 className="text-teal">✚ Medical History Background</h4>
-                <p>{selectedPatient.history}</p>
+              <div className="mt-3 rounded-lg border border-[#f2cfc2] bg-[#fdf1ec] p-[12px_14px]">
+                <h4 className="mb-1 m-0 text-[13px] text-primary">✚ Medical History Background</h4>
+                <p className="m-0 text-[13px]">{selectedPatient.history}</p>
               </div>
 
               {/* Consultation logs for this patient */}
-              <div className="patient-past-logs-section" style={{ marginTop: '20px' }}>
-                <h4 style={{ color: '#12393b', marginBottom: '8px' }}>Past Consultations</h4>
+              <div className="mt-5">
+                <h4 className="mb-2 text-ink">Past Consultations</h4>
                 {patientHistoryLogs.length > 0 ? (
-                  <div className="past-consult-mini-list">
+                  <div className="flex flex-col gap-[10px]">
                     {patientHistoryLogs.map((log) => (
-                      <div className="mini-log-card" key={log.id}>
-                        <div className="mini-log-header">
-                          <strong>{log.date} @ {log.time}</strong>
+                      <div className="rounded-lg border border-line bg-[#fafcfb] p-[10px_12px]" key={log.id}>
+                        <div className="mb-[5px] flex items-center justify-between">
+                          <strong className="text-[12px] text-primary">{log.date} @ {log.time}</strong>
                           {log.disposition ? (
-                            <span className={`dispo-tag dispo-${log.disposition.toLowerCase().replace(/ /g, '-')}`}>
+                            <span className={`inline-flex rounded-[4px] px-2 py-[3px] text-[11px] font-bold ${log.disposition.toLowerCase().includes('class') ? 'bg-[#e8f5e9] text-[#2e7d32]' : log.disposition.toLowerCase().includes('home') ? 'bg-[#fff3e0] text-[#ef6c00]' : log.disposition.toLowerCase().includes('clinic') ? 'bg-[#e3f2fd] text-[#1565c0]' : 'bg-[#ffebee] text-[#c62828]'}`}>
                               {log.disposition}
                             </span>
                           ) : (
-                            <span className="muted-text">—</span>
+                            <span className="text-muted">—</span>
                           )}
                         </div>
-                        <p className="mini-log-body">
+                        <p className="m-0 text-[12px] leading-[1.4] text-muted">
                           <strong>Diag:</strong> {log.diagnosis} <br />
                           <strong>Treatment:</strong> {log.treatment}
                         </p>
@@ -1347,15 +1361,17 @@ function Dashboard() {
                     ))}
                   </div>
                 ) : (
-                  <div className="empty-mini-state">No clinical consultations recorded for this patient.</div>
+                  <div className="rounded-lg border border-dashed border-[#c2dcd6] p-4 text-center text-[12.5px] text-muted">
+                    No clinical consultations recorded for this patient.
+                  </div>
                 )}
               </div>
             </div>
 
-            <div className="modal-footer">
+            <div className="flex justify-end border-t border-line bg-[#fafcfb] p-[14px_20px]">
               <button
                 type="button"
-                className="secondary-pill"
+                className={PILL}
                 onClick={() => setSelectedPatient(null)}
               >
                 Close Profile

@@ -1,4 +1,3 @@
-import './App.css'
 import { HashRouter, Navigate, Outlet, Route, Routes, useParams } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
