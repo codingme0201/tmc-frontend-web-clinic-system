@@ -12,15 +12,19 @@ import { appointmentsService } from '../services/appointmentsService'
  * `onLog` keeps the shared activity/audit log in sync (mirrors a
  * server-side audit trail).
  */
-export function useAppointmentsStore({ onLog } = {}) {
+export function useAppointmentsStore({ onLog } = {}, scope = 'page') {
   const queryClient = useQueryClient()
   const onLogRef = useRef(onLog)
   useEffect(() => {
     onLogRef.current = onLog
   }, [onLog])
 
+  // Scoped query key: the dashboard and the module page keep separate views
+  // of the same data, so opening the module is a fresh fetch (its skeleton
+  // shows) instead of reading the dashboard's warmed cache. Mutations
+  // invalidate the `['appointments']` prefix, which refreshes both copies.
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
-    queryKey: ['appointments'],
+    queryKey: ['appointments', scope],
     queryFn: appointmentsService.fetchAppointments,
   })
 
@@ -84,7 +88,7 @@ export function useAppointmentsStore({ onLog } = {}) {
  * app-level `log`.
  * Returns { data, isLoading, error, refetch, isRefetching, createAppointment, updateStatus, reschedule }.
  */
-export function useAppointments() {
+export function useAppointments(scope = 'page') {
   const { log } = useAppContext()
-  return useAppointmentsStore({ onLog: log })
+  return useAppointmentsStore({ onLog: log }, scope)
 }

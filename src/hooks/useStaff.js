@@ -13,15 +13,17 @@ import { staffService } from '../services/staffService'
  * `isRefetching` lets pages show a subtle indicator when a background
  * refetch runs without hiding the existing content.
  */
-export function useStaffStore({ onLog } = {}) {
+export function useStaffStore({ onLog } = {}, scope = 'page') {
   const queryClient = useQueryClient()
   const onLogRef = useRef(onLog)
   useEffect(() => {
     onLogRef.current = onLog
   }, [onLog])
 
+  // Scoped query key (see useAppointments): the dashboard keeps its own view
+  // so module pages fetch fresh on open and show their skeleton.
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
-    queryKey: ['staff'],
+    queryKey: ['staff', scope],
     queryFn: staffService.fetchStaff,
   })
 
@@ -49,7 +51,7 @@ export function useStaffStore({ onLog } = {}) {
 }
 
 /** Public hook — pages call this on mount (page-scoped fetch + app-level audit log). */
-export function useStaff() {
+export function useStaff(scope = 'page') {
   const { log } = useAppContext()
-  return useStaffStore({ onLog: log })
+  return useStaffStore({ onLog: log }, scope)
 }

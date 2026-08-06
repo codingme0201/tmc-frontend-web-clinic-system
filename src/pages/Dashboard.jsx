@@ -35,7 +35,7 @@ function Dashboard() {
     isRefetching: appointmentsRefetching,
     createAppointment,
     updateStatus: updateAppointmentStatus,
-  } = useAppointments()
+  } = useAppointments('dashboard')
 
   const {
     data: staff,
@@ -44,7 +44,7 @@ function Dashboard() {
     refetch: refetchStaff,
     isRefetching: staffRefetching,
     updateStaffStatus,
-  } = useStaff()
+  } = useStaff('dashboard')
 
   const {
     data: patients,
@@ -60,7 +60,7 @@ function Dashboard() {
     error: consultationsError,
     refetch: refetchConsultations,
     addConsultation,
-  } = useConsultations()
+  } = useConsultations('dashboard')
 
   const { data: activityLogs, isLoading: logsLoading, error: logsError, refetch: refetchLogs } = useActivityLogs()
   const { data: events, isLoading: eventsLoading, error: eventsError, refetch: refetchEvents, addEvent } = useClinicEvents()

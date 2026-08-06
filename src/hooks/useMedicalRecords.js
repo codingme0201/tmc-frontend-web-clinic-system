@@ -10,15 +10,17 @@ import { medicalRecordsService } from '../services/medicalRecordsService'
  *   - Each management mutation (conditions/allergies) calls the API and
  *     invalidates the list so the UI refreshes from the server.
  */
-export function useMedicalRecordsStore({ onLog } = {}) {
+export function useMedicalRecordsStore({ onLog } = {}, scope = 'page') {
   const queryClient = useQueryClient()
   const onLogRef = useRef(onLog)
   useEffect(() => {
     onLogRef.current = onLog
   }, [onLog])
 
+  // Scoped query key (see useAppointments): the dashboard keeps its own view
+  // so module pages fetch fresh on open and show their skeleton.
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
-    queryKey: ['medical-records'],
+    queryKey: ['medical-records', scope],
     queryFn: medicalRecordsService.fetchMedicalRecords,
   })
 
@@ -126,7 +128,7 @@ export function useMedicalRecordsStore({ onLog } = {}) {
 }
 
 /** Public hook — pages call this on mount (page-scoped fetch + app-level audit log). */
-export function useMedicalRecords() {
+export function useMedicalRecords(scope = 'page') {
   const { log } = useAppContext()
-  return useMedicalRecordsStore({ onLog: log })
+  return useMedicalRecordsStore({ onLog: log }, scope)
 }

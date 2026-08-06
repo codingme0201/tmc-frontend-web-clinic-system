@@ -13,15 +13,17 @@ import { consultationsService } from '../services/consultationsService'
  * `onLog` keeps the shared activity/audit log in sync (mirrors a
  * server-side audit trail).
  */
-export function useConsultationsStore({ onLog } = {}) {
+export function useConsultationsStore({ onLog } = {}, scope = 'page') {
   const queryClient = useQueryClient()
   const onLogRef = useRef(onLog)
   useEffect(() => {
     onLogRef.current = onLog
   }, [onLog])
 
+  // Scoped query key (see useAppointments): the dashboard keeps its own view
+  // so module pages fetch fresh on open and show their skeleton.
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
-    queryKey: ['consultations'],
+    queryKey: ['consultations', scope],
     queryFn: consultationsService.fetchConsultations,
   })
 
@@ -98,7 +100,7 @@ export function useConsultationsStore({ onLog } = {}) {
  * audit log). Returns { data, isLoading, error, refetch, isRefetching,
  * addConsultation, startConsultation, saveConsultation, completeConsultation }.
  */
-export function useConsultations() {
+export function useConsultations(scope = 'page') {
   const { log } = useAppContext()
-  return useConsultationsStore({ onLog: log })
+  return useConsultationsStore({ onLog: log }, scope)
 }

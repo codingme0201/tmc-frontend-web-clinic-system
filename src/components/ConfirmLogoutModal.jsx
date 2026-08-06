@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import InlineSpinner from './Spinner'
 
 /**
@@ -17,7 +18,11 @@ import InlineSpinner from './Spinner'
 function ConfirmLogoutModal({ open, user = null, busy = false, onClose, onConfirm }) {
   if (!open) return null
 
-  return (
+  // Rendered through a portal to document.body so the fixed overlay always
+  // covers the viewport. Without it, the sidebar's collapse `transform`
+  // creates a containing block that traps the fixed overlay inside the
+  // sidebar instead of the screen.
+  return createPortal(
     <div
       className="fixed inset-0 z-[100] grid place-items-center bg-[rgba(8,20,20,0.45)] p-5 backdrop-blur-[4px]"
       role="dialog"
@@ -73,7 +78,8 @@ function ConfirmLogoutModal({ open, user = null, busy = false, onClose, onConfir
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
