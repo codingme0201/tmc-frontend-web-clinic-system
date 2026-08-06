@@ -1,22 +1,53 @@
+@import "tailwindcss";
+
 :root {
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
     sans-serif;
 
-  /* Brand green, lightened a touch from #0f6860 for a softer feel. */
-  --color-primary: #14786d;
+  /* Comma-separated RGB triplet kept for rgba() usage in App.css. */
   --color-primary-rgb: 20, 120, 109;
-  --color-primary-dark: #083b3f;
 
-  --color-bg: #eef4f2;
-  --color-text: #12393b;
-
-  color: var(--color-text);
-  background: var(--color-bg);
+  color: #12393b;
+  background: #eef4f2;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/*
+ * Design tokens. Tailwind v4 emits these as CSS custom properties on :root,
+ * so legacy styles in App.css that read var(--color-primary) etc. keep working.
+ */
+@theme {
+  --color-primary: #14786d;
+  --color-primary-dark: #083b3f;
+  --color-bg: #eef4f2;
+  --color-ink: #12393b;
+  --color-muted: #627772;
+  --color-muted-soft: #5d7772;
+  --color-line: #e4eeeb;
+  --color-line-strong: #d8e6e2;
+  --color-surface: #ffffff;
+  --color-gold: #f0b84f;
+  --color-accent: #d95f35;
+  --color-success: #2fa96b;
+  --color-danger: #b23c1f;
+
+  /* Custom breakpoint matching the app's existing 980px responsive cutoff. */
+  --breakpoint-desktop: 980px;
+
+  --animate-shimmer: shimmer 1.4s ease infinite;
+
+  @keyframes shimmer {
+    0% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0 50%;
+    }
+  }
 }
 
 * {
