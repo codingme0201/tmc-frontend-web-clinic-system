@@ -13,8 +13,8 @@ import Pagination from '../components/Pagination'
 import RefreshingBadge from '../components/RefreshingBadge'
 import TableSkeleton from '../components/skeletons/TableSkeleton'
 import { EmptyState, ErrorState } from '../components/AsyncState'
-import PrescriptionForm from '../components/prescriptions/PrescriptionForm'
-import PrescriptionDetailsModal from '../components/prescriptions/PrescriptionDetailsModal'
+import PrescriptionForm from '../components/PrescriptionForm'
+import PrescriptionDetailsModal from '../components/PrescriptionDetailsModal'
 
 const PAGE_SIZE = 8
 

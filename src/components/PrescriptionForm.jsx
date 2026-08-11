@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
-import { useForm } from '../../hooks/useForm'
-import { todayISO } from '../../lib/format'
-import { FORM_LABEL, FORM_FIELD, FORM_ROW, PILL, PRIMARY_BTN } from '../../lib/ui'
-import InlineSpinner from '../Spinner'
+import { useForm } from '../hooks/useForm'
+import { todayISO } from '../lib/format'
+import { FORM_LABEL, FORM_FIELD, FORM_ROW, PILL, PRIMARY_BTN } from '../lib/ui'
+import InlineSpinner from './Spinner'
 
 const MODAL_CARD = 'flex max-h-[90vh] w-[min(650px,100%)] animate-modal-scale flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgba(8,20,20,0.22)]'
 const MODAL_CARD_WIDE = MODAL_CARD + ' w-[min(860px,100%)]'
