@@ -13,6 +13,7 @@ import MedicalRecords from './pages/MedicalRecords'
 import MedicalCertificates from './pages/MedicalCertificates'
 import Prescriptions from './pages/Prescriptions'
 import RolesPermissions from './pages/RolesPermissions'
+import UserManagement from './pages/UserManagement'
 import Login from './pages/Login'
 import PlaceholderPage from './pages/PlaceholderPage'
 import AuthLoadingScreen from './components/AuthLoadingScreen'
@@ -28,6 +29,7 @@ const pageComponents = {
   medicalCertificates: MedicalCertificates,
   prescriptions: Prescriptions,
   rolesPermissions: RolesPermissions,
+  users: UserManagement,
 }
 
 /**
