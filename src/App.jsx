@@ -12,6 +12,7 @@ import Consultations from './pages/Consultations'
 import MedicalRecords from './pages/MedicalRecords'
 import MedicalCertificates from './pages/MedicalCertificates'
 import Prescriptions from './pages/Prescriptions'
+import Patients from './pages/Patients'
 import RolesPermissions from './pages/RolesPermissions'
 import UserManagement from './pages/UserManagement'
 import Login from './pages/Login'
@@ -28,6 +29,7 @@ const pageComponents = {
   medicalRecords: MedicalRecords,
   medicalCertificates: MedicalCertificates,
   prescriptions: Prescriptions,
+  patients: Patients,
   rolesPermissions: RolesPermissions,
   users: UserManagement,
 }

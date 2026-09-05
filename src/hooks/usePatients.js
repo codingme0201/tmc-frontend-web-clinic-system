@@ -3,13 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAppContext } from '../context/AppContext'
 import { patientsService } from '../services/patientsService'
 
-/**
- * Patient registry store — instantiated once by AppProvider so every page
- * shares the same data. Backed by TanStack Query:
- *   - `useQuery(['patients'])` loads the registry from the Laravel API.
- *   - `addPatient` calls the API and invalidates the list so the UI
- *     refreshes from the server.
- */
 export function usePatientsStore({ onLog } = {}) {
   const queryClient = useQueryClient()
   const onLogRef = useRef(onLog)
@@ -19,7 +12,7 @@ export function usePatientsStore({ onLog } = {}) {
 
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ['patients'],
-    queryFn: patientsService.fetchPatients,
+    queryFn: () => patientsService.fetchPatients(),
   })
 
   const createMutation = useMutation({
@@ -45,8 +38,47 @@ export function usePatientsStore({ onLog } = {}) {
   }
 }
 
-/** Public hook — pages call this on mount (page-scoped fetch + app-level audit log). */
 export function usePatients() {
   const { log } = useAppContext()
   return usePatientsStore({ onLog: log })
+}
+
+export function usePatientProfile(id) {
+  return useQuery({
+    queryKey: ['patient', id],
+    queryFn: () => patientsService.fetchPatient(id),
+    enabled: !!id,
+  })
+}
+
+export function usePatientMedicalInfo(id) {
+  return useQuery({
+    queryKey: ['patient-medical', id],
+    queryFn: () => patientsService.fetchPatientMedicalInfo(id),
+    enabled: !!id,
+  })
+}
+
+export function usePatientRecordHistory(id) {
+  return useQuery({
+    queryKey: ['patient-history', id],
+    queryFn: () => patientsService.fetchPatientRecordHistory(id),
+    enabled: !!id,
+  })
+}
+
+export function useUpdatePatientStatus() {
+  const queryClient = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: ({ id, status }) => patientsService.updatePatientStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patients'] })
+    },
+  })
+
+  return useCallback(
+    async (id, status) => mutation.mutateAsync({ id, status }),
+    [mutation],
+  )
 }
