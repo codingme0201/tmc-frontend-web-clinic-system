@@ -32,7 +32,10 @@ export function AppProvider({ children }) {
   // Global audit trail (small, app-wide) — also the target of `log`, which
   // every page store calls after a successful mutation.
   const activityLogs = useActivityLogsStore()
-  const log = useCallback((action) => activityLogs.addActivityLog(action), [activityLogs])
+  const log = useCallback(
+    (action) => activityLogs.addActivityLog(action).catch(() => {}),
+    [activityLogs],
+  )
 
   const value = useMemo(
     () => ({

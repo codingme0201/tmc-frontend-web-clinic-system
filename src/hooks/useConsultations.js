@@ -47,8 +47,9 @@ export function useConsultationsStore({ onLog } = {}, scope = 'page') {
 
   const saveMutation = useMutation({
     mutationFn: ({ id, patch }) => consultationsService.updateConsultation(id, patch),
-    onSuccess: () => {
+    onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ['consultations'] })
+      onLogRef.current?.(`Updated consultation ${updated.reference} for patient ${updated.patient}`)
     },
   })
 
