@@ -17,6 +17,7 @@ import RolesPermissions from './pages/RolesPermissions'
 import UserManagement from './pages/UserManagement'
 import Login from './pages/Login'
 import StaffSchedule from './pages/StaffSchedule'
+import ClinicCalendar from './pages/ClinicCalendar'
 import PlaceholderPage from './pages/PlaceholderPage'
 import AuthLoadingScreen from './components/AuthLoadingScreen'
 import { pageContent } from './lib/navigation'
@@ -32,6 +33,7 @@ const pageComponents = {
   prescriptions: Prescriptions,
   patients: Patients,
   staffSchedule: StaffSchedule,
+  clinicCalendar: ClinicCalendar,
   rolesPermissions: RolesPermissions,
   users: UserManagement,
 }
