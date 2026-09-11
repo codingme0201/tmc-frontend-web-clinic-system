@@ -19,6 +19,7 @@ import Login from './pages/Login'
 import StaffSchedule from './pages/StaffSchedule'
 import ClinicCalendar from './pages/ClinicCalendar'
 import Notifications from './pages/Notifications'
+import Reports from './pages/Reports'
 import PlaceholderPage from './pages/PlaceholderPage'
 import AuthLoadingScreen from './components/AuthLoadingScreen'
 import { pageContent } from './lib/navigation'
@@ -36,6 +37,7 @@ const pageComponents = {
   staffSchedule: StaffSchedule,
   clinicCalendar: ClinicCalendar,
   notifications: Notifications,
+  reports: Reports,
   rolesPermissions: RolesPermissions,
   users: UserManagement,
 }

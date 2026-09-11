@@ -4,6 +4,7 @@ import {
   CalendarCheck,
   CalendarDays,
   ClipboardClock,
+  Download,
   FileBadge,
   FolderHeart,
   Key,
@@ -33,6 +34,7 @@ const ICON_MAP = {
   settings: Settings,
   key: Key,
   logout: LogOut,
+  download: Download,
 }
 
 /**
