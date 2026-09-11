@@ -3,11 +3,13 @@ import Icon from './Icon'
 import InlineSpinner from './Spinner'
 import ConfirmLogoutModal from './ConfirmLogoutModal'
 import { useAuth } from '../hooks/useAuth'
+import { useNotifications } from '../hooks/useNotifications'
 import { useToast } from '../hooks/useToast'
 import { useToggle } from '../hooks/useToggle'
 
 function Topbar({ onToggleSidebar }) {
   const { logout, isLoggingOut, user } = useAuth()
+  const { unreadCount } = useNotifications('topbar')
   const { showToast } = useToast()
   const [dropdownOpen, toggleDropdown, , closeDropdown] = useToggle(false)
   const [logoutOpen, , openLogout, closeLogout] = useToggle(false)
@@ -68,9 +70,15 @@ function Topbar({ onToggleSidebar }) {
         <button
           type="button"
           aria-label="Notifications"
-          className="grid size-[42px] cursor-pointer place-items-center rounded-lg bg-bg text-[#16484b] max-[620px]:hidden"
+          className="relative grid size-[42px] cursor-pointer place-items-center rounded-lg bg-bg text-[#16484b] max-[620px]:hidden"
+          onClick={() => window.location.hash = '#/notifications'}
         >
           <Icon name="bell" />
+          {unreadCount > 0 && (
+            <span className="absolute -right-1 -top-1 flex size-[18px] items-center justify-center rounded-full bg-danger text-[10px] font-bold text-white">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
         </button>
 
         <div className="relative" ref={dropdownRef}>
