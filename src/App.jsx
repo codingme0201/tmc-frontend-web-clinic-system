@@ -20,6 +20,7 @@ import StaffSchedule from './pages/StaffSchedule'
 import ClinicCalendar from './pages/ClinicCalendar'
 import Notifications from './pages/Notifications'
 import Reports from './pages/Reports'
+import SettingsAudit from './pages/SettingsAudit'
 import PlaceholderPage from './pages/PlaceholderPage'
 import AuthLoadingScreen from './components/AuthLoadingScreen'
 import { pageContent } from './lib/navigation'
@@ -40,6 +41,7 @@ const pageComponents = {
   reports: Reports,
   rolesPermissions: RolesPermissions,
   users: UserManagement,
+  settingsAudit: SettingsAudit,
 }
 
 /**
