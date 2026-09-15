@@ -21,6 +21,7 @@ import ClinicCalendar from './pages/ClinicCalendar'
 import Notifications from './pages/Notifications'
 import Reports from './pages/Reports'
 import SettingsAudit from './pages/SettingsAudit'
+import AuditLogs from './pages/AuditLogs'
 import PlaceholderPage from './pages/PlaceholderPage'
 import AuthLoadingScreen from './components/AuthLoadingScreen'
 import { pageContent } from './lib/navigation'
@@ -42,6 +43,7 @@ const pageComponents = {
   rolesPermissions: RolesPermissions,
   users: UserManagement,
   settingsAudit: SettingsAudit,
+  auditLogs: AuditLogs,
 }
 
 /**

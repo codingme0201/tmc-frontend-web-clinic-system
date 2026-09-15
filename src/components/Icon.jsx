@@ -11,6 +11,7 @@ import {
   LayoutGrid,
   LogOut,
   Pill,
+  ScrollText,
   Settings,
   ShieldUser,
   Stethoscope,
@@ -35,6 +36,7 @@ const ICON_MAP = {
   key: Key,
   logout: LogOut,
   download: Download,
+  scrollText: ScrollText,
 }
 
 /**

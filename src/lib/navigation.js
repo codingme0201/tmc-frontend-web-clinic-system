@@ -39,7 +39,8 @@ export const navSections = [
   {
     label: 'System',
     items: [
-      { id: 'settingsAudit', label: 'Settings Audit Logs', icon: 'settings', permission: 'settings.view' },
+      { id: 'auditLogs', label: 'Audit Logs', icon: 'scrollText', permission: 'audit_logs.view' },
+      { id: 'settingsAudit', label: 'Settings', icon: 'settings', permission: 'settings.view' },
       { id: 'rolesPermissions', label: 'Roles & Permissions', icon: 'key', permission: 'roles.view' },
     ],
   },
@@ -107,8 +108,13 @@ export const pageContent = {
     eyebrow: 'Administration',
     description: 'Manage admin, doctor, nurse, registrar, and staff access.',
   },
+  auditLogs: {
+    title: 'Audit Logs',
+    eyebrow: 'System',
+    description: 'Track and review all user actions and system events across the clinic platform.',
+  },
   settingsAudit: {
-    title: 'Settings Audit Logs',
+    title: 'Settings',
     eyebrow: 'System',
     description: 'Review configuration changes and activity history.',
   },
