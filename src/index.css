@@ -67,18 +67,67 @@
   box-sizing: border-box;
 }
 
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
   min-width: 320px;
   margin: 0;
+  -webkit-font-smoothing: antialiased;
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
 #root {
   min-height: 100svh;
+}
+
+/* Mobile-friendly hide scrollbar utility for horizontal tabs/chips */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Safe area padding for bezel-less mobile screens */
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 12px);
+}
+
+/* Slim elegant scrollbar for tables and panels */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbdcd8;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9abdb6;
+}
+
+/* Mobile typography & scroll polish */
+@media (max-width: 640px) {
+  h2[class*='text-[clamp'] {
+    font-size: 1.5rem !important;
+    line-height: 1.15 !important;
+  }
+}
+
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
 }
 
 /*

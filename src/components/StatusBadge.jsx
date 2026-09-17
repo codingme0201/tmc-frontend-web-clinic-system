@@ -30,11 +30,12 @@ const BADGE_CLASSES = {
 const DEFAULT_BADGE = 'bg-[#f0f3f2] text-[#5d6e6c]'
 
 function StatusBadge({ status }) {
-  const key = status.toLowerCase().replace(/ /g, '-')
+  const key = status ? status.toLowerCase().replace(/ /g, '-') : ''
   return (
     <span
-      className={`inline-flex whitespace-nowrap rounded-full px-[10px] py-1 text-[11px] font-extrabold uppercase ${BADGE_CLASSES[key] ?? DEFAULT_BADGE}`}
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-current/20 px-2.5 py-0.5 text-[10.5px] sm:text-[11px] font-extrabold tracking-wide uppercase shadow-2xs ${BADGE_CLASSES[key] ?? DEFAULT_BADGE}`}
     >
+      <span className="size-1.5 shrink-0 rounded-full bg-current opacity-75" />
       {status}
     </span>
   )

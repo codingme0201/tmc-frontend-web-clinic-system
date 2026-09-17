@@ -3,6 +3,8 @@ import {
   Bell,
   CalendarCheck,
   CalendarDays,
+  Check,
+  ChevronRight,
   ClipboardClock,
   Download,
   FileBadge,
@@ -10,12 +12,16 @@ import {
   Key,
   LayoutGrid,
   LogOut,
+  Menu,
   Pill,
   ScrollText,
+  Search,
   Settings,
   ShieldUser,
+  Sparkles,
   Stethoscope,
   Users,
+  X,
 } from 'lucide-react'
 
 // Icon names used by navigation config (lib/navigation.js) and the shell.
@@ -37,6 +43,13 @@ const ICON_MAP = {
   logout: LogOut,
   download: Download,
   scrollText: ScrollText,
+  menu: Menu,
+  close: X,
+  x: X,
+  chevronRight: ChevronRight,
+  sparkles: Sparkles,
+  check: Check,
+  search: Search,
 }
 
 /**

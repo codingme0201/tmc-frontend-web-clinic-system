@@ -1,14 +1,16 @@
 function StaffRow({ name, role, shift }) {
   return (
-    <div className="grid grid-cols-[42px_minmax(0,1fr)] items-center gap-3 rounded-lg border border-line p-3">
-      <div className="grid size-[42px] place-items-center rounded-full bg-accent text-[13px] font-extrabold text-[#fffaf3]">
+    <div className="flex items-center gap-3 rounded-xl border border-line-strong/80 bg-white/70 p-3 shadow-2xs transition-all duration-150 hover:border-primary/40 hover:bg-white hover:shadow-xs">
+      <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-gradient-to-tr from-accent to-[#e67e58] text-[12.5px] font-extrabold text-white shadow-2xs">
         {name.slice(0, 2).toUpperCase()}
       </div>
-      <div>
-        <strong className="block text-ink">{name}</strong>
-        <span className="block text-[12px] text-muted">{role}</span>
+      <div className="min-w-0 flex-1">
+        <strong className="block truncate text-ink text-[13px] font-bold">{name}</strong>
+        <span className="block text-[11.5px] text-muted">{role}</span>
       </div>
-      <time className="col-start-2 text-[12px] text-muted">{shift}</time>
+      <time className="shrink-0 rounded-md bg-bg px-2 py-0.5 text-[11px] font-bold text-muted-soft">
+        {shift}
+      </time>
     </div>
   )
 }

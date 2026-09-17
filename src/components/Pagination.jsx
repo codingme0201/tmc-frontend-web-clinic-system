@@ -18,13 +18,13 @@ function getPageNumbers(currentPage, totalPages) {
 }
 
 const BASE_PAGE_BTN =
-  'cursor-pointer rounded-md border border-[#d4e4e0] bg-white px-[10px] py-[6px] text-[12.5px] font-extrabold text-ink transition-all duration-200 hover:border-primary hover:bg-[#f0faf8] hover:text-primary disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-[#d4e4e0] disabled:hover:bg-white disabled:hover:text-ink'
+  'cursor-pointer rounded-lg border border-[#d4e4e0] bg-white px-2.5 sm:px-3 py-1.5 text-[12px] sm:text-[12.5px] font-extrabold text-ink transition-all duration-150 hover:border-primary hover:bg-[#f0faf8] hover:text-primary active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-[#d4e4e0] disabled:hover:bg-white disabled:hover:text-ink shadow-2xs'
 
 // Current page gets its own full class list (no bg-white / text-ink / disabled
 // overrides) so the teal active style can never lose a CSS-order tie against
 // the base button's white background.
 const ACTIVE_PAGE_BTN =
-  'cursor-pointer rounded-md border border-primary bg-primary px-[10px] py-[6px] text-[12.5px] font-extrabold text-white shadow-[0_6px_16px_rgba(20,120,109,0.35)] transition-all duration-200 hover:border-primary hover:bg-primary hover:text-white'
+  'cursor-pointer rounded-lg border border-primary bg-primary px-2.5 sm:px-3 py-1.5 text-[12px] sm:text-[12.5px] font-extrabold text-white shadow-[0_4px_12px_rgba(20,120,109,0.35)] transition-all duration-150 hover:border-primary hover:bg-primary hover:text-white'
 
 /**
  * Reusable pagination controls. Renders nothing when there is only one page,
@@ -42,11 +42,11 @@ function Pagination({ currentPage, totalPages, onPageChange }) {
   if (totalPages <= 1) return null
 
   return (
-    <nav className="mt-[14px] flex flex-wrap items-center justify-between gap-3 border-t border-line pt-[14px]" aria-label="Pagination">
-      <span className="text-[12.5px] font-bold text-muted">
-        Page {currentPage} of {totalPages}
+    <nav className="mt-4 flex items-center justify-between gap-3 border-t border-line-strong/80 pt-3.5" aria-label="Pagination">
+      <span className="text-[12px] sm:text-[12.5px] font-bold text-muted">
+        Page <strong className="text-ink font-extrabold">{currentPage}</strong> of {totalPages}
       </span>
-      <div className="flex flex-wrap items-center gap-[6px]">
+      <div className="flex items-center gap-1 sm:gap-1.5">
         <button
           type="button"
           className={BASE_PAGE_BTN}
@@ -56,23 +56,25 @@ function Pagination({ currentPage, totalPages, onPageChange }) {
         >
           ← Prev
         </button>
-        {pages.map((item, idx) =>
-          item === '…' ? (
-            <span key={`ellipsis-${idx}`} className="px-[2px] text-muted" aria-hidden="true">
-              …
-            </span>
-          ) : (
-            <button
-              type="button"
-              key={item}
-              className={item === currentPage ? ACTIVE_PAGE_BTN : BASE_PAGE_BTN}
-              aria-current={item === currentPage ? 'page' : undefined}
-              onClick={() => onPageChange(item)}
-            >
-              {item}
-            </button>
-          ),
-        )}
+        <div className="hidden sm:flex items-center gap-1">
+          {pages.map((item, idx) =>
+            item === '…' ? (
+              <span key={`ellipsis-${idx}`} className="px-1 text-muted" aria-hidden="true">
+                …
+              </span>
+            ) : (
+              <button
+                type="button"
+                key={item}
+                className={item === currentPage ? ACTIVE_PAGE_BTN : BASE_PAGE_BTN}
+                aria-current={item === currentPage ? 'page' : undefined}
+                onClick={() => onPageChange(item)}
+              >
+                {item}
+              </button>
+            ),
+          )}
+        </div>
         <button
           type="button"
           className={BASE_PAGE_BTN}

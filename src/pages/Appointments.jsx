@@ -248,90 +248,107 @@ function Appointments({ page }) {
       {/* Page header */}
       <section className="mb-5 flex items-center justify-between gap-4 max-[620px]:flex-col max-[620px]:items-start">
         <div>
-          <p className={KICKER}>{page.eyebrow}</p>
-          <h2 className="m-0 text-[clamp(30px,5vw,48px)] leading-[1.02] text-ink">{page.title}</h2>
-          <span className="mt-[6px] block text-[13px] text-muted">{page.description}</span>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-extrabold tracking-wide uppercase text-primary mb-1">
+            {page.eyebrow}
+          </span>
+          <h2 className="m-0 text-[22px] sm:text-[30px] md:text-[36px] font-extrabold tracking-tight text-ink leading-tight">
+            {page.title}
+          </h2>
+          <span className="mt-1 block text-[12.5px] sm:text-[13px] text-muted">{page.description}</span>
         </div>
-        <div>
-          <button type="button" className={PRIMARY_BTN} onClick={bookModal.open}>
+        <div className="w-full sm:w-auto">
+          <button type="button" className={`${PRIMARY_BTN} w-full sm:w-auto`} onClick={bookModal.open}>
             + Book Appointment
           </button>
         </div>
       </section>
 
       {/* Status summary chips (click to filter) */}
-      <div className="mb-[18px] grid grid-cols-5 gap-3 max-[900px]:grid-cols-2 max-[480px]:grid-cols-1">
+      <div className="mb-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
         {[
-          { key: 'Pending', label: 'Pending' },
-          { key: 'Under Review', label: 'Under Review' },
-          { key: 'Approved', label: 'Approved' },
-          { key: 'Rejected', label: 'Rejected' },
-          { key: 'Cancelled', label: 'Cancelled' },
-        ].map(({ key, label }) => (
+          { key: 'Pending', label: 'Pending', dot: 'bg-gold' },
+          { key: 'Under Review', label: 'Under Review', dot: 'bg-[#1a56c4]' },
+          { key: 'Approved', label: 'Approved', dot: 'bg-success' },
+          { key: 'Rejected', label: 'Rejected', dot: 'bg-accent' },
+          { key: 'Cancelled', label: 'Cancelled', dot: 'bg-muted' },
+        ].map(({ key, label, dot }) => (
           <button
             type="button"
             key={key}
-            className={`flex cursor-pointer flex-col gap-[2px] rounded-lg border border-line-strong bg-white p-[14px_16px] text-left transition-all duration-200 hover:border-primary ${statusFilter === key ? 'border-primary bg-[#f0faf8] shadow-[inset_0_0_0_1px_var(--color-primary)]' : ''}`}
+            className={`group flex cursor-pointer flex-col justify-between gap-1.5 rounded-2xl border bg-white p-3 sm:p-4 text-left shadow-[0_4px_20px_rgba(18,57,59,0.05)] transition-all duration-150 hover:border-primary/50 hover:shadow-xs active:scale-[0.98] ${
+              statusFilter === key
+                ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
+                : 'border-line-strong/80'
+            }`}
             onClick={() => setStatusFilter(statusFilter === key ? 'All' : key)}
           >
-            <small className="text-[11px] font-extrabold uppercase tracking-[0.02em] text-muted">{label}</small>
-            <strong className="text-[26px] leading-none text-ink">{counts[key]}</strong>
+            <div className="flex items-center justify-between gap-1">
+              <small className="text-[10.5px] sm:text-[11px] font-extrabold uppercase tracking-wider text-muted truncate">
+                {label}
+              </small>
+              <span className={`size-2 rounded-full ${dot}`} />
+            </div>
+            <strong className="text-[22px] sm:text-[26px] font-extrabold leading-none text-ink tracking-tight">
+              {counts[key]}
+            </strong>
           </button>
         ))}
       </div>
 
       {/* List panel */}
-      <div className={`${PANEL} p-5`}>
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <div className={`${PANEL} p-4 sm:p-5`}>
+        <div className="mb-4 sm:mb-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
-            <h3 className="m-0 text-[18px] text-[#143d40]">Appointment Requests & Records</h3>
+            <h3 className="m-0 text-[17px] sm:text-[18px] font-bold text-[#143d40]">Appointment Requests & Records</h3>
             <p className={KICKER}>Review, approve, reschedule, reject, or cancel clinic appointments</p>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-[10px]">
+          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-end gap-2 sm:gap-2.5">
             <input
               type="text"
-              className={`${SEARCH_INPUT} min-w-[200px] flex-[1_1_220px]`}
+              className={`${SEARCH_INPUT} w-full sm:w-auto sm:min-w-[200px] sm:flex-[1_1_220px]`}
               placeholder="Search patient, reference, reason, or type..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-            <select
-              className={SELECT_INPUT}
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              aria-label="Filter by status"
-            >
-              <option value="All">All Statuses</option>
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-            <input
-              type="date"
-              className={`${SELECT_INPUT} min-w-[150px]`}
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              aria-label="Filter by date"
-            />
+            <div className="flex items-center gap-2">
+              <select
+                className={`${SELECT_INPUT} flex-1 sm:flex-initial`}
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                aria-label="Filter by status"
+              >
+                <option value="All">All Statuses</option>
+                {STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="date"
+                className={`${SELECT_INPUT} flex-1 sm:flex-initial sm:min-w-[150px]`}
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                aria-label="Filter by date"
+              />
+            </div>
             {(search || statusFilter !== 'All' || dateFilter) && (
               <button type="button" className={PILL} onClick={clearFilters}>
                 Clear filters
               </button>
             )}
             {!isLoading && !error && (
-              <>
+              <div className="flex items-center gap-2 sm:ml-auto">
                 <RefreshingBadge refreshing={isRefetching} />
-                <span className="ml-auto whitespace-nowrap text-[12.5px] font-bold text-muted">
+                <span className="whitespace-nowrap text-[12px] font-bold text-muted">
                   {filtered.length} of {appointments.length} appointments
                 </span>
-              </>
+              </div>
             )}
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-lg border border-line">
+        <div className="overflow-x-auto rounded-xl border border-line-strong/80 shadow-2xs">
           {error ? (
             <ErrorState message={error} onRetry={refetch} />
           ) : isLoading ? (

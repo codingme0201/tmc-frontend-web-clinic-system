@@ -292,44 +292,68 @@ function Consultations({ page }) {
       {/* Page header */}
       <section className="mb-5 flex items-center justify-between gap-4 max-[620px]:flex-col max-[620px]:items-start">
         <div>
-          <p className={KICKER}>{page.eyebrow}</p>
-          <h2 className="m-0 text-[clamp(30px,5vw,48px)] leading-[1.02] text-ink">{page.title}</h2>
-          <span className="mt-[6px] block text-[13px] text-muted">{page.description}</span>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-extrabold tracking-wide uppercase text-primary mb-1">
+            {page.eyebrow}
+          </span>
+          <h2 className="m-0 text-[22px] sm:text-[30px] md:text-[36px] font-extrabold tracking-tight text-ink leading-tight">
+            {page.title}
+          </h2>
+          <span className="mt-1 block text-[12.5px] sm:text-[13px] text-muted">{page.description}</span>
         </div>
       </section>
 
       {/* Status summary chips (click to filter) */}
-      <div className="mb-[18px] grid grid-cols-3 gap-3 max-[700px]:grid-cols-1">
-        {STATUSES.map((status) => (
-          <button
-            type="button"
-            key={status}
-            className={`flex cursor-pointer flex-col gap-[2px] rounded-lg border border-line-strong bg-white p-[14px_16px] text-left transition-all duration-200 hover:border-primary ${statusFilter === status ? 'border-primary bg-[#f0faf8] shadow-[inset_0_0_0_1px_var(--color-primary)]' : ''}`}
-            onClick={() => setStatusFilter(statusFilter === status ? 'All' : status)}
-          >
-            <small className="text-[11px] font-extrabold uppercase tracking-[0.02em] text-muted">{status}</small>
-            <strong className="text-[26px] leading-none text-ink">{counts[status]}</strong>
-          </button>
-        ))}
+      <div className="mb-5 grid grid-cols-3 gap-2.5 sm:gap-3">
+        {STATUSES.map((status) => {
+          const dotColor =
+            status === 'Completed'
+              ? 'bg-success'
+              : status === 'In Progress'
+                ? 'bg-gold'
+                : 'bg-[#1a56c4]'
+
+          return (
+            <button
+              type="button"
+              key={status}
+              className={`group flex cursor-pointer flex-col justify-between gap-1.5 rounded-2xl border bg-white p-3 sm:p-4 text-left shadow-[0_4px_20px_rgba(18,57,59,0.05)] transition-all duration-150 hover:border-primary/50 hover:shadow-xs active:scale-[0.98] ${
+                statusFilter === status
+                  ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
+                  : 'border-line-strong/80'
+              }`}
+              onClick={() => setStatusFilter(statusFilter === status ? 'All' : status)}
+            >
+              <div className="flex items-center justify-between gap-1">
+                <small className="text-[10.5px] sm:text-[11px] font-extrabold uppercase tracking-wider text-muted truncate">
+                  {status}
+                </small>
+                <span className={`size-2 rounded-full ${dotColor}`} />
+              </div>
+              <strong className="text-[22px] sm:text-[26px] font-extrabold leading-none text-ink tracking-tight">
+                {counts[status]}
+              </strong>
+            </button>
+          )
+        })}
       </div>
 
       {/* List panel */}
-      <div className={`${PANEL} p-5`}>
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <div className={`${PANEL} p-4 sm:p-5`}>
+        <div className="mb-4 sm:mb-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
-            <h3 className="m-0 text-[18px] text-[#143d40]">Consultation Records</h3>
+            <h3 className="m-0 text-[17px] sm:text-[18px] font-bold text-[#143d40]">Consultation Records</h3>
             <p className={KICKER}>Review scheduled and completed patient consultations</p>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-[10px]">
+          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-end gap-2 sm:gap-2.5">
             <input
               type="text"
-              className={`${SEARCH_INPUT} min-w-[200px] flex-[1_1_220px]`}
+              className={`${SEARCH_INPUT} w-full sm:w-auto sm:min-w-[200px] sm:flex-[1_1_220px]`}
               placeholder="Search patient, reference, complaint, or diagnosis..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
             <select
-              className={SELECT_INPUT}
+              className={`${SELECT_INPUT} w-full sm:w-auto`}
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               aria-label="Filter by status"
@@ -347,12 +371,12 @@ function Consultations({ page }) {
               </button>
             )}
             {!isLoading && !error && (
-              <>
+              <div className="flex items-center gap-2 sm:ml-auto">
                 <RefreshingBadge refreshing={isRefetching} />
-                <span className="ml-auto whitespace-nowrap text-[12.5px] font-bold text-muted">
+                <span className="whitespace-nowrap text-[12px] font-bold text-muted">
                   {filtered.length} of {consultations.length} consultations
                 </span>
-              </>
+              </div>
             )}
           </div>
         </div>

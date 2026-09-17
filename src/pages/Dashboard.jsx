@@ -348,10 +348,14 @@ function Dashboard() {
     <div>
       {/* Dashboard Top Header & Tabs */}
       <section className="mb-6">
-        <div className="mb-5 flex items-center justify-between gap-4 max-[620px]:flex-col max-[620px]:items-start">
+        <div className="mb-4 sm:mb-5 flex items-center justify-between gap-3 sm:gap-4 max-[620px]:flex-col max-[620px]:items-start">
           <div>
-            <p className={KICKER}>TMC Clinic Administration</p>
-            <h2 className="m-0 text-[clamp(30px,5vw,48px)] leading-[1.02] text-ink">Clinic Command Center</h2>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-extrabold tracking-wide uppercase text-primary mb-1">
+              TMC Clinic Administration
+            </span>
+            <h2 className="m-0 text-[22px] sm:text-[30px] md:text-[36px] font-extrabold tracking-tight text-ink leading-tight">
+              Clinic Command Center
+            </h2>
           </div>
           <div>
             {activeTab !== 'overview' && (
@@ -362,45 +366,45 @@ function Dashboard() {
           </div>
         </div>
 
-        <nav className="mt-[14px] flex gap-2 overflow-x-auto border-b-2 border-[#dce8e5] pb-px">
+        <nav className="mt-3 flex gap-2 overflow-x-auto no-scrollbar border-b border-[#dce8e5] pb-1 -mx-3.5 px-3.5 sm:mx-0 sm:px-0">
           <button
             type="button"
-            className={`cursor-pointer whitespace-nowrap border-0 border-b-[3px] border-transparent bg-transparent px-4 py-[10px] font-bold text-muted-soft transition-all duration-200 hover:border-[#a9d1ca] hover:text-primary ${activeTab === 'overview' ? 'border-primary text-primary' : ''}`}
+            className={`cursor-pointer whitespace-nowrap rounded-xl border-0 px-3.5 py-2 text-[12.5px] sm:text-[13px] font-extrabold transition-all duration-150 ${activeTab === 'overview' ? 'bg-primary text-white shadow-xs' : 'text-muted-soft hover:bg-white/60 hover:text-primary'}`}
             onClick={() => setActiveTab('overview')}
           >
             Overview
           </button>
           <button
             type="button"
-            className={`cursor-pointer whitespace-nowrap border-0 border-b-[3px] border-transparent bg-transparent px-4 py-[10px] font-bold text-muted-soft transition-all duration-200 hover:border-[#a9d1ca] hover:text-primary ${activeTab === 'appointments' ? 'border-primary text-primary' : ''}`}
+            className={`cursor-pointer whitespace-nowrap rounded-xl border-0 px-3.5 py-2 text-[12.5px] sm:text-[13px] font-extrabold transition-all duration-150 ${activeTab === 'appointments' ? 'bg-primary text-white shadow-xs' : 'text-muted-soft hover:bg-white/60 hover:text-primary'}`}
             onClick={() => setActiveTab('appointments')}
           >
-            Appointment Queue ({pendingQueue.length})
+            Queue ({pendingQueue.length})
           </button>
           <button
             type="button"
-            className={`cursor-pointer whitespace-nowrap border-0 border-b-[3px] border-transparent bg-transparent px-4 py-[10px] font-bold text-muted-soft transition-all duration-200 hover:border-[#a9d1ca] hover:text-primary ${activeTab === 'consultations' ? 'border-primary text-primary' : ''}`}
+            className={`cursor-pointer whitespace-nowrap rounded-xl border-0 px-3.5 py-2 text-[12.5px] sm:text-[13px] font-extrabold transition-all duration-150 ${activeTab === 'consultations' ? 'bg-primary text-white shadow-xs' : 'text-muted-soft hover:bg-white/60 hover:text-primary'}`}
             onClick={() => setActiveTab('consultations')}
           >
-            Consultation Logs
+            Consultations
           </button>
           <button
             type="button"
-            className={`cursor-pointer whitespace-nowrap border-0 border-b-[3px] border-transparent bg-transparent px-4 py-[10px] font-bold text-muted-soft transition-all duration-200 hover:border-[#a9d1ca] hover:text-primary ${activeTab === 'patients' ? 'border-primary text-primary' : ''}`}
+            className={`cursor-pointer whitespace-nowrap rounded-xl border-0 px-3.5 py-2 text-[12.5px] sm:text-[13px] font-extrabold transition-all duration-150 ${activeTab === 'patients' ? 'bg-primary text-white shadow-xs' : 'text-muted-soft hover:bg-white/60 hover:text-primary'}`}
             onClick={() => setActiveTab('patients')}
           >
             Patient Registry
           </button>
           <button
             type="button"
-            className={`cursor-pointer whitespace-nowrap border-0 border-b-[3px] border-transparent bg-transparent px-4 py-[10px] font-bold text-muted-soft transition-all duration-200 hover:border-[#a9d1ca] hover:text-primary ${activeTab === 'schedule' ? 'border-primary text-primary' : ''}`}
+            className={`cursor-pointer whitespace-nowrap rounded-xl border-0 px-3.5 py-2 text-[12.5px] sm:text-[13px] font-extrabold transition-all duration-150 ${activeTab === 'schedule' ? 'bg-primary text-white shadow-xs' : 'text-muted-soft hover:bg-white/60 hover:text-primary'}`}
             onClick={() => setActiveTab('schedule')}
           >
-            Staff Shifts & Events
+            Staff Shifts
           </button>
           <button
             type="button"
-            className={`cursor-pointer whitespace-nowrap border-0 border-b-[3px] border-transparent bg-transparent px-4 py-[10px] font-bold text-muted-soft transition-all duration-200 hover:border-[#a9d1ca] hover:text-primary ${activeTab === 'activity' ? 'border-primary text-primary' : ''}`}
+            className={`cursor-pointer whitespace-nowrap rounded-xl border-0 px-3.5 py-2 text-[12.5px] sm:text-[13px] font-extrabold transition-all duration-150 ${activeTab === 'activity' ? 'bg-primary text-white shadow-xs' : 'text-muted-soft hover:bg-white/60 hover:text-primary'}`}
             onClick={() => setActiveTab('activity')}
           >
             Clinic Activity
@@ -417,18 +421,27 @@ function Dashboard() {
             {statsError ? (
               <ErrorState message={statsError} onRetry={retryStats} />
             ) : statsLoading ? (
-              <div className="mb-[18px] grid grid-cols-4 gap-[14px] max-[980px]:grid-cols-1">
+              <div className="mb-5 grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
                 {Array.from({ length: 4 }, (_, i) => (
                   <DashboardCardSkeleton key={i} />
                 ))}
               </div>
             ) : (
-              <div className="mb-[18px] grid grid-cols-4 gap-[14px] max-[980px]:grid-cols-1">
+              <div className="mb-5 grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
                 {activeStats.map((item) => (
-                  <article key={item.label} className={PANEL}>
-                    <p className="m-0 text-[13px] text-muted">{item.label}</p>
-                    <strong className="mb-[5px] mt-[10px] block text-[32px] leading-none text-[#10393b]">{item.value}</strong>
-                    <span className="text-[12px] text-muted">{item.trend}</span>
+                  <article key={item.label} className="group relative overflow-hidden rounded-2xl border border-line-strong/80 bg-white p-3.5 sm:p-5 shadow-[0_4px_24px_rgba(18,57,59,0.06)] transition-all duration-200 hover:border-primary/40 hover:shadow-[0_8px_30px_rgba(18,57,59,0.1)]">
+                    <div className="flex items-center justify-between gap-1">
+                      <p className="m-0 text-[11px] sm:text-[12px] font-extrabold uppercase tracking-wider text-muted-soft truncate">
+                        {item.label}
+                      </p>
+                      <span className="size-2 shrink-0 rounded-full bg-primary/30 transition-colors group-hover:bg-primary" />
+                    </div>
+                    <strong className="mb-1 mt-2 sm:mt-3 block text-[24px] sm:text-[32px] font-extrabold leading-none tracking-tight text-[#10393b]">
+                      {item.value}
+                    </strong>
+                    <span className="text-[11px] sm:text-[12px] font-medium text-muted truncate block">
+                      {item.trend}
+                    </span>
                   </article>
                 ))}
               </div>
@@ -441,11 +454,11 @@ function Dashboard() {
                     <div className={PANEL_HEADER}>
                       <div>
                         <p className={KICKER}>Queue Management</p>
-                        <h3 className="m-0 text-[18px] text-[#143d40]">Today's Pending Appointments</h3>
+                        <h3 className="m-0 text-[17px] sm:text-[18px] font-bold text-[#143d40]">Today's Pending Appointments</h3>
                       </div>
                       <div className="flex items-center gap-2">
                         <RefreshingBadge refreshing={appointmentsRefetching && !appointmentsLoading} />
-                        <button type="button" className="cursor-pointer rounded-[7px] bg-bg px-3 py-2 font-extrabold text-primary" onClick={() => setActiveTab('appointments')}>Manage Queue</button>
+                        <button type="button" className={PILL} onClick={() => setActiveTab('appointments')}>Manage Queue</button>
                       </div>
                     </div>
                     {appointmentsError ? (
@@ -453,19 +466,26 @@ function Dashboard() {
                     ) : appointmentsLoading ? (
                       <ListSkeleton rows={3} />
                     ) : (
-                    <div className="grid gap-[10px]">
+                    <div className="grid gap-2.5">
                       {pendingQueue.slice(0, 3).map((app) => (
-                        <div className="grid grid-cols-[92px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-line p-3 max-[620px]:grid-cols-1" key={app.id}>
-                          <div className="text-[13px] font-extrabold text-primary">{app.time}</div>
-                          <div>
-                            <strong className="block text-ink">{app.patient}</strong>
+                        <div className="flex flex-col sm:grid sm:grid-cols-[92px_minmax(0,1fr)_auto] items-start sm:items-center gap-2.5 sm:gap-3 rounded-xl border border-line-strong/80 bg-white/70 p-3 sm:p-3.5 shadow-2xs transition-all duration-150 hover:border-primary/40 hover:bg-white" key={app.id}>
+                          <div className="flex w-full items-center justify-between sm:w-auto">
+                            <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-0.5 text-[12px] font-extrabold text-primary">
+                              {app.time}
+                            </span>
+                            <div className="sm:hidden">
+                              <StatusBadge status={app.status} />
+                            </div>
+                          </div>
+                          <div className="min-w-0">
+                            <strong className="block truncate font-bold text-ink text-[13.5px]">{app.patient}</strong>
                             <span className="block text-[12px] text-muted">{app.type}</span>
                           </div>
-                          <div className="flex flex-wrap gap-[6px]">
+                          <div className="flex w-full sm:w-auto items-center justify-end gap-1.5 pt-1.5 sm:pt-0 border-t border-line/60 sm:border-0">
                             {app.status === 'Pending' && (
                               <button
                                 type="button"
-                                className="cursor-pointer rounded-md bg-primary px-[10px] py-[6px] text-[12px] font-extrabold text-white transition-all duration-200 hover:bg-[#08484d]"
+                                className="cursor-pointer rounded-lg bg-primary px-2.5 py-1.5 text-[11.5px] font-extrabold text-white transition-all hover:bg-[#08484d] active:scale-95 shadow-2xs"
                                 onClick={() => handleUpdateAppointmentStatus(app.id, 'Under Review')}
                               >
                                 Review
@@ -473,14 +493,14 @@ function Dashboard() {
                             )}
                             <button
                               type="button"
-                              className="cursor-pointer rounded-md bg-success px-3 py-[6px] text-[12px] font-extrabold text-white transition-all duration-200 hover:bg-[#238b55]"
+                              className="cursor-pointer rounded-lg bg-success px-3 py-1.5 text-[11.5px] font-extrabold text-white transition-all hover:bg-[#238b55] active:scale-95 shadow-2xs"
                               onClick={() => handleUpdateAppointmentStatus(app.id, 'Approved')}
                             >
                               Approve
                             </button>
                             <button
                               type="button"
-                              className="cursor-pointer rounded-md bg-accent px-3 py-[6px] text-[12px] font-extrabold text-white transition-all duration-200 hover:bg-[#b6451e]"
+                              className="cursor-pointer rounded-lg bg-accent px-3 py-1.5 text-[11.5px] font-extrabold text-white transition-all hover:bg-[#b6451e] active:scale-95 shadow-2xs"
                               onClick={() => handleUpdateAppointmentStatus(app.id, 'Rejected')}
                             >
                               Reject

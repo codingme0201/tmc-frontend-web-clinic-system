@@ -123,51 +123,56 @@ function Patients({ page }) {
     <div>
       <section className="mb-5 flex items-center justify-between gap-4 max-[620px]:flex-col max-[620px]:items-start">
         <div>
-          <p className={KICKER}>{page.eyebrow}</p>
-          <h2 className="m-0 text-[clamp(30px,5vw,48px)] leading-[1.02] text-ink">{page.title}</h2>
-          <span className="mt-[6px] block text-[13px] text-muted">{page.description}</span>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-extrabold tracking-wide uppercase text-primary mb-1">
+            {page.eyebrow}
+          </span>
+          <h2 className="m-0 text-[22px] sm:text-[30px] md:text-[36px] font-extrabold tracking-tight text-ink leading-tight">
+            {page.title}
+          </h2>
+          <span className="mt-1 block text-[12.5px] sm:text-[13px] text-muted">{page.description}</span>
         </div>
       </section>
 
-      <div className="mb-5 grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+      <div className="mb-5 grid grid-cols-3 gap-2.5 sm:gap-3">
         {[
-          { label: 'All Patients', count: patients.length, value: 'All' },
-          { label: 'Active', count: activeCount, value: 'Active' },
-          { label: 'Inactive', count: inactiveCount, value: 'Inactive' },
+          { label: 'All Patients', count: patients.length, value: 'All', dot: 'bg-primary' },
+          { label: 'Active', count: activeCount, value: 'Active', dot: 'bg-success' },
+          { label: 'Inactive', count: inactiveCount, value: 'Inactive', dot: 'bg-muted' },
         ].map((chip) => (
           <button
             type="button"
             key={chip.value}
-            className={`flex items-center justify-between rounded-lg border px-4 py-3 text-left text-[13px] font-bold transition ${
+            className={`group flex cursor-pointer flex-col justify-between gap-1.5 rounded-2xl border bg-white p-3 sm:p-4 text-left shadow-[0_4px_20px_rgba(18,57,59,0.05)] transition-all duration-150 hover:border-primary/50 hover:shadow-xs active:scale-[0.98] ${
               statusFilter === chip.value
-                ? 'border-primary bg-white text-primary shadow-sm'
-                : 'border-line bg-surface text-ink hover:border-primary/30'
+                ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
+                : 'border-line-strong/80'
             }`}
             onClick={() => setStatusFilter(chip.value)}
           >
-            <span>{chip.label}</span>
-            <span
-              className={`ml-2 inline-flex size-[22px] items-center justify-center rounded-full text-[11px] ${
-                statusFilter === chip.value ? 'bg-primary text-white' : 'bg-bg text-muted'
-              }`}
-            >
+            <div className="flex items-center justify-between gap-1">
+              <small className="text-[10.5px] sm:text-[11px] font-extrabold uppercase tracking-wider text-muted truncate">
+                {chip.label}
+              </small>
+              <span className={`size-2 rounded-full ${chip.dot}`} />
+            </div>
+            <strong className="text-[22px] sm:text-[26px] font-extrabold leading-none text-ink tracking-tight">
               {chip.count}
-            </span>
+            </strong>
           </button>
         ))}
       </div>
 
-      <div className={`${PANEL} p-5`}>
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <div className={`${PANEL} p-4 sm:p-5`}>
+        <div className="mb-4 sm:mb-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
-            <h3 className="m-0 text-[18px] text-[#143d40]">Patient Registry</h3>
+            <h3 className="m-0 text-[17px] sm:text-[18px] font-bold text-[#143d40]">Patient Registry</h3>
             <p className={KICKER}>View and manage registered student, faculty, and staff patients</p>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-[10px]">
+          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-end gap-2 sm:gap-2.5">
             <input
               type="text"
               placeholder="Search by ID, name, type, or course..."
-              className={`${SEARCH_INPUT} min-w-[200px] flex-[1_1_220px]`}
+              className={`${SEARCH_INPUT} w-full sm:w-auto sm:min-w-[200px] sm:flex-[1_1_220px]`}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -177,17 +182,17 @@ function Patients({ page }) {
               </button>
             )}
             {!isLoading && !error && (
-              <>
+              <div className="flex items-center gap-2 sm:ml-auto">
                 <RefreshingBadge refreshing={isRefetching} />
-                <span className="ml-auto whitespace-nowrap text-[12.5px] font-bold text-muted">
+                <span className="whitespace-nowrap text-[12px] font-bold text-muted">
                   {filtered.length} of {patients.length} patients
                 </span>
-              </>
+              </div>
             )}
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-lg border border-line">
+        <div className="overflow-x-auto rounded-xl border border-line-strong/80 shadow-2xs">
           {error ? (
             <ErrorState message={error} onRetry={refetch} />
           ) : isLoading ? (
