@@ -4,7 +4,7 @@ import { request } from './api'
 
 /** Authenticate with email/password; resolves to `{ token, user }`. */
 export async function login(credentials) {
-  return request('/login', { method: 'POST', body: credentials })
+  return request('/login', { method: 'POST', body: { client: 'web', ...credentials } })
 }
 
 /** Revoke the current token on the server. */

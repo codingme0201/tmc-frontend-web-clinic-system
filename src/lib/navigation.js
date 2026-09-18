@@ -106,7 +106,7 @@ export const pageContent = {
   users: {
     title: 'User Management',
     eyebrow: 'Administration',
-    description: 'Manage admin, doctor, nurse, registrar, and staff access.',
+    description: 'Manage administrator, doctor, nurse, and patient accounts.',
   },
   auditLogs: {
     title: 'Audit Logs',

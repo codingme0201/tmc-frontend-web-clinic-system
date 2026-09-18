@@ -44,6 +44,13 @@ export function AuthProvider({ children }) {
       try {
         const { user: currentUser } = await authService.fetchCurrentUser()
         if (!active) return
+        if (currentUser?.role === 'patient') {
+          clearAuthToken()
+          setUser(null)
+          setUserRole(null)
+          setIsAuthenticated(false)
+          return
+        }
         setUser(currentUser)
         setUserRole(currentUser.role)
         setIsAuthenticated(true)
@@ -68,6 +75,12 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, password) => {
     const { token, user: authenticatedUser } = await authService.login({ email, password })
+    if (authenticatedUser?.role === 'patient') {
+      clearAuthToken()
+      const err = new Error('Patient accounts can only access TMC CareLink via the mobile application. Only doctors, nurses, and administrators can enter the web clinic system.')
+      err.data = { code: 'PATIENT_MOBILE_ONLY', role: 'patient' }
+      throw err
+    }
     setAuthToken(token)
     setUser(authenticatedUser)
     setUserRole(authenticatedUser.role)
