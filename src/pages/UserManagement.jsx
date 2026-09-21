@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useUsersStore } from '../hooks/useUsers'
 import { useRoles } from '../hooks/useRoles'
-import { useForm } from 'react-hook-form'
+import { usePatients } from '../hooks/usePatients'
+import { useForm, useWatch } from 'react-hook-form'
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { usePagination } from '../hooks/usePagination'
@@ -31,6 +32,7 @@ function UserManagement({ page }) {
   const { can } = useAuth()
   const users = useUsersStore()
   const roles = useRoles()
+  const patients = usePatients()
   const { showToast } = useToast()
   const { search, setSearch, debouncedSearch, resetSearch } = useSearch({ debounceMs: 300 })
   const [statusFilter, setStatusFilter] = useState('All')
@@ -69,7 +71,7 @@ function UserManagement({ page }) {
   const [editing, setEditing] = useState(null)
   const [userModalOpen, setUserModalOpen] = useState(false)
   const userForm = useForm({
-    defaultValues: { name: '', email: '', password: '', password_confirmation: '', role_id: '' },
+    defaultValues: { name: '', email: '', password: '', password_confirmation: '', role_id: '', patient_id: '' },
   })
 
   // Role assignment modal
@@ -93,17 +95,30 @@ function UserManagement({ page }) {
     return roles.data || []
   }, [roles.data])
 
+  const watchedRoleId = useWatch({ control: userForm.control, name: 'role_id' })
+  const selectedRole = useMemo(() => {
+    return roleOptions.find((r) => String(r.id) === String(watchedRoleId))
+  }, [roleOptions, watchedRoleId])
+  const isPatientRole = selectedRole?.name === 'patient'
+
   // ---------- Create / Edit -------------------------------------------------
 
   const openCreate = () => {
     setEditing(null)
-    userForm.reset({ name: '', email: '', password: '', password_confirmation: '', role_id: '' })
+    userForm.reset({ name: '', email: '', password: '', password_confirmation: '', role_id: '', patient_id: '' })
     setUserModalOpen(true)
   }
 
   const openEdit = (user) => {
     setEditing(user)
-    userForm.reset({ name: user.name, email: user.email, password: '', password_confirmation: '', role_id: user.role_id || '' })
+    userForm.reset({
+      name: user.name,
+      email: user.email,
+      password: '',
+      password_confirmation: '',
+      role_id: user.role_id || '',
+      patient_id: user.patient_id || user.patientId || '',
+    })
     setUserModalOpen(true)
   }
 
@@ -116,8 +131,13 @@ function UserManagement({ page }) {
     busyRef.current = true
     setBusy(true)
     try {
+      const patientId = isPatientRole ? (values.patient_id || null) : null
       if (editing) {
-        const payload = { name: values.name, email: values.email }
+        const payload = {
+          name: values.name,
+          email: values.email,
+          patient_id: patientId,
+        }
         await users.updateUser(editing.id, payload)
         showToast(`User "${values.name}" updated.`)
       } else {
@@ -127,6 +147,7 @@ function UserManagement({ page }) {
           password: values.password,
           password_confirmation: values.password_confirmation,
           role_id: Number(values.role_id),
+          patient_id: patientId,
         })
         showToast(`User "${values.name}" created.`)
       }
@@ -351,6 +372,13 @@ function UserManagement({ page }) {
                     <tr key={user.id}>
                       <td>
                         <strong className="font-bold text-ink">{user.name}</strong>
+                        {(user.patient_id || user.patientId) && (
+                          <div className="mt-0.5">
+                            <span className="inline-flex items-center rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] font-bold text-primary">
+                              ID: {user.patient_id || user.patientId}
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td className="text-muted">{user.email}</td>
                       <td>
@@ -491,6 +519,38 @@ function UserManagement({ page }) {
                     ))}
                   </select>
                 </label>
+                {isPatientRole && (
+                  <label className={FORM_LABEL}>
+                    Linked Patient Record
+                    <select
+                      className={FORM_FIELD}
+                      {...userForm.register('patient_id', {
+                        required: isPatientRole ? 'Patient record linkage is required for patient user accounts.' : false,
+                      })}
+                      disabled={busy}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        userForm.setValue('patient_id', val)
+                        const matchedPatient = (patients.data || []).find((p) => p.patientId === val)
+                        if (matchedPatient && !editing) {
+                          if (!userForm.getValues('name')) {
+                            userForm.setValue('name', matchedPatient.name)
+                          }
+                        }
+                      }}
+                    >
+                      <option value="">-- Select Registered Patient --</option>
+                      {(patients.data || []).map((p) => (
+                        <option key={p.id || p.patientId} value={p.patientId}>
+                          {p.patientId} — {p.name} ({p.type})
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-[11.5px] text-muted-soft">
+                      Associates this user account with clinic medical records and mobile portal data.
+                    </span>
+                  </label>
+                )}
                 <div className={MODAL_FOOTER_ACTIONS}>
                   <button type="button" className={PILL} onClick={() => setUserModalOpen(false)} disabled={busy}>
                     Cancel
