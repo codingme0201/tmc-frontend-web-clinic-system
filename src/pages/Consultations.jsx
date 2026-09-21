@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useConsultations } from '../hooks/useConsultations'
+import { usePatients } from '../hooks/usePatients'
 import { useStaff } from '../hooks/useStaff'
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
@@ -112,14 +114,17 @@ function Consultations({ page }) {
     error,
     refetch,
     isRefetching,
+    addConsultation,
     startConsultation,
     saveConsultation,
     completeConsultation,
   } = useConsultations()
+  const { data: patients = [] } = usePatients()
   const { data: staff } = useStaff()
   const { showToast } = useToast()
   const { userRole } = useAuth()
   const canRecord = MEDICAL_ROLES.includes(userRole)
+  const [searchParams, setSearchParams] = useSearchParams()
 
   // Search / filter state
   const { search, setSearch, debouncedSearch, resetSearch } = useSearch({ debounceMs: 300 })
@@ -128,11 +133,31 @@ function Consultations({ page }) {
   // Modal state
   const [workspace, setWorkspace] = useState(null) // consultation being recorded
   const [details, setDetails] = useState(null) // read-only details target
+  const initialPatientParam = searchParams.get('patientId')
+  const [newConsultModalOpen, setNewConsultModalOpen] = useState(() => Boolean(initialPatientParam))
+  const [selectedPatientId, setSelectedPatientId] = useState(() => initialPatientParam || '')
+  const [selectedStaff, setSelectedStaff] = useState('')
+  const [newComplaint, setNewComplaint] = useState('')
+  const [newDate, setNewDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [newTime, setNewTime] = useState(() => {
+    const d = new Date()
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  })
+
   const confirmComplete = useModal()
   const [busy, setBusy] = useState(false)
   // Ref latch guards against double-submission within the same render tick
   // (state-based `busy` only protects after the next re-render).
   const busyRef = useRef(false)
+
+  // Clear search param once captured to prevent re-opening on page interaction
+  useEffect(() => {
+    if (searchParams.get('patientId')) {
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.delete('patientId')
+      setSearchParams(nextParams, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   // Workspace draft form
   const [draft, setDraft] = useState(() => consultationToDraft({}))
@@ -257,6 +282,44 @@ function Consultations({ page }) {
     }
   }
 
+  const handleCreateConsultation = async (startImmediately = false) => {
+    if (!selectedPatientId) {
+      showToast('Please select a patient.', 'error')
+      return
+    }
+    const pat = patients.find((p) => p.patientId === selectedPatientId || String(p.id) === String(selectedPatientId))
+    if (!pat) {
+      showToast('Selected patient not found.', 'error')
+      return
+    }
+    if (busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    try {
+      const created = await addConsultation({
+        patient: pat.name,
+        patient_id: pat.patientId,
+        staff: selectedStaff || staff[0]?.name || '',
+        chiefComplaint: newComplaint.trim(),
+        date: newDate,
+        time: newTime,
+        status: startImmediately ? 'In Progress' : 'Scheduled',
+      })
+      showToast(`Consultation created for ${pat.name}.`)
+      setNewConsultModalOpen(false)
+      setSelectedPatientId('')
+      setNewComplaint('')
+      if (startImmediately) {
+        openWorkspace(created)
+      }
+    } catch (err) {
+      showToast(err?.message || 'Failed to create consultation.', 'error')
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }
+
   const clearFilters = () => {
     resetSearch()
     setStatusFilter('All')
@@ -300,6 +363,21 @@ function Consultations({ page }) {
           </h2>
           <span className="mt-1 block text-[12.5px] sm:text-[13px] text-muted">{page.description}</span>
         </div>
+        {canRecord && (
+          <div className="w-full sm:w-auto">
+            <button
+              type="button"
+              className={`${PRIMARY_BTN} w-full sm:w-auto`}
+              onClick={() => {
+                setSelectedPatientId(patients[0]?.patientId || '')
+                setSelectedStaff(staff[0]?.name || '')
+                setNewConsultModalOpen(true)
+              }}
+            >
+              + Start Consultation
+            </button>
+          </div>
+        )}
       </section>
 
       {/* Status summary chips (click to filter) */}
@@ -862,6 +940,131 @@ function Consultations({ page }) {
         </div>
       )}
 
+      {/* New Consultation Modal */}
+      {newConsultModalOpen && (
+        <div className={MODAL_BACKDROP}>
+          <div className={MODAL_CARD_SM}>
+            <div className={MODAL_HEADER}>
+              <div>
+                <span className={KICKER}>Clinical Record</span>
+                <h3 className="m-0 text-[18px] font-bold text-ink">New Consultation</h3>
+              </div>
+              <button
+                type="button"
+                className={MODAL_CLOSE}
+                onClick={() => setNewConsultModalOpen(false)}
+                disabled={busy}
+              >
+                ✕
+              </button>
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                handleCreateConsultation(true)
+              }}
+              className="flex flex-col flex-1 overflow-hidden"
+            >
+              <div className={`${MODAL_BODY} flex flex-col gap-4`}>
+                <label className={CONSULT_FIELD}>
+                  <span>Patient <span className="text-danger">*</span></span>
+                  <select
+                    className={CONSULT_INPUT}
+                    value={selectedPatientId}
+                    onChange={(e) => setSelectedPatientId(e.target.value)}
+                    required
+                  >
+                    <option value="">-- Select Registered Patient --</option>
+                    {patients.map((pat) => (
+                      <option key={pat.patientId || pat.id} value={pat.patientId}>
+                        {pat.name} ({pat.patientId || 'No ID'}{pat.type ? ` · ${pat.type}` : ''})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className={CONSULT_FIELD}>
+                  <span>Attending Staff</span>
+                  <select
+                    className={CONSULT_INPUT}
+                    value={selectedStaff}
+                    onChange={(e) => setSelectedStaff(e.target.value)}
+                  >
+                    <option value="">-- Select Staff Member --</option>
+                    {staff.map((s) => (
+                      <option key={s.id || s.name} value={s.name}>
+                        {s.name} ({s.role})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <label className={CONSULT_FIELD}>
+                    <span>Date</span>
+                    <input
+                      type="date"
+                      className={CONSULT_INPUT}
+                      value={newDate}
+                      onChange={(e) => setNewDate(e.target.value)}
+                      required
+                    />
+                  </label>
+                  <label className={CONSULT_FIELD}>
+                    <span>Time</span>
+                    <input
+                      type="time"
+                      className={CONSULT_INPUT}
+                      value={newTime}
+                      onChange={(e) => setNewTime(e.target.value)}
+                      required
+                    />
+                  </label>
+                </div>
+
+                <label className={CONSULT_FIELD}>
+                  <span>Chief Complaint / Reason for Visit <span className="text-danger">*</span></span>
+                  <textarea
+                    className={`${CONSULT_INPUT} min-h-[90px] resize-y`}
+                    placeholder="Describe symptoms, reason for visit, or initial complaint..."
+                    value={newComplaint}
+                    onChange={(e) => setNewComplaint(e.target.value)}
+                    required
+                  />
+                </label>
+              </div>
+
+              <div className={MODAL_FOOTER}>
+                <div className={MODAL_FOOTER_ACTIONS}>
+                  <button
+                    type="button"
+                    className={PILL}
+                    onClick={() => setNewConsultModalOpen(false)}
+                    disabled={busy}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className={BTN_INFO}
+                    disabled={busy || !selectedPatientId || !newComplaint.trim()}
+                    onClick={() => handleCreateConsultation(false)}
+                  >
+                    {busy ? 'Saving...' : 'Schedule'}
+                  </button>
+                  <button
+                    type="submit"
+                    className={PRIMARY_BTN}
+                    disabled={busy || !selectedPatientId || !newComplaint.trim()}
+                  >
+                    {busy ? 'Starting...' : 'Start Immediately'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

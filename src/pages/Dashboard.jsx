@@ -9,7 +9,7 @@ import { useClinicInsights } from '../hooks/useClinicInsights'
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { usePagination } from '../hooks/usePagination'
-import { formatDate, todayISO } from '../lib/format'
+import { formatDate, todayISO, formatPhone } from '../lib/format'
 import { PILL, PRIMARY_BTN, PANEL, PANEL_HEADER, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT, SIDEBAR_FORM, FORM_LABEL, FORM_FIELD, FORM_ROW } from '../lib/ui'
 import Pagination from '../components/Pagination'
 import StatusBadge from '../components/StatusBadge'
@@ -1145,10 +1145,11 @@ function Dashboard() {
                 <label className={FORM_LABEL}>
                   Contact Number
                   <input
-                    type="text"
-                    placeholder="09xx-xxx-xxxx"
+                    type="tel"
+                    placeholder="0917-123-4567"
                     value={patContact}
-                    onChange={(e) => setPatContact(e.target.value)}
+                    onChange={(e) => setPatContact(formatPhone(e.target.value))}
+                    maxLength={13}
                     className={FORM_FIELD}
                   />
                 </label>

@@ -18,15 +18,13 @@ function SettingsAudit({ page }) {
   const activityLogs = useActivityLogs()
   const { search, setSearch, debouncedSearch } = useSearch({ debounceMs: 300 })
 
-  const [form, setForm] = useState({})
+  const [formOverride, setFormOverride] = useState(null)
+  const form = formOverride ?? settings.data ?? {}
   const [saving, setSaving] = useState(false)
   const busyRef = useRef(false)
 
-  useEffect(() => {
-    if (settings.data) setForm(settings.data)
-  }, [settings.data])
-
-  const handleChange = (field, value) => setForm((prev) => ({ ...prev, [field]: value }))
+  const handleChange = (field, value) =>
+    setFormOverride((prev) => ({ ...(prev ?? settings.data ?? {}), [field]: value }))
 
   const handleSave = async () => {
     if (busyRef.current) return
@@ -35,6 +33,7 @@ function SettingsAudit({ page }) {
     try {
       await settings.updateSettings(form)
       showToast('Settings updated successfully')
+      setFormOverride(null)
     } catch (err) {
       showToast(err?.message || 'Failed to update settings', 'error')
     } finally {

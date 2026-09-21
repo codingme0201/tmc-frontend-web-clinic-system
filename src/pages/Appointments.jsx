@@ -17,7 +17,7 @@ import { EmptyState, ErrorState } from '../components/AsyncState'
 import RefreshingBadge from '../components/RefreshingBadge'
 import TableSkeleton from '../components/skeletons/TableSkeleton'
 
-const STATUSES = ['Pending', 'Under Review', 'Approved', 'Rescheduled', 'Rejected', 'Cancelled', 'Completed']
+const STATUSES = ['Pending', 'Under Review', 'Approved', 'Rescheduled', 'Rejected', 'Cancelled', 'Completed', 'No-Show']
 const APPOINTMENT_TYPES = ['Check-up', 'Dental concern', 'Follow-up', 'Fever', 'Vaccination', 'Emergency']
 const TIME_SLOTS = [
   '08:00 AM', '08:30 AM', '09:00 AM', '09:15 AM', '10:00 AM', '10:30 AM',
@@ -94,6 +94,7 @@ function Appointments({ page }) {
       Approved: count('Approved'),
       Rejected: count('Rejected'),
       Cancelled: count('Cancelled'),
+      'No-Show': count('No-Show'),
     }
   }, [appointments])
 
@@ -223,11 +224,13 @@ function Appointments({ page }) {
         add('Cancel', BTN_NEUTRAL, () => openReasonModal(app, 'Cancelled'))
         break
       case 'Approved':
+        add('No-Show', BTN_DANGER, () => setStatus(app, 'No-Show'))
         add('Reschedule', BTN_WARN, () => openReschedule(app))
         add('Cancel', BTN_NEUTRAL, () => openReasonModal(app, 'Cancelled'))
         break
       case 'Rescheduled':
         add('Approve', BTN_SUCCESS, () => setStatus(app, 'Approved'))
+        add('No-Show', BTN_DANGER, () => setStatus(app, 'No-Show'))
         add('Reject', BTN_DANGER, () => openReasonModal(app, 'Rejected'))
         add('Cancel', BTN_NEUTRAL, () => openReasonModal(app, 'Cancelled'))
         break
@@ -264,13 +267,14 @@ function Appointments({ page }) {
       </section>
 
       {/* Status summary chips (click to filter) */}
-      <div className="mb-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
+      <div className="mb-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
         {[
           { key: 'Pending', label: 'Pending', dot: 'bg-gold' },
           { key: 'Under Review', label: 'Under Review', dot: 'bg-[#1a56c4]' },
           { key: 'Approved', label: 'Approved', dot: 'bg-success' },
           { key: 'Rejected', label: 'Rejected', dot: 'bg-accent' },
           { key: 'Cancelled', label: 'Cancelled', dot: 'bg-muted' },
+          { key: 'No-Show', label: 'No-Show', dot: 'bg-[#d9534f]' },
         ].map(({ key, label, dot }) => (
           <button
             type="button"

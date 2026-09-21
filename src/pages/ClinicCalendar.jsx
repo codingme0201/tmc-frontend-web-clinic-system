@@ -1,22 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useCalendarEvents, useBlockedSchedules } from '../hooks/useClinicEvents'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { useToast } from '../hooks/useToast'
 import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
   format, addMonths, subMonths, isSameMonth, isSameDay, isToday, parseISO,
 } from 'date-fns'
 import {
-  PILL, PRIMARY_BTN, PANEL, KICKER, SEARCH_INPUT, SELECT_INPUT,
-  SIDEBAR_FORM, FORM_LABEL, FORM_FIELD, FORM_ROW,
-  BTN_INFO, BTN_DANGER, BTN_SUCCESS, BTN_VIEW,
+  PILL, PRIMARY_BTN, PANEL, KICKER, SELECT_INPUT, SIDEBAR_FORM,
+  FORM_LABEL, FORM_FIELD, FORM_ROW,
+  BTN_INFO, BTN_DANGER, BTN_SUCCESS,
 } from '../lib/ui'
 import InlineSpinner from '../components/Spinner'
-import Pagination from '../components/Pagination'
 import RefreshingBadge from '../components/RefreshingBadge'
 import Skeleton from '../components/Skeleton'
-import { EmptyState, ErrorState } from '../components/AsyncState'
+import { ErrorState } from '../components/AsyncState'
 
 const MODAL_CARD = 'flex max-h-[90vh] w-[min(560px,100%)] animate-modal-scale flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgba(8,20,20,0.22)]'
 const MODAL_BACKDROP = 'fixed inset-0 z-[100] grid place-items-center bg-[rgba(8,20,20,0.45)] p-5 backdrop-blur-[4px]'
@@ -107,7 +106,7 @@ function ClinicCalendar({ page }) {
       start_time: '', end_time: '', all_day: false, type: 'Event', status: 'Scheduled',
     },
   })
-  const allDay = eventForm.watch('all_day')
+  const allDay = useWatch({ control: eventForm.control, name: 'all_day' })
 
   // Delete event modal
   const [deleteTarget, setDeleteTarget] = useState(null)
@@ -117,7 +116,7 @@ function ClinicCalendar({ page }) {
   const blockForm = useForm({
     defaultValues: { start_date: '', end_date: '', start_time: '', end_time: '', all_day: true, reason: '' },
   })
-  const blockAllDay = blockForm.watch('all_day')
+  const blockAllDay = useWatch({ control: blockForm.control, name: 'all_day' })
 
   // Detail panel event
   const [detailEvent, setDetailEvent] = useState(null)
@@ -147,12 +146,6 @@ function ClinicCalendar({ page }) {
     })
     return map
   }, [events.data, typeFilter])
-
-  const appointmentsByDate = useMemo(() => {
-    const map = {}
-    events.data.forEach?.(() => {}) // appointments come from calendar aggregation
-    return map
-  }, [])
 
   const blockedByDate = useMemo(() => {
     const map = {}
@@ -291,7 +284,7 @@ function ClinicCalendar({ page }) {
     busyRef.current = true
     setBusy(true)
     try {
-      await blocked.blockSchedule({
+      const res = await blocked.blockSchedule({
         start_date: values.start_date,
         end_date: values.end_date || values.start_date,
         start_time: values.all_day ? null : values.start_time,
@@ -299,7 +292,11 @@ function ClinicCalendar({ page }) {
         all_day: values.all_day,
         reason: values.reason || null,
       })
-      showToast('Schedule blocked successfully.')
+      if (res?.meta?.warning) {
+        showToast(`Blocked with conflict: ${res.meta.warning}`, 'error')
+      } else {
+        showToast('Schedule blocked successfully.')
+      }
       setBlockModalOpen(false)
     } catch (err) {
       showToast(err?.message || 'Failed to block schedule.', 'error')
@@ -409,7 +406,6 @@ function ClinicCalendar({ page }) {
                 const inMonth = isSameMonth(day, currentMonth)
                 const today = isToday(day)
                 const isSelected = selectedDate && isSameDay(day, selectedDate)
-                const hasItems = dayEvents.length > 0 || dayBlocked.length > 0
 
                 return (
                   <button

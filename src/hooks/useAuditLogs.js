@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCallback, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { activityLogsService } from '../services/activityLogsService'
 
 /**
@@ -7,8 +7,7 @@ import { activityLogsService } from '../services/activityLogsService'
  * Used by the dedicated Audit Logs page.
  */
 export function useAuditLogsStore() {
-  const queryClient = useQueryClient()
-  const [filters, setFilters] = useState({ search: '', module: '', user: '', from: '', to: '' })
+  const [filters, setFilters] = useState({ search: '', module: '', user: '', from: '', to: '', clinical: false })
 
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ['audit-logs', filters],
@@ -20,7 +19,7 @@ export function useAuditLogsStore() {
   }, [])
 
   const resetFilters = useCallback(() => {
-    setFilters({ search: '', module: '', user: '', from: '', to: '' })
+    setFilters({ search: '', module: '', user: '', from: '', to: '', clinical: false })
   }, [])
 
   return {

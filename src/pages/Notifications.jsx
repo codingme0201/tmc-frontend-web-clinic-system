@@ -10,9 +10,8 @@ import { formatDistanceToNow } from 'date-fns'
 import {
   PILL, PRIMARY_BTN, PANEL, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT,
   SIDEBAR_FORM, FORM_LABEL, FORM_FIELD,
-  BTN_INFO, BTN_DANGER, BTN_SUCCESS, BTN_PRIMARY,
+  BTN_INFO, BTN_DANGER, BTN_SUCCESS,
 } from '../lib/ui'
-import Icon from '../components/Icon'
 import InlineSpinner from '../components/Spinner'
 import Pagination from '../components/Pagination'
 import RefreshingBadge from '../components/RefreshingBadge'

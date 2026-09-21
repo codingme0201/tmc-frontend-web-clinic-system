@@ -9,7 +9,7 @@ import { formatDate } from '../lib/format'
 import {
   PILL, PRIMARY_BTN, PANEL, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT,
   SIDEBAR_FORM, FORM_LABEL, FORM_FIELD, FORM_ROW,
-  BTN_INFO, BTN_SUCCESS, BTN_DANGER, BTN_PRIMARY,
+  BTN_INFO, BTN_DANGER, BTN_PRIMARY,
 } from '../lib/ui'
 import InlineSpinner from '../components/Spinner'
 import Pagination from '../components/Pagination'

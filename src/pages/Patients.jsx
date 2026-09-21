@@ -3,10 +3,11 @@ import { usePatients, usePatientProfile, usePatientMedicalInfo, usePatientRecord
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { usePagination } from '../hooks/usePagination'
-import { formatDate } from '../lib/format'
+import { formatDate, formatPhone } from '../lib/format'
 import {
   PILL, PRIMARY_BTN, PANEL, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT,
-  BTN_INFO, BTN_SUCCESS, BTN_DANGER, BTN_VIEW, BTN_PRIMARY,
+  BTN_INFO, BTN_SUCCESS, BTN_DANGER, BTN_VIEW,
+  FORM_LABEL, FORM_FIELD, FORM_ROW,
 } from '../lib/ui'
 import InlineSpinner from '../components/Spinner'
 import StatusBadge from '../components/StatusBadge'
@@ -46,6 +47,7 @@ function Patients({ page }) {
     error,
     refetch,
     isRefetching,
+    addPatient,
   } = usePatients()
   const updateStatus = useUpdatePatientStatus()
   const { showToast } = useToast()
@@ -57,6 +59,17 @@ function Patients({ page }) {
   const [activeTab, setActiveTab] = useState('profile')
   const [deactivateTarget, setDeactivateTarget] = useState(null)
   const [activateTarget, setActivateTarget] = useState(null)
+  const [registerOpen, setRegisterOpen] = useState(false)
+  const [newPatient, setNewPatient] = useState({
+    id: '',
+    name: '',
+    type: 'Student',
+    courseDept: '',
+    contact: '',
+    emergencyContact: '',
+    allergies: '',
+    history: '',
+  })
   const busyRef = useRef(false)
   const [busy, setBusy] = useState(false)
 
@@ -119,6 +132,42 @@ function Patients({ page }) {
     }
   }
 
+  const handleRegisterPatient = async (e) => {
+    e.preventDefault()
+    if (!newPatient.name.trim() || busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    try {
+      await addPatient({
+        id: newPatient.id.trim(),
+        name: newPatient.name.trim(),
+        type: newPatient.type,
+        courseDept: newPatient.courseDept.trim(),
+        contact: newPatient.contact.trim(),
+        emergencyContact: newPatient.emergencyContact.trim(),
+        allergies: newPatient.allergies.trim() || 'None',
+        history: newPatient.history.trim() || 'None',
+      })
+      showToast(`Patient profile created for ${newPatient.name}.`)
+      setRegisterOpen(false)
+      setNewPatient({
+        id: '',
+        name: '',
+        type: 'Student',
+        courseDept: '',
+        contact: '',
+        emergencyContact: '',
+        allergies: '',
+        history: '',
+      })
+    } catch (err) {
+      showToast(err?.message || 'Failed to create patient profile.', 'error')
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }
+
   return (
     <div>
       <section className="mb-5 flex items-center justify-between gap-4 max-[620px]:flex-col max-[620px]:items-start">
@@ -130,6 +179,15 @@ function Patients({ page }) {
             {page.title}
           </h2>
           <span className="mt-1 block text-[12.5px] sm:text-[13px] text-muted">{page.description}</span>
+        </div>
+        <div className="w-full sm:w-auto">
+          <button
+            type="button"
+            className={`${PRIMARY_BTN} w-full sm:w-auto`}
+            onClick={() => setRegisterOpen(true)}
+          >
+            + Register Patient
+          </button>
         </div>
       </section>
 
@@ -225,6 +283,12 @@ function Patients({ page }) {
                     </td>
                     <td>
                       <div className="flex flex-wrap gap-[6px]">
+                        <a
+                          href={`/#/consultations?patientId=${patient.patientId}`}
+                          className={BTN_INFO}
+                        >
+                          Consult
+                        </a>
                         <button type="button" className={BTN_VIEW} onClick={() => { setSelectedId(patient.id); setActiveTab('profile') }}>
                           View
                         </button>
@@ -341,6 +405,153 @@ function Patients({ page }) {
           </div>
         </div>
       )}
+
+      {/* Register Patient Modal */}
+      {registerOpen && (
+        <div
+          className={MODAL_BACKDROP}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Register patient"
+          onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) setRegisterOpen(false) }}
+        >
+          <div className={MODAL_CARD}>
+            <div className={MODAL_HEADER}>
+              <div>
+                <span className={KICKER}>Patient Registry</span>
+                <h3 className="m-0 text-[18px] font-bold text-ink">Register New Patient</h3>
+              </div>
+              <button
+                type="button"
+                className={MODAL_CLOSE}
+                onClick={() => { if (!busy) setRegisterOpen(false) }}
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleRegisterPatient} className="flex flex-col flex-1 overflow-hidden">
+              <div className={`${MODAL_BODY} flex flex-col gap-3.5`}>
+                <div className={FORM_ROW}>
+                  <label className={FORM_LABEL}>
+                    <span>Patient / Student ID</span>
+                    <input
+                      type="text"
+                      className={FORM_FIELD}
+                      placeholder="e.g. 2024-00123 (Optional)"
+                      value={newPatient.id}
+                      onChange={(e) => setNewPatient({ ...newPatient, id: e.target.value })}
+                    />
+                  </label>
+                  <label className={FORM_LABEL}>
+                    <span>Patient Type <span className="text-danger">*</span></span>
+                    <select
+                      className={SELECT_INPUT}
+                      value={newPatient.type}
+                      onChange={(e) => setNewPatient({ ...newPatient, type: e.target.value })}
+                    >
+                      <option value="Student">Student</option>
+                      <option value="Faculty">Faculty</option>
+                      <option value="Staff">Staff</option>
+                      <option value="Visitor">Visitor</option>
+                    </select>
+                  </label>
+                </div>
+
+                <label className={FORM_LABEL}>
+                  <span>Full Name <span className="text-danger">*</span></span>
+                  <input
+                    type="text"
+                    className={FORM_FIELD}
+                    placeholder="e.g. Maria Santos"
+                    value={newPatient.name}
+                    onChange={(e) => setNewPatient({ ...newPatient, name: e.target.value })}
+                    required
+                  />
+                </label>
+
+                <div className={FORM_ROW}>
+                  <label className={FORM_LABEL}>
+                    <span>Course / Department</span>
+                    <input
+                      type="text"
+                      className={FORM_FIELD}
+                      placeholder="e.g. BS Information Technology"
+                      value={newPatient.courseDept}
+                      onChange={(e) => setNewPatient({ ...newPatient, courseDept: e.target.value })}
+                    />
+                  </label>
+                  <label className={FORM_LABEL}>
+                    <span>Contact Number</span>
+                      <input
+                        type="tel"
+                        className={FORM_FIELD}
+                        placeholder="0917-123-4567"
+                        value={newPatient.contact}
+                        onChange={(e) => setNewPatient({ ...newPatient, contact: formatPhone(e.target.value) })}
+                        maxLength={13}
+                      />
+                  </label>
+                </div>
+
+                <label className={FORM_LABEL}>
+                  <span>Emergency Contact</span>
+                  <input
+                    type="text"
+                    className={FORM_FIELD}
+                    placeholder="e.g. Parent / Guardian: 0918-765-4321"
+                    value={newPatient.emergencyContact}
+                    onChange={(e) => setNewPatient({ ...newPatient, emergencyContact: e.target.value })}
+                  />
+                </label>
+
+                <div className={FORM_ROW}>
+                  <label className={FORM_LABEL}>
+                    <span>Known Allergies</span>
+                    <input
+                      type="text"
+                      className={FORM_FIELD}
+                      placeholder="e.g. Penicillin, Peanuts (or None)"
+                      value={newPatient.allergies}
+                      onChange={(e) => setNewPatient({ ...newPatient, allergies: e.target.value })}
+                    />
+                  </label>
+                  <label className={FORM_LABEL}>
+                    <span>Medical History / Notes</span>
+                    <input
+                      type="text"
+                      className={FORM_FIELD}
+                      placeholder="e.g. Asthma, Hypertension (or None)"
+                      value={newPatient.history}
+                      onChange={(e) => setNewPatient({ ...newPatient, history: e.target.value })}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className={MODAL_FOOTER}>
+                <div className={MODAL_FOOTER_ACTIONS}>
+                  <button
+                    type="button"
+                    className={PILL}
+                    onClick={() => setRegisterOpen(false)}
+                    disabled={busy}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className={PRIMARY_BTN}
+                    disabled={busy || !newPatient.name.trim()}
+                  >
+                    {busy && <InlineSpinner />}
+                    {busy ? 'Registering...' : 'Register Patient'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -412,6 +623,15 @@ function PatientProfileModal({ patientId, activeTab, setActiveTab, onClose, onDe
                 Activate
               </button>
             ) : null}
+            {patient && patient.status === 'Active' && (
+              <a
+                href={`/#/consultations?patientId=${patient.patientId}`}
+                className={BTN_INFO}
+                onClick={onClose}
+              >
+                Start Consultation
+              </a>
+            )}
             <button type="button" className={PILL} onClick={onClose}>Close</button>
           </div>
         </div>

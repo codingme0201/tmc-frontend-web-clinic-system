@@ -32,7 +32,8 @@ import { useCallback, useMemo, useState } from 'react'
  *   canGoPrev: boolean,
  * }}
  */
-export function usePagination(items, { pageSize = 8 } = {}) {
+export function usePagination(items, { pageSize: initialPageSize = 8 } = {}) {
+  const [pageSize, setPageSize] = useState(initialPageSize)
   const totalItems = items.length
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
 
@@ -64,9 +65,15 @@ export function usePagination(items, { pageSize = 8 } = {}) {
 
   const resetPage = useCallback(() => setPage(1), [])
 
+  const changePageSize = useCallback((newSize) => {
+    setPageSize(newSize)
+    setPage(1)
+  }, [])
+
   return {
     currentPage,
     pageSize,
+    setPageSize: changePageSize,
     totalItems,
     totalPages,
     pageItems,

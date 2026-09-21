@@ -25,6 +25,7 @@ const BADGE_CLASSES = {
   moderate: 'bg-[#fff3d6] text-[#8a5a00]',
   severe: 'bg-[#ffebe0] text-[#a33c12]',
   discontinued: 'bg-[#ffebe0] text-[#a33c12]',
+  'no-show': 'bg-[#ffebe6] text-[#b3361f]',
 }
 
 const DEFAULT_BADGE = 'bg-[#f0f3f2] text-[#5d6e6c]'

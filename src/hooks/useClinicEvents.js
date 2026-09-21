@@ -56,7 +56,6 @@ export function useClinicEvents(scope = 'page') {
  * Aggregated calendar data store — fetches all calendar data for a date range.
  */
 export function useCalendarStore({ onLog } = {}, scope = 'page') {
-  const queryClient = useQueryClient()
   const onLogRef = useRef(onLog)
   useEffect(() => {
     onLogRef.current = onLog

@@ -72,7 +72,7 @@ export async function fetchBlockedSchedules() {
 /** Block a period as unavailable. */
 export async function blockSchedule(payload) {
   const res = await request('/calendar/blocked', { method: 'POST', body: payload })
-  return res.data
+  return { ...res.data, meta: res.meta }
 }
 
 /** Remove a blocked period. */
