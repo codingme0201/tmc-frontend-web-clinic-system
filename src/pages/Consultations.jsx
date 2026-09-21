@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useConsultations } from '../hooks/useConsultations'
 import { usePatients } from '../hooks/usePatients'
 import { useStaff } from '../hooks/useStaff'
+import { useEligibleStaff } from '../hooks/useStaffSchedules'
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { useModal } from '../hooks/useModal'
@@ -121,10 +122,30 @@ function Consultations({ page }) {
   } = useConsultations()
   const { data: patients = [] } = usePatients()
   const { data: staff } = useStaff()
+  const { data: eligibleStaff = [] } = useEligibleStaff()
   const { showToast } = useToast()
   const { userRole } = useAuth()
   const canRecord = MEDICAL_ROLES.includes(userRole)
   const [searchParams, setSearchParams] = useSearchParams()
+
+  const doctorNurseOptions = useMemo(() => {
+    if (eligibleStaff && eligibleStaff.length > 0) {
+      return eligibleStaff.map((u) => ({
+        id: u.id,
+        name: u.name,
+        role: u.role?.name ? (u.role.name.charAt(0).toUpperCase() + u.role.name.slice(1)) : 'Doctor / Nurse',
+      }))
+    }
+    return (staff || []).map((s) => ({
+      id: s.id || s.name,
+      name: s.name,
+      role: s.role?.includes('Physician') || s.role?.includes('Doctor') || s.role?.includes('Dentist')
+        ? 'Doctor'
+        : s.role?.includes('Nurse')
+          ? 'Nurse'
+          : 'Doctor / Nurse',
+    }))
+  }, [eligibleStaff, staff])
 
   // Search / filter state
   const { search, setSearch, debouncedSearch, resetSearch } = useSearch({ debounceMs: 300 })
@@ -208,7 +229,7 @@ function Consultations({ page }) {
   // ---------------- Workspace helpers ----------------
 
   const openWorkspace = (consultation) => {
-    setDraft(consultationToDraft(consultation, staff[0]?.name || ''))
+    setDraft(consultationToDraft(consultation, doctorNurseOptions[0]?.name || staff[0]?.name || ''))
     setDraftErrors({})
     setWorkspace(consultation)
   }
@@ -299,7 +320,7 @@ function Consultations({ page }) {
       const created = await addConsultation({
         patient: pat.name,
         patient_id: pat.patientId,
-        staff: selectedStaff || staff[0]?.name || '',
+        staff: selectedStaff || doctorNurseOptions[0]?.name || staff[0]?.name || '',
         chiefComplaint: newComplaint.trim(),
         date: newDate,
         time: newTime,
@@ -477,7 +498,7 @@ function Consultations({ page }) {
                   <th>Reference</th>
                   <th>Patient</th>
                   <th>Schedule</th>
-                  <th>Attending Staff</th>
+                  <th>Attending Doctor / Nurse</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
@@ -573,14 +594,14 @@ function Consultations({ page }) {
                       </p>
                     </div>
                     <label className={CONSULT_FIELD}>
-                      <span>Attending Medical Staff</span>
+                      <span>Attending Doctor / Nurse</span>
                       <select
                         className={CONSULT_INPUT}
                         value={draft.staff}
                         onChange={(e) => updateDraft('staff', e.target.value)}
                         disabled={busy}
                       >
-                        {staff.map((m) => (
+                        {doctorNurseOptions.map((m) => (
                           <option key={m.name} value={m.name}>
                             {m.name} — {m.role}
                           </option>
@@ -875,7 +896,7 @@ function Consultations({ page }) {
                   <p className={PROFILE_VAL}>{details.reference}</p>
                 </div>
                 <div>
-                  <span className={PROFILE_LBL}>Attending Staff</span>
+                  <span className={PROFILE_LBL}>Attending Doctor / Nurse</span>
                   <p className={PROFILE_VAL}>{details.staff}</p>
                 </div>
                 <div>
@@ -984,14 +1005,14 @@ function Consultations({ page }) {
                 </label>
 
                 <label className={CONSULT_FIELD}>
-                  <span>Attending Staff</span>
+                  <span>Attending Doctor / Nurse</span>
                   <select
                     className={CONSULT_INPUT}
                     value={selectedStaff}
                     onChange={(e) => setSelectedStaff(e.target.value)}
                   >
-                    <option value="">-- Select Staff Member --</option>
-                    {staff.map((s) => (
+                    <option value="">-- Select Doctor or Nurse --</option>
+                    {doctorNurseOptions.map((s) => (
                       <option key={s.id || s.name} value={s.name}>
                         {s.name} ({s.role})
                       </option>

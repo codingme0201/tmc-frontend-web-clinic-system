@@ -819,7 +819,7 @@ function Dashboard() {
                       <tr>
                         <th>Date/Time</th>
                         <th>Patient</th>
-                        <th>Attending Staff</th>
+                        <th>Attending Doctor / Nurse</th>
                         <th>Symptoms & Vitals</th>
                         <th>Diagnosis & Treatment</th>
                         <th>Outcome</th>
@@ -897,7 +897,7 @@ function Dashboard() {
                 </label>
 
                 <label className={FORM_LABEL}>
-                  Attending Medical Staff
+                  Attending Doctor / Nurse
                   <select value={effectiveConsStaff} onChange={(e) => setConsStaff(e.target.value)} className={FORM_FIELD} disabled={staffLoading}>
                     {staffLoading ? (
                       <option value="">Loading staff…</option>

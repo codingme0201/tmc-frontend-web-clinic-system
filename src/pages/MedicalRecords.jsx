@@ -110,7 +110,7 @@ function ConsultationDetailsModal({ cons, onClose }) {
 
           <div className={PROFILE_GRID}>
             <div>
-              <span className={PROFILE_LBL}>Attending Staff</span>
+              <span className={PROFILE_LBL}>Attending Doctor / Nurse</span>
               <p className={PROFILE_VAL}>{cons.staff}</p>
             </div>
             <div>
