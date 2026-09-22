@@ -256,6 +256,7 @@ function MedicalCertificates({ page }) {
   const openRequest = () => {
     form.reset({
       patient: '',
+      patientDbId: '',
       patientId: '',
       consultationId: '',
       purpose: '',
@@ -268,12 +269,15 @@ function MedicalCertificates({ page }) {
     requestModal.open()
   }
 
-  const handlePatientChange = (patientId) => {
-    const patient = patients.find((p) => p.id === patientId)
+  const handlePatientChange = (patientDbId) => {
+    const patient = patients.find(
+      (p) => String(p.id) === String(patientDbId) || p.patientId === patientDbId
+    )
     form.setValues({
       ...form.values,
       patient: patient?.name || '',
-      patientId: patient?.id || '',
+      patientDbId: patient ? String(patient.id) : '',
+      patientId: patient?.patientId || (patient ? String(patient.id) : ''),
       consultationId: '',
       diagnosis: '',
       issueDate: todayISO(),
@@ -301,15 +305,27 @@ function MedicalCertificates({ page }) {
     busyRef.current = true
     setBusy(true)
     try {
+      const patientObj = patients.find(
+        (p) =>
+          String(p.id) === String(form.values.patientDbId) ||
+          p.patientId === form.values.patientId ||
+          p.name === form.values.patient
+      )
+      const patientIdVal = patientObj?.patientId || form.values.patientId || form.values.patientDbId
       const created = await addCertificate({
         patient: form.values.patient,
-        patientId: form.values.patientId,
+        patient_id: patientIdVal,
+        patientId: patientIdVal,
+        consultation_id: form.values.consultationId || null,
         consultationId: form.values.consultationId || null,
+        issued_by: form.values.issuedBy,
         issuedBy: form.values.issuedBy,
         purpose: form.values.purpose.trim(),
         diagnosis: form.values.diagnosis.trim(),
         recommendation: form.values.recommendation.trim(),
+        issue_date: form.values.issueDate,
         issueDate: form.values.issueDate,
+        valid_until: form.values.validUntil || null,
         validUntil: form.values.validUntil || null,
       })
       showToast(`Certificate request ${created.reference} submitted for review.`)
@@ -628,14 +644,14 @@ function MedicalCertificates({ page }) {
                     <span>Patient *</span>
                     <select
                       className={FORM_FIELD}
-                      value={form.values.patientId}
+                      value={form.values.patientDbId || ''}
                       onChange={(e) => handlePatientChange(e.target.value)}
                       disabled={busy}
                     >
                       <option value="">— Select patient —</option>
                       {patients.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} — {p.id} {p.type ? `(${p.type})` : ''}
+                        <option key={p.id} value={String(p.id)}>
+                          {p.name} — {p.patientId || p.id} {p.type ? `(${p.type})` : ''}
                         </option>
                       ))}
                     </select>

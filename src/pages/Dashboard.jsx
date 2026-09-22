@@ -890,7 +890,7 @@ function Dashboard() {
                       <option value="">Loading patients…</option>
                     ) : (
                       patients.map((p) => (
-                        <option key={p.id} value={p.name}>{p.name} ({p.id})</option>
+                        <option key={p.id} value={p.name}>{p.name} ({p.patientId || p.id})</option>
                       ))
                     )}
                   </select>

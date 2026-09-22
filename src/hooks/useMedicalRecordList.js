@@ -24,12 +24,18 @@ export function useMedicalRecordList(records, { pageSize = 8, debounceDelay = 30
   // Debounced query — the same value would be sent to the API as `?q=`.
   const { search, setSearch, debouncedSearch, resetSearch } = useSearch({ debounceMs: debounceDelay })
   const [statusFilter, setStatusFilter] = useState('All')
+  const [patientFilter, setPatientFilter] = useState('All')
 
   // Search + filter pipeline (runs against the debounced query only).
   const filtered = useMemo(() => {
     const q = debouncedSearch.trim().toLowerCase()
     return records.filter((r) => {
       const matchStatus = statusFilter === 'All' || r.status === statusFilter
+      const matchPatient =
+        patientFilter === 'All' ||
+        r.patientId === patientFilter ||
+        String(r.id) === String(patientFilter) ||
+        r.name.toLowerCase() === patientFilter.toLowerCase()
       const matchQuery =
         !q ||
         r.name.toLowerCase().includes(q) ||
@@ -37,9 +43,9 @@ export function useMedicalRecordList(records, { pageSize = 8, debounceDelay = 30
         r.id.toLowerCase().includes(q) ||
         r.conditions.some((c) => c.name.toLowerCase().includes(q)) ||
         r.allergies.some((a) => a.allergen.toLowerCase().includes(q))
-      return matchStatus && matchQuery
+      return matchStatus && matchPatient && matchQuery
     })
-  }, [records, debouncedSearch, statusFilter])
+  }, [records, debouncedSearch, statusFilter, patientFilter])
 
   // Client-side pagination over the filtered list. For server-side pagination,
   // swap this for a fetch driven by queryParams.page/limit and keep the same
@@ -50,24 +56,26 @@ export function useMedicalRecordList(records, { pageSize = 8, debounceDelay = 30
   // Any search/filter change starts back at page 1 (mirrors an API refetch).
   useEffect(() => {
     resetPage()
-  }, [debouncedSearch, statusFilter, resetPage])
+  }, [debouncedSearch, statusFilter, patientFilter, resetPage])
 
   // Request + response parameters ready for the future REST API.
   const queryParams = useMemo(
     () => ({
       q: debouncedSearch.trim(),
       status: statusFilter === 'All' ? '' : statusFilter,
+      patient: patientFilter === 'All' ? '' : patientFilter,
       page: currentPage,
       limit: pageSize,
       total: filtered.length,
       totalPages,
     }),
-    [debouncedSearch, statusFilter, currentPage, pageSize, filtered.length, totalPages],
+    [debouncedSearch, statusFilter, patientFilter, currentPage, pageSize, filtered.length, totalPages],
   )
 
   const clearFilters = () => {
     resetSearch()
     setStatusFilter('All')
+    setPatientFilter('All')
   }
 
   return {
@@ -76,6 +84,8 @@ export function useMedicalRecordList(records, { pageSize = 8, debounceDelay = 30
     debouncedSearch,
     statusFilter,
     setStatusFilter,
+    patientFilter,
+    setPatientFilter,
     filtered,
     pageItems,
     currentPage,

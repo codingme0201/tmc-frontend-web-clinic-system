@@ -222,8 +222,8 @@ function Prescriptions({ page }) {
             >
               <option value="">All Patients</option>
               {patients.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} — {p.id}
+                <option key={p.id} value={p.patientId || p.name}>
+                  {p.name} ({p.patientId || p.id})
                 </option>
               ))}
             </select>

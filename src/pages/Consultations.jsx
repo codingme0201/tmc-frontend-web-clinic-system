@@ -997,7 +997,7 @@ function Consultations({ page }) {
                   >
                     <option value="">-- Select Registered Patient --</option>
                     {patients.map((pat) => (
-                      <option key={pat.patientId || pat.id} value={pat.patientId}>
+                      <option key={pat.patientId || pat.id} value={pat.patientId || String(pat.id)}>
                         {pat.name} ({pat.patientId || 'No ID'}{pat.type ? ` · ${pat.type}` : ''})
                       </option>
                     ))}

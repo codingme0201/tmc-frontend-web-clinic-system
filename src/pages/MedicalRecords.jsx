@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMedicalRecords } from '../hooks/useMedicalRecords'
+import { usePatients } from '../hooks/usePatients'
 import { useConsultations } from '../hooks/useConsultations'
 import { useAppointments } from '../hooks/useAppointments'
 import { useToast } from '../hooks/useToast'
@@ -245,6 +246,7 @@ function MedicalRecords({ page }) {
     updateAllergy,
     removeAllergy,
   } = useMedicalRecords()
+  const { data: registeredPatients = [] } = usePatients()
   const { data: consultations } = useConsultations()
   const { data: appointments } = useAppointments()
   const { showToast } = useToast()
@@ -259,6 +261,8 @@ function MedicalRecords({ page }) {
     setSearch,
     statusFilter,
     setStatusFilter,
+    patientFilter,
+    setPatientFilter,
     clearFilters,
     filtered,
     pageItems,
@@ -266,6 +270,23 @@ function MedicalRecords({ page }) {
     totalPages,
     goToPage,
   } = useMedicalRecordList(records, { pageSize: 5, debounceDelay: 300 })
+
+  // Patients / students available for dropdown selection
+  const patientOptions = useMemo(() => {
+    const map = new Map()
+    for (const r of records) {
+      if (r.patientId) {
+        map.set(r.patientId, { patientId: r.patientId, name: r.name, type: r.type })
+      }
+    }
+    for (const p of registeredPatients) {
+      const key = p.patientId || String(p.id)
+      if (!map.has(key)) {
+        map.set(key, { patientId: key, name: p.name, type: p.type })
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name))
+  }, [records, registeredPatients])
 
   // ---------- Detail view state ----------
   const [selectedId, setSelectedId] = useState(null)
@@ -494,6 +515,19 @@ function MedicalRecords({ page }) {
             />
             <select
               className={SELECT_INPUT}
+              value={patientFilter}
+              onChange={(e) => setPatientFilter(e.target.value)}
+              aria-label="Filter by patient or student"
+            >
+              <option value="All">All Patients / Students</option>
+              {patientOptions.map((p) => (
+                <option key={p.patientId} value={p.patientId}>
+                  {p.name} ({p.patientId}{p.type ? ` · ${p.type}` : ''})
+                </option>
+              ))}
+            </select>
+            <select
+              className={SELECT_INPUT}
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               aria-label="Filter by record status"
@@ -505,7 +539,7 @@ function MedicalRecords({ page }) {
                 </option>
               ))}
             </select>
-            {(search || statusFilter !== 'All') && (
+            {(search || statusFilter !== 'All' || patientFilter !== 'All') && (
               <button type="button" className={PILL} onClick={clearFilters}>
                 Clear filters
               </button>
@@ -608,7 +642,13 @@ function MedicalRecords({ page }) {
                 {filtered.length === 0 && (
                   <tr>
                     <td colSpan="9">
-                      <EmptyState message="No medical records matched your search or filters." />
+                      <EmptyState
+                        message={
+                          patientFilter !== 'All'
+                            ? 'No medical records found for the selected patient or student.'
+                            : 'No medical records matched your search or filters.'
+                        }
+                      />
                     </td>
                   </tr>
                 )}

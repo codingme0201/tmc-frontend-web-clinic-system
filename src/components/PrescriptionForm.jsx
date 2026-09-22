@@ -156,12 +156,15 @@ function PrescriptionForm({
     [consultations, form.values.patient],
   )
 
-  const handlePatientChange = (patientId) => {
-    const patient = patients.find((p) => p.id === patientId)
+  const handlePatientChange = (patientDbId) => {
+    const patient = patients.find(
+      (p) => String(p.id) === String(patientDbId) || p.patientId === patientDbId
+    )
     form.setValues({
       ...form.values,
       patient: patient?.name || '',
-      patient_id: patient?.id || '',
+      patientDbId: patient ? String(patient.id) : '',
+      patient_id: patient?.patientId || (patient ? String(patient.id) : ''),
       consultation_id: '',
     })
   }
@@ -192,6 +195,21 @@ function PrescriptionForm({
     form.setValue('medications', form.values.medications.filter((_, i) => i !== index))
   }
 
+  const selectedPatientDbId = useMemo(() => {
+    if (form.values.patientDbId) return String(form.values.patientDbId)
+    if (form.values.patient_id) {
+      const match = patients.find(
+        (p) => String(p.id) === String(form.values.patient_id) || p.patientId === form.values.patient_id
+      )
+      return match ? String(match.id) : ''
+    }
+    if (form.values.patient) {
+      const match = patients.find((p) => p.name === form.values.patient)
+      return match ? String(match.id) : ''
+    }
+    return ''
+  }, [form.values.patientDbId, form.values.patient_id, form.values.patient, patients])
+
   const handleSubmit = () => {
     if (busy) return
     const errors = form.runValidation()
@@ -200,9 +218,17 @@ function PrescriptionForm({
       return
     }
 
+    const patientObj = patients.find(
+      (p) =>
+        String(p.id) === String(form.values.patientDbId) ||
+        p.patientId === form.values.patient_id ||
+        p.name === form.values.patient
+    )
+    const finalPatientId = patientObj?.patientId || form.values.patient_id || ''
+
     onSubmit({
       patient: form.values.patient,
-      patient_id: form.values.patient_id,
+      patient_id: finalPatientId,
       consultation_id: form.values.consultation_id || null,
       prescribed_by: form.values.prescribed_by,
       date: form.values.date || todayISO(),
@@ -257,14 +283,14 @@ function PrescriptionForm({
                 <span>Patient *</span>
                 <select
                   className={FORM_FIELD}
-                  value={form.values.patient_id}
+                  value={selectedPatientDbId}
                   onChange={(e) => handlePatientChange(e.target.value)}
                   disabled={busy}
                 >
                   <option value="">— Select patient —</option>
                   {patients.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} — {p.id} {p.type ? `(${p.type})` : ''}
+                    <option key={p.id} value={String(p.id)}>
+                      {p.name} — {p.patientId || p.id} {p.type ? `(${p.type})` : ''}
                     </option>
                   ))}
                 </select>
