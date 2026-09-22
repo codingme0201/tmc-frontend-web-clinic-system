@@ -1,10 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useAppContext } from '../context/AppContext'
 import { reportsService } from '../services/reportsService'
 
+function fetchReportByType(reportType, filterState) {
+  switch (reportType) {
+    case 'appointments':
+      return reportsService.fetchAppointmentReport(filterState)
+    case 'consultations':
+      return reportsService.fetchConsultationReport(filterState)
+    case 'patients':
+      return reportsService.fetchPatientReport(filterState)
+    case 'medical-certificates':
+      return reportsService.fetchMedicalCertificateReport(filterState)
+    case 'prescriptions':
+      return reportsService.fetchPrescriptionReport(filterState)
+    default:
+      return reportsService.fetchAppointmentReport(filterState)
+  }
+}
+
 export function useReportsStore({ onLog } = {}, scope = 'page') {
-  const queryClient = useQueryClient()
   const onLogRef = useRef(onLog)
   useEffect(() => {
     onLogRef.current = onLog
@@ -13,54 +29,39 @@ export function useReportsStore({ onLog } = {}, scope = 'page') {
   const [activeReport, setActiveReport] = useState('appointments')
   const [filters, setFilters] = useState({})
 
-  const buildQueryKey = useCallback(
-    (reportType, filterState) => ['reports', reportType, filterState, scope],
-    [scope],
-  )
-
-  const { data: reportData, isLoading: reportLoading, error: reportError, refetch: refetchReport, isRefetching: reportRefetching } = useQuery({
-    queryKey: buildQueryKey(activeReport, filters),
-    queryFn: () => {
-      switch (activeReport) {
-        case 'appointments':
-          return reportsService.fetchAppointmentReport(filters)
-        case 'consultations':
-          return reportsService.fetchConsultationReport(filters)
-        case 'patients':
-          return reportsService.fetchPatientReport(filters)
-        case 'medical-certificates':
-          return reportsService.fetchMedicalCertificateReport(filters)
-        case 'prescriptions':
-          return reportsService.fetchPrescriptionReport(filters)
-        default:
-          return reportsService.fetchAppointmentReport(filters)
-      }
-    },
-    enabled: false,
+  const {
+    data: reportResult,
+    isLoading: reportLoading,
+    error: reportError,
+    refetch: refetchReport,
+    isRefetching: reportRefetching,
+  } = useQuery({
+    queryKey: ['reports', activeReport, filters, scope],
+    queryFn: () => fetchReportByType(activeReport, filters),
   })
 
-  const { data: statsData, isLoading: statsLoading, refetch: refetchStats } = useQuery({
-    queryKey: ['reports-statistics', filters, scope],
-    queryFn: () => reportsService.fetchStatistics(filters),
-    enabled: false,
+  const [statsEnabled, setStatsEnabled] = useState(false)
+  const [statsFilters, setStatsFilters] = useState({})
+
+  const {
+    data: statsResult,
+    isLoading: statsLoading,
+    refetch: refetchStats,
+  } = useQuery({
+    queryKey: ['reports-statistics', statsFilters, scope],
+    queryFn: () => reportsService.fetchStatistics(statsFilters),
+    enabled: statsEnabled,
   })
 
-  const generateReport = useCallback(
-    (reportType, filterState) => {
-      setActiveReport(reportType)
-      setFilters(filterState)
-      queryClient.invalidateQueries({ queryKey: ['reports', reportType] })
-    },
-    [queryClient],
-  )
+  const generateReport = useCallback((reportType, filterState = {}) => {
+    setActiveReport(reportType)
+    setFilters(filterState)
+  }, [])
 
-  const generateStats = useCallback(
-    (filterState) => {
-      setFilters(filterState)
-      queryClient.invalidateQueries({ queryKey: ['reports-statistics'] })
-    },
-    [queryClient],
-  )
+  const generateStats = useCallback((filterState = {}) => {
+    setStatsFilters(filterState)
+    setStatsEnabled(true)
+  }, [])
 
   const exportMutation = useMutation({
     mutationFn: ({ type, filters: exportFilters }) => reportsService.exportReport(type, exportFilters),
@@ -106,13 +107,13 @@ export function useReportsStore({ onLog } = {}, scope = 'page') {
     setFilters,
     generateReport,
     generateStats,
-    reportData: reportData?.data ?? [],
-    reportMeta: reportData?.meta ?? null,
+    reportData: reportResult?.data ?? [],
+    reportMeta: reportResult?.meta ?? null,
     reportLoading,
     reportError: reportError?.message ?? null,
     refetchReport,
     reportRefetching,
-    statsData: statsData?.data ?? null,
+    statsData: statsResult?.data ?? null,
     statsLoading,
     refetchStats,
     downloadExport,

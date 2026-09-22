@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useReports } from '../hooks/useReports'
 import { useForm } from 'react-hook-form'
@@ -80,30 +80,27 @@ function Reports({ page }) {
 
   const patientStatusOptions = reports.activeReport === 'patients' ? PATIENT_STATUSES : ['All']
 
-  const handleGenerate = useCallback(
-    (values) => {
-      if (busyRef.current) return
-      busyRef.current = true
-      setBusy(true)
-      try {
-        const filterState = {}
-        if (values.start_date) filterState.start_date = values.start_date
-        if (values.end_date) filterState.end_date = values.end_date
-        if (values.status && values.status !== 'All') filterState.status = values.status
-        if (values.patient) filterState.patient = values.patient
-        if (values.staff) filterState.staff = values.staff
-        if (values.type && values.type !== 'All') filterState.type = values.type
+  const handleGenerate = async (values) => {
+    if (busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    try {
+      const filterState = {}
+      if (values.start_date) filterState.start_date = values.start_date
+      if (values.end_date) filterState.end_date = values.end_date
+      if (values.status && values.status !== 'All') filterState.status = values.status
+      if (values.patient) filterState.patient = values.patient
+      if (values.staff) filterState.staff = values.staff
+      if (values.type && values.type !== 'All') filterState.type = values.type
 
-        reports.generateReport(reports.activeReport, filterState)
-      } finally {
-        busyRef.current = false
-        setBusy(false)
-      }
-    },
-    [reports],
-  )
+      reports.generateReport(reports.activeReport, filterState)
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }
 
-  const handleGenerateStats = useCallback(() => {
+  const handleGenerateStats = async () => {
     if (busyRef.current) return
     busyRef.current = true
     setBusy(true)
@@ -114,27 +111,20 @@ function Reports({ page }) {
       if (values.end_date) filterState.end_date = values.end_date
       reports.generateStats(filterState)
       setShowStats(true)
+    } catch (err) {
+      showToast(err?.message || 'Failed to load statistics.', 'error')
     } finally {
       busyRef.current = false
       setBusy(false)
     }
-  }, [reports, form])
+  }
 
-  const handleExport = useCallback(async () => {
+  const handleExport = async () => {
     if (busyRef.current) return
     busyRef.current = true
     setBusy(true)
     try {
-      const values = form.getValues()
-      const filterState = {}
-      if (values.start_date) filterState.start_date = values.start_date
-      if (values.end_date) filterState.end_date = values.end_date
-      if (values.status && values.status !== 'All') filterState.status = values.status
-      if (values.patient) filterState.patient = values.patient
-      if (values.staff) filterState.staff = values.staff
-      if (values.type && values.type !== 'All') filterState.type = values.type
-
-      await reports.downloadExport(reports.activeReport, filterState)
+      await reports.downloadExport(reports.activeReport, reports.filters)
       showToast('Report exported successfully.')
     } catch (err) {
       showToast(err?.message || 'Failed to export report.', 'error')
@@ -142,7 +132,7 @@ function Reports({ page }) {
       busyRef.current = false
       setBusy(false)
     }
-  }, [reports, form, showToast])
+  }
 
   const submitForm = (event) => {
     form.handleSubmit(handleGenerate, () => showToast('Please check the filter values.', 'error'))(event)
@@ -150,7 +140,10 @@ function Reports({ page }) {
 
   const resetFilters = () => {
     form.reset({ start_date: '', end_date: '', status: 'All', patient: '', staff: '', type: 'All' })
+    reports.generateReport(reports.activeReport, {})
   }
+
+  const colCount = reports.activeReport === 'prescriptions' ? 5 : 7
 
   return (
     <div>
@@ -186,8 +179,8 @@ function Reports({ page }) {
                 : 'border-line bg-surface hover:border-primary/30'
             }`}
             onClick={() => {
-              reports.setActiveReport(rt.id)
-              resetFilters()
+              reports.generateReport(rt.id, {})
+              form.reset({ start_date: '', end_date: '', status: 'All', patient: '', staff: '', type: 'All' })
               setShowStats(false)
             }}
           >
@@ -233,7 +226,7 @@ function Reports({ page }) {
             {needsPatientFilter && reports.activeReport !== 'patients' && (
               <label className={FORM_LABEL}>
                 Patient
-                <input type="text" placeholder="Search patient..." className={FORM_FIELD} {...form.register('patient')} />
+                <input type="text" placeholder="Search patient name or ID..." className={FORM_FIELD} {...form.register('patient')} />
               </label>
             )}
 
@@ -354,6 +347,18 @@ function Reports({ page }) {
         <div className="overflow-x-auto rounded-lg border border-line">
           {reports.reportError ? (
             <ErrorState message={reports.reportError} onRetry={reports.refetchReport} />
+          ) : reports.reportLoading ? (
+            <TableSkeleton columns={colCount} />
+          ) : pageItems.length === 0 ? (
+            <table className={TABLE}>
+              <tbody>
+                <tr>
+                  <td colSpan={colCount}>
+                    <EmptyState message="No report records found. Try adjusting the filters above." />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           ) : (
             <table className={TABLE}>
               <thead>
@@ -414,120 +419,110 @@ function Reports({ page }) {
                 </tr>
               </thead>
               <tbody>
-                {reports.reportLoading ? (
-                  <TableSkeleton columns={reports.activeReport === 'patients' ? 7 : reports.activeReport === 'prescriptions' ? 5 : 7} />
-                ) : pageItems.length === 0 ? (
-                  <tr>
-                    <td colSpan={reports.activeReport === 'patients' ? 7 : reports.activeReport === 'prescriptions' ? 5 : 7}>
-                      <EmptyState message="No report data. Select filters and click Generate Report." />
-                    </td>
+                {pageItems.map((row) => (
+                  <tr key={row.id}>
+                    {reports.activeReport === 'appointments' && (
+                      <>
+                        <td className="font-bold text-ink">{row.reference}</td>
+                        <td>{row.patient}</td>
+                        <td>{row.staff}</td>
+                        <td>{row.type}</td>
+                        <td>{row.date}</td>
+                        <td>{row.time}</td>
+                        <td>
+                          <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                            row.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' :
+                            row.status === 'Cancelled' || row.status === 'Rejected' ? 'bg-red-100 text-red-700' :
+                            row.status === 'Approved' ? 'bg-blue-100 text-blue-700' :
+                            'bg-amber-100 text-amber-700'
+                          }`}>
+                            {row.status}
+                          </span>
+                        </td>
+                      </>
+                    )}
+                    {reports.activeReport === 'consultations' && (
+                      <>
+                        <td className="font-bold text-ink">{row.reference}</td>
+                        <td>{row.patient}</td>
+                        <td>{row.staff}</td>
+                        <td>{row.date}</td>
+                        <td>
+                          <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                            row.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' :
+                            row.status === 'In Progress' ? 'bg-blue-100 text-blue-700' :
+                            'bg-amber-100 text-amber-700'
+                          }`}>
+                            {row.status}
+                          </span>
+                        </td>
+                        <td className="max-w-[200px] truncate">{row.chiefComplaint || '—'}</td>
+                        <td className="max-w-[200px] truncate">{row.diagnosis || '—'}</td>
+                      </>
+                    )}
+                    {reports.activeReport === 'patients' && (
+                      <>
+                        <td className="font-bold text-ink">{row.patientId}</td>
+                        <td>{row.name}</td>
+                        <td>{row.type}</td>
+                        <td>{row.courseDept || '—'}</td>
+                        <td>{row.contact || '—'}</td>
+                        <td>
+                          <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                            row.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {row.status}
+                          </span>
+                        </td>
+                        <td className="text-center">
+                          <span className="text-[12px] font-bold text-muted">
+                            {row.appointmentsCount + row.consultationsCount}
+                          </span>
+                        </td>
+                      </>
+                    )}
+                    {reports.activeReport === 'medical-certificates' && (
+                      <>
+                        <td className="font-bold text-ink">{row.reference}</td>
+                        <td>{row.patient}</td>
+                        <td className="max-w-[150px] truncate">{row.purpose || '—'}</td>
+                        <td className="max-w-[150px] truncate">{row.diagnosis || '—'}</td>
+                        <td>{row.issuedBy || '—'}</td>
+                        <td>{row.issueDate || '—'}</td>
+                        <td>
+                          <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                            row.status === 'Issued' ? 'bg-emerald-100 text-emerald-700' :
+                            row.status === 'Approved' ? 'bg-blue-100 text-blue-700' :
+                            row.status === 'Rejected' || row.status === 'Void' ? 'bg-red-100 text-red-700' :
+                            'bg-amber-100 text-amber-700'
+                          }`}>
+                            {row.status}
+                          </span>
+                        </td>
+                      </>
+                    )}
+                    {reports.activeReport === 'prescriptions' && (
+                      <>
+                        <td className="font-bold text-ink">{row.reference}</td>
+                        <td>{row.patient}</td>
+                        <td>{row.prescribedBy || '—'}</td>
+                        <td>{row.prescriptionDate || '—'}</td>
+                        <td>
+                          <div className="flex flex-col gap-0.5">
+                            {(row.medications || []).map((m, i) => (
+                              <span key={i} className="text-[12px] text-ink">
+                                {m.medicineName} ({m.dosage})
+                              </span>
+                            ))}
+                            {(!row.medications || row.medications.length === 0) && (
+                              <span className="text-[12px] text-muted">—</span>
+                            )}
+                          </div>
+                        </td>
+                      </>
+                    )}
                   </tr>
-                ) : (
-                  pageItems.map((row) => (
-                    <tr key={row.id}>
-                      {reports.activeReport === 'appointments' && (
-                        <>
-                          <td className="font-bold text-ink">{row.reference}</td>
-                          <td>{row.patient}</td>
-                          <td>{row.staff}</td>
-                          <td>{row.type}</td>
-                          <td>{row.date}</td>
-                          <td>{row.time}</td>
-                          <td>
-                            <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                              row.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' :
-                              row.status === 'Cancelled' || row.status === 'Rejected' ? 'bg-red-100 text-red-700' :
-                              row.status === 'Approved' ? 'bg-blue-100 text-blue-700' :
-                              'bg-amber-100 text-amber-700'
-                            }`}>
-                              {row.status}
-                            </span>
-                          </td>
-                        </>
-                      )}
-                      {reports.activeReport === 'consultations' && (
-                        <>
-                          <td className="font-bold text-ink">{row.reference}</td>
-                          <td>{row.patient}</td>
-                          <td>{row.staff}</td>
-                          <td>{row.date}</td>
-                          <td>
-                            <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                              row.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' :
-                              row.status === 'In Progress' ? 'bg-blue-100 text-blue-700' :
-                              'bg-amber-100 text-amber-700'
-                            }`}>
-                              {row.status}
-                            </span>
-                          </td>
-                          <td className="max-w-[200px] truncate">{row.chiefComplaint || '—'}</td>
-                          <td className="max-w-[200px] truncate">{row.diagnosis || '—'}</td>
-                        </>
-                      )}
-                      {reports.activeReport === 'patients' && (
-                        <>
-                          <td className="font-bold text-ink">{row.patientId}</td>
-                          <td>{row.name}</td>
-                          <td>{row.type}</td>
-                          <td>{row.courseDept || '—'}</td>
-                          <td>{row.contact || '—'}</td>
-                          <td>
-                            <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                              row.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'
-                            }`}>
-                              {row.status}
-                            </span>
-                          </td>
-                          <td className="text-center">
-                            <span className="text-[12px] font-bold text-muted">
-                              {row.appointmentsCount + row.consultationsCount}
-                            </span>
-                          </td>
-                        </>
-                      )}
-                      {reports.activeReport === 'medical-certificates' && (
-                        <>
-                          <td className="font-bold text-ink">{row.reference}</td>
-                          <td>{row.patient}</td>
-                          <td className="max-w-[150px] truncate">{row.purpose || '—'}</td>
-                          <td className="max-w-[150px] truncate">{row.diagnosis || '—'}</td>
-                          <td>{row.issuedBy || '—'}</td>
-                          <td>{row.issueDate || '—'}</td>
-                          <td>
-                            <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                              row.status === 'Issued' ? 'bg-emerald-100 text-emerald-700' :
-                              row.status === 'Approved' ? 'bg-blue-100 text-blue-700' :
-                              row.status === 'Rejected' || row.status === 'Void' ? 'bg-red-100 text-red-700' :
-                              'bg-amber-100 text-amber-700'
-                            }`}>
-                              {row.status}
-                            </span>
-                          </td>
-                        </>
-                      )}
-                      {reports.activeReport === 'prescriptions' && (
-                        <>
-                          <td className="font-bold text-ink">{row.reference}</td>
-                          <td>{row.patient}</td>
-                          <td>{row.prescribedBy || '—'}</td>
-                          <td>{row.prescriptionDate || '—'}</td>
-                          <td>
-                            <div className="flex flex-col gap-0.5">
-                              {(row.medications || []).map((m, i) => (
-                                <span key={i} className="text-[12px] text-ink">
-                                  {m.medicineName} ({m.dosage})
-                                </span>
-                              ))}
-                              {(!row.medications || row.medications.length === 0) && (
-                                <span className="text-[12px] text-muted">—</span>
-                              )}
-                            </div>
-                          </td>
-                        </>
-                      )}
-                    </tr>
-                  ))
-                )}
+                ))}
               </tbody>
             </table>
           )}
