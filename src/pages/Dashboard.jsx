@@ -588,7 +588,7 @@ function Dashboard() {
               <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="m-0 text-[18px] text-[#143d40]">Interactive Appointment Queue</h3>
-                  <p className={KICKER}>Students, staff, and faculty requests</p>
+                  <p className={KICKER}>Student appointment requests</p>
                 </div>
                 <div className="flex gap-[10px]">
                   <input
@@ -1010,7 +1010,7 @@ function Dashboard() {
               <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="m-0 text-[18px] text-[#143d40]">Patient Registry</h3>
-                  <p className={KICKER}>Comprehensive record of students, faculty, and school personnel</p>
+                  <p className={KICKER}>Comprehensive record of student patients</p>
                 </div>
                 <div className="flex gap-[10px]">
                   <input
@@ -1027,8 +1027,6 @@ function Dashboard() {
                   >
                     <option value="All">All Types</option>
                     <option value="Student">Student</option>
-                    <option value="Faculty">Faculty</option>
-                    <option value="Staff">Staff</option>
                   </select>
                 </div>
               </div>
@@ -1125,8 +1123,6 @@ function Dashboard() {
                     Category
                     <select value={patType} onChange={(e) => setPatType(e.target.value)} className={FORM_FIELD}>
                       <option value="Student">Student</option>
-                      <option value="Faculty">Faculty</option>
-                      <option value="Staff">Staff</option>
                     </select>
                   </label>
                   <label className={FORM_LABEL}>

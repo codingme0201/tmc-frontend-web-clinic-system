@@ -224,7 +224,7 @@ function Patients({ page }) {
         <div className="mb-4 sm:mb-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
             <h3 className="m-0 text-[17px] sm:text-[18px] font-bold text-[#143d40]">Patient Registry</h3>
-            <p className={KICKER}>View and manage registered student, faculty, and staff patients</p>
+            <p className={KICKER}>View and manage registered student patients</p>
           </div>
           <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-end gap-2 sm:gap-2.5">
             <input
@@ -450,9 +450,6 @@ function Patients({ page }) {
                       onChange={(e) => setNewPatient({ ...newPatient, type: e.target.value })}
                     >
                       <option value="Student">Student</option>
-                      <option value="Faculty">Faculty</option>
-                      <option value="Staff">Staff</option>
-                      <option value="Visitor">Visitor</option>
                     </select>
                   </label>
                 </div>

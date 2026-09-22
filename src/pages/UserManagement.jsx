@@ -99,7 +99,7 @@ function UserManagement({ page }) {
   const selectedRole = useMemo(() => {
     return roleOptions.find((r) => String(r.id) === String(watchedRoleId))
   }, [roleOptions, watchedRoleId])
-  const isPatientRole = selectedRole?.name === 'patient'
+  const isPatientRole = selectedRole?.name === 'patient' || selectedRole?.name === 'student'
 
   // ---------- Create / Edit -------------------------------------------------
 

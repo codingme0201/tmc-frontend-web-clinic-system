@@ -26,7 +26,7 @@ const REPORT_TYPES = [
 const APPOINTMENT_STATUSES = ['All', 'Pending', 'Under Review', 'Approved', 'Rescheduled', 'Rejected', 'Cancelled', 'Completed']
 const CONSULTATION_STATUSES = ['All', 'Scheduled', 'In Progress', 'Completed']
 const CERTIFICATE_STATUSES = ['All', 'Pending', 'Approved', 'Issued', 'Rejected', 'Void']
-const PATIENT_TYPES = ['All', 'Student', 'Faculty', 'Staff']
+const PATIENT_TYPES = ['All', 'Student']
 const PATIENT_STATUSES = ['All', 'Active', 'Inactive']
 
 function Reports({ page }) {
