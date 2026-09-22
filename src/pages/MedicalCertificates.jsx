@@ -16,6 +16,7 @@ import StatusBadge from '../components/StatusBadge'
 import Pagination from '../components/Pagination'
 import RefreshingBadge from '../components/RefreshingBadge'
 import TableSkeleton from '../components/skeletons/TableSkeleton'
+import StudentSelect from '../components/StudentSelect'
 import { EmptyState, ErrorState } from '../components/AsyncState'
 import InlineSpinner from '../components/Spinner'
 
@@ -178,6 +179,7 @@ function MedicalCertificates({ page }) {
       validate: (values) => {
         const errors = {}
         if (!values.patient) errors.patient = 'Select a patient'
+        if (!values.consultationId) errors.consultationId = 'A completed consultation is required'
         if (!values.purpose.trim()) errors.purpose = 'Purpose is required'
         if (values.validUntil && values.issueDate && values.validUntil < values.issueDate) {
           errors.validUntil = 'Must be on or after the issue date'
@@ -203,15 +205,18 @@ function MedicalCertificates({ page }) {
     },
   )
 
-  // Completed consultations for the currently selected patient (for prefill).
+  // Completed consultations for the currently selected patient (for prefill and requirement).
   const patientConsults = useMemo(
     () =>
       form.values.patient
         ? consultations.filter(
-            (c) => c.patient === form.values.patient && c.status === 'Completed' && c.diagnosis,
+            (c) =>
+              (c.patient === form.values.patient ||
+                (form.values.patientId && c.patientId === form.values.patientId)) &&
+              c.status === 'Completed',
           )
         : [],
-    [consultations, form.values.patient],
+    [consultations, form.values.patient, form.values.patientId],
   )
 
   // Status summary counts
@@ -273,14 +278,22 @@ function MedicalCertificates({ page }) {
     const patient = patients.find(
       (p) => String(p.id) === String(patientDbId) || p.patientId === patientDbId
     )
+    const patConsults = patient
+      ? consultations.filter(
+          (c) =>
+            (c.patient === patient.name || (patient.patientId && c.patientId === patient.patientId)) &&
+            c.status === 'Completed',
+        )
+      : []
+    const latest = patConsults[0] || null
     form.setValues({
       ...form.values,
       patient: patient?.name || '',
       patientDbId: patient ? String(patient.id) : '',
       patientId: patient?.patientId || (patient ? String(patient.id) : ''),
-      consultationId: '',
-      diagnosis: '',
-      issueDate: todayISO(),
+      consultationId: latest ? latest.id : '',
+      diagnosis: latest?.diagnosis || latest?.chiefComplaint || '',
+      issueDate: latest?.date || todayISO(),
       validUntil: '',
     })
   }
@@ -641,39 +654,48 @@ function MedicalCertificates({ page }) {
               <div className="grid gap-[14px]">
                 <div className={FORM_ROW}>
                   <label className={FORM_LABEL}>
-                    <span>Patient *</span>
-                    <select
-                      className={FORM_FIELD}
-                      value={form.values.patientDbId || ''}
-                      onChange={(e) => handlePatientChange(e.target.value)}
+                    <span>Student / Patient *</span>
+                    <StudentSelect
+                      value={form.values.patientDbId || form.values.patientId}
+                      onChange={(val) => handlePatientChange(val)}
+                      patients={patients}
                       disabled={busy}
-                    >
-                      <option value="">— Select patient —</option>
-                      {patients.map((p) => (
-                        <option key={p.id} value={String(p.id)}>
-                          {p.name} — {p.patientId || p.id} {p.type ? `(${p.type})` : ''}
-                        </option>
-                      ))}
-                    </select>
+                      placeholder="Type student name or ID (e.g. 24-012345)..."
+                    />
                     {form.errors.patient && <span className={FIELD_ERROR}>{form.errors.patient}</span>}
                   </label>
                   <label className={FORM_LABEL}>
-                    <span>Source Consultation (optional)</span>
+                    <span>Accomplished Consultation *</span>
                     <select
                       className={FORM_FIELD}
                       value={form.values.consultationId}
                       onChange={(e) => handleConsultationChange(e.target.value)}
-                      disabled={busy || !form.values.patient}
+                      disabled={busy || !form.values.patient || patientConsults.length === 0}
                     >
-                      <option value="">— No consultation —</option>
+                      <option value="">
+                        {!form.values.patient
+                          ? '— Select a patient first —'
+                          : patientConsults.length === 0
+                            ? '— No completed consultations on file —'
+                            : '— Select completed consultation —'}
+                      </option>
                       {patientConsults.map((c) => (
                         <option key={c.id} value={c.id}>
-                          {c.reference} · {formatDate(c.date)} · {c.diagnosis}
+                          {c.reference} · {formatDate(c.date)} · {c.diagnosis || c.chiefComplaint || 'Consultation'}
                         </option>
                       ))}
                     </select>
+                    {form.errors.consultationId && (
+                      <span className={FIELD_ERROR}>{form.errors.consultationId}</span>
+                    )}
                   </label>
                 </div>
+
+                {form.values.patient && patientConsults.length === 0 && (
+                  <div className="rounded-lg border border-dashed border-[#f2cfc2] bg-[#fdf1ec] p-[10px_14px] text-[12.5px] font-bold text-[#a33c12]">
+                    ⚠ This student has no accomplished consultations on file. A clinic consultation must be completed first before requesting or issuing a medical certificate.
+                  </div>
+                )}
 
                 <label className={FORM_LABEL}>
                   <span>Purpose *</span>
@@ -770,7 +792,12 @@ function MedicalCertificates({ page }) {
                 >
                   Cancel
                 </button>
-                <button type="button" className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`} onClick={handleSubmitRequest} disabled={busy}>
+                <button
+                  type="button"
+                  className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`}
+                  onClick={handleSubmitRequest}
+                  disabled={busy || !form.values.consultationId}
+                >
                   {busy ? (
                     <>
                       <InlineSpinner /> Submitting...

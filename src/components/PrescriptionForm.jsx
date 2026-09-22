@@ -3,6 +3,7 @@ import { useForm } from '../hooks/useForm'
 import { todayISO } from '../lib/format'
 import { FORM_LABEL, FORM_FIELD, FORM_ROW, PILL, PRIMARY_BTN } from '../lib/ui'
 import InlineSpinner from './Spinner'
+import StudentSelect from './StudentSelect'
 
 const MODAL_CARD = 'flex max-h-[90vh] w-[min(650px,100%)] animate-modal-scale flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgba(8,20,20,0.22)]'
 const MODAL_CARD_WIDE = MODAL_CARD + ' w-[min(860px,100%)]'
@@ -280,20 +281,15 @@ function PrescriptionForm({
           <div className="grid gap-[14px]">
             <div className={FORM_ROW}>
               <label className={FORM_LABEL}>
-                <span>Patient *</span>
-                <select
-                  className={FORM_FIELD}
-                  value={selectedPatientDbId}
-                  onChange={(e) => handlePatientChange(e.target.value)}
+                <span>Student / Patient *</span>
+                <StudentSelect
+                  value={selectedPatientDbId || form.values.patient_id}
+                  valueKey="id"
+                  onChange={(val) => handlePatientChange(val ? String(val) : '')}
+                  patients={patients}
                   disabled={busy}
-                >
-                  <option value="">— Select patient —</option>
-                  {patients.map((p) => (
-                    <option key={p.id} value={String(p.id)}>
-                      {p.name} — {p.patientId || p.id} {p.type ? `(${p.type})` : ''}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Type student name or ID (e.g. 24-012345)..."
+                />
                 {form.errors.patient && <span className={FIELD_ERROR}>{form.errors.patient}</span>}
               </label>
               <label className={FORM_LABEL}>

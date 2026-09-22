@@ -4,7 +4,7 @@ import { useStaff } from '../hooks/useStaff'
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { useModal } from '../hooks/useModal'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { usePagination } from '../hooks/usePagination'
 import { formatDate, todayISO, timeToMinutes } from '../lib/format'
 import {
@@ -16,6 +16,7 @@ import StatusBadge from '../components/StatusBadge'
 import { EmptyState, ErrorState } from '../components/AsyncState'
 import RefreshingBadge from '../components/RefreshingBadge'
 import TableSkeleton from '../components/skeletons/TableSkeleton'
+import StudentSelect from '../components/StudentSelect'
 
 const STATUSES = ['Pending', 'Under Review', 'Approved', 'Rescheduled', 'Rejected', 'Cancelled', 'Completed', 'No-Show']
 const APPOINTMENT_TYPES = ['Check-up', 'Dental concern', 'Follow-up', 'Fever', 'Vaccination', 'Emergency']
@@ -69,6 +70,7 @@ function Appointments({ page }) {
   const bookForm = useForm({
     defaultValues: {
       patient: '',
+      patientId: '',
       type: 'Check-up',
       reason: '',
       date: todayISO(),
@@ -76,6 +78,8 @@ function Appointments({ page }) {
       staff: 'Unassigned',
     },
   })
+  const bookPatientId = useWatch({ control: bookForm.control, name: 'patientId' })
+  const bookPatientName = useWatch({ control: bookForm.control, name: 'patient' })
 
   // Reschedule form
   const rescheduleForm = useForm({
@@ -176,12 +180,13 @@ function Appointments({ page }) {
     }
   }
 
-  const handleBook = async ({ patient, type, reason, date, time, staff }) => {
+  const handleBook = async ({ patient, patientId, type, reason, date, time, staff }) => {
     if (busy) return
     setBusy(true)
     try {
       await createAppointment({
         patient: patient.trim(),
+        patient_id: patientId ? patientId.trim() : undefined,
         type,
         reason: reason.trim() || type,
         date,
@@ -190,6 +195,7 @@ function Appointments({ page }) {
       })
       showToast('Appointment booked successfully.')
       bookForm.setValue('patient', '')
+      bookForm.setValue('patientId', '')
       bookForm.setValue('reason', '')
       bookModal.close()
     } catch (err) {
@@ -679,13 +685,28 @@ function Appointments({ page }) {
             <div className={MODAL_BODY}>
               <form className={SIDEBAR_FORM} onSubmit={bookForm.handleSubmit(handleBook)}>
                 <label className={FORM_LABEL}>
-                  Patient Name
-                  <input
-                    type="text"
-                    placeholder="Enter patient name"
-                    className={FORM_FIELD}
-                    {...bookForm.register('patient', { required: 'Patient name is required.' })}
+                  <span>Student / Patient *</span>
+                  <StudentSelect
+                    value={bookPatientId || bookPatientName}
+                    valueKey="patientId"
+                    allowCustomInput
+                    placeholder="Type student name or ID (e.g. 24-012345)..."
+                    onChange={(val, student) => {
+                      if (student) {
+                        bookForm.setValue('patient', student.name)
+                        bookForm.setValue('patientId', student.patientId)
+                      } else {
+                        bookForm.setValue('patient', val || '')
+                        bookForm.setValue('patientId', '')
+                      }
+                    }}
                   />
+                  {!bookPatientName && (
+                    <input
+                      type="hidden"
+                      {...bookForm.register('patient', { required: 'Student / Patient is required.' })}
+                    />
+                  )}
                 </label>
                 <div className={FORM_ROW}>
                   <label className={FORM_LABEL}>

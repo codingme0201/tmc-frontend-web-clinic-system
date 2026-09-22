@@ -18,6 +18,7 @@ import StatusBadge from '../components/StatusBadge'
 import Pagination from '../components/Pagination'
 import RefreshingBadge from '../components/RefreshingBadge'
 import TableSkeleton from '../components/skeletons/TableSkeleton'
+import StudentSelect from '../components/StudentSelect'
 import { EmptyState, ErrorState } from '../components/AsyncState'
 
 // Roles permitted to start/record/complete consultations.
@@ -988,20 +989,14 @@ function Consultations({ page }) {
             >
               <div className={`${MODAL_BODY} flex flex-col gap-4`}>
                 <label className={CONSULT_FIELD}>
-                  <span>Patient <span className="text-danger">*</span></span>
-                  <select
-                    className={CONSULT_INPUT}
+                  <span>Student / Patient <span className="text-danger">*</span></span>
+                  <StudentSelect
                     value={selectedPatientId}
-                    onChange={(e) => setSelectedPatientId(e.target.value)}
+                    onChange={(val) => setSelectedPatientId(val)}
+                    patients={patients}
+                    placeholder="Type student name or ID (e.g. 24-012345)..."
                     required
-                  >
-                    <option value="">-- Select Registered Patient --</option>
-                    {patients.map((pat) => (
-                      <option key={pat.patientId || pat.id} value={pat.patientId || String(pat.id)}>
-                        {pat.name} ({pat.patientId || 'No ID'}{pat.type ? ` · ${pat.type}` : ''})
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </label>
 
                 <label className={CONSULT_FIELD}>

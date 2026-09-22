@@ -18,6 +18,7 @@ import StatusBadge from '../components/StatusBadge'
 import Pagination from '../components/Pagination'
 import RefreshingBadge from '../components/RefreshingBadge'
 import TableSkeleton from '../components/skeletons/TableSkeleton'
+import StudentSelect from '../components/StudentSelect'
 import { EmptyState, ErrorState } from '../components/AsyncState'
 
 const MODAL_CARD = 'flex max-h-[90vh] w-[min(520px,100%)] animate-modal-scale flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgba(8,20,20,0.22)]'
@@ -73,6 +74,7 @@ function UserManagement({ page }) {
   const userForm = useForm({
     defaultValues: { name: '', email: '', password: '', password_confirmation: '', role_id: '', patient_id: '' },
   })
+  const linkedPatientId = useWatch({ control: userForm.control, name: 'patient_id' })
 
   // Role assignment modal
   const [roleTarget, setRoleTarget] = useState(null)
@@ -521,31 +523,20 @@ function UserManagement({ page }) {
                 </label>
                 {isPatientRole && (
                   <label className={FORM_LABEL}>
-                    Linked Patient Record
-                    <select
-                      className={FORM_FIELD}
-                      {...userForm.register('patient_id', {
-                        required: isPatientRole ? 'Patient record linkage is required for patient user accounts.' : false,
-                      })}
+                    <span>Linked Student Record *</span>
+                    <StudentSelect
+                      value={linkedPatientId || ''}
+                      valueKey="patientId"
+                      patients={patients.data || []}
                       disabled={busy}
-                      onChange={(e) => {
-                        const val = e.target.value
+                      placeholder="Type student name or ID (e.g. 24-012345)..."
+                      onChange={(val, matchedPatient) => {
                         userForm.setValue('patient_id', val)
-                        const matchedPatient = (patients.data || []).find((p) => p.patientId === val)
-                        if (matchedPatient && !editing) {
-                          if (!userForm.getValues('name')) {
-                            userForm.setValue('name', matchedPatient.name)
-                          }
+                        if (matchedPatient && !editing && !userForm.getValues('name')) {
+                          userForm.setValue('name', matchedPatient.name)
                         }
                       }}
-                    >
-                      <option value="">-- Select Registered Patient --</option>
-                      {(patients.data || []).map((p) => (
-                        <option key={p.id || p.patientId} value={p.patientId}>
-                          {p.patientId} — {p.name} ({p.type})
-                        </option>
-                      ))}
-                    </select>
+                    />
                     <span className="text-[11.5px] text-muted-soft">
                       Associates this user account with clinic medical records and mobile portal data.
                     </span>

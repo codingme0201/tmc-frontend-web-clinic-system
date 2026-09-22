@@ -437,7 +437,7 @@ function Patients({ page }) {
                     <input
                       type="text"
                       className={FORM_FIELD}
-                      placeholder="e.g. 2024-00123 (Optional)"
+                      placeholder="e.g. 24-012345 (Optional)"
                       value={newPatient.id}
                       onChange={(e) => setNewPatient({ ...newPatient, id: e.target.value })}
                     />

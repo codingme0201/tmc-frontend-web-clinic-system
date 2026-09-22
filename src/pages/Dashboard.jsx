@@ -21,6 +21,7 @@ import TableSkeleton from '../components/skeletons/TableSkeleton'
 import ListSkeleton from '../components/skeletons/ListSkeleton'
 import CardSkeleton from '../components/skeletons/CardSkeleton'
 import FormSkeleton from '../components/skeletons/FormSkeleton'
+import StudentSelect from '../components/StudentSelect'
 
 function Dashboard() {
   const [activeTab, setActiveTab] = useState('overview') // 'overview', 'appointments', 'consultations', 'patients', 'schedule', 'activity'
@@ -884,16 +885,15 @@ function Dashboard() {
               ) : (
               <form onSubmit={handleLogConsultation} className={SIDEBAR_FORM}>
                 <label className={FORM_LABEL}>
-                  Select Patient
-                  <select value={effectiveConsPatient} onChange={(e) => setConsPatient(e.target.value)} className={FORM_FIELD} disabled={patientsLoading}>
-                    {patientsLoading ? (
-                      <option value="">Loading patients…</option>
-                    ) : (
-                      patients.map((p) => (
-                        <option key={p.id} value={p.name}>{p.name} ({p.patientId || p.id})</option>
-                      ))
-                    )}
-                  </select>
+                  <span>Student / Patient *</span>
+                  <StudentSelect
+                    value={effectiveConsPatient}
+                    valueKey="name"
+                    onChange={(name) => setConsPatient(name)}
+                    patients={patients}
+                    disabled={patientsLoading}
+                    placeholder="Type student name or ID (e.g. 24-012345)..."
+                  />
                 </label>
 
                 <label className={FORM_LABEL}>
@@ -1098,7 +1098,7 @@ function Dashboard() {
                     Patient ID
                     <input
                       type="text"
-                      placeholder="e.g. 2026-0941"
+                      placeholder="e.g. 24-012345"
                       value={patId}
                       onChange={(e) => setPatId(e.target.value)}
                       required
