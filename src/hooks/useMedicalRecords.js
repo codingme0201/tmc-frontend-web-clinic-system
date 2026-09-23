@@ -22,6 +22,9 @@ export function useMedicalRecordsStore({ onLog } = {}, scope = 'page') {
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ['medical-records', scope],
     queryFn: medicalRecordsService.fetchMedicalRecords,
+    refetchOnMount: true,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 3000),
   })
 
   const refresh = useCallback(() => {
@@ -78,6 +81,18 @@ export function useMedicalRecordsStore({ onLog } = {}, scope = 'page') {
     },
   })
 
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ recordId, status }) => medicalRecordsService.updateRecordStatus(recordId, status),
+    onSuccess: (updated, { status }) => {
+      refresh()
+      onLogRef.current?.(
+        status === 'Archived'
+          ? `Archived medical record for ${updated.name}`
+          : `Restored medical record for ${updated.name} to Active`,
+      )
+    },
+  })
+
   const addCondition = useCallback(
     async (recordId, payload) => addConditionMutation.mutateAsync({ recordId, payload }),
     [addConditionMutation],
@@ -112,12 +127,18 @@ export function useMedicalRecordsStore({ onLog } = {}, scope = 'page') {
     [removeAllergyMutation],
   )
 
+  const updateRecordStatus = useCallback(
+    async (recordId, status) => updateStatusMutation.mutateAsync({ recordId, status }),
+    [updateStatusMutation],
+  )
+
   return {
     data: data || [],
     isLoading,
     error: error?.message ?? null,
     refetch,
     isRefetching,
+    updateRecordStatus,
     addCondition,
     updateCondition,
     removeCondition,

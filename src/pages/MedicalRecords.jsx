@@ -67,24 +67,25 @@ const AUTH_NOTICE = 'mb-[14px] flex items-center gap-2 rounded-lg border border-
 
 // Builds the chronological record timeline from the record's clinical
 // sections, its consultations, and its appointments (joined by patient id).
-function buildTimeline(record, consults, appointments) {
+function buildTimeline(record, consults = [], appointments = []) {
+  if (!record) return []
   const events = []
-  for (const h of record.medicalHistory) {
+  for (const h of (record.medicalHistory || [])) {
     events.push({ id: `hist-${h.id}`, date: h.date, type: 'Medical History', title: h.condition, subtitle: h.notes, staff: '' })
   }
-  for (const c of record.conditions) {
+  for (const c of (record.conditions || [])) {
     events.push({ id: `cond-${c.id}`, date: c.diagnosedDate, type: 'Medical Condition', title: c.name, subtitle: `Status: ${c.status}`, staff: '' })
   }
-  for (const a of record.allergies) {
+  for (const a of (record.allergies || [])) {
     events.push({ id: `allergy-${a.id}`, date: a.dateRecorded, type: 'Allergy Recorded', title: a.allergen, subtitle: `${a.reaction || 'Reaction'} · ${a.severity}`, staff: '' })
   }
-  for (const m of record.medications) {
+  for (const m of (record.medications || [])) {
     events.push({ id: `med-${m.id}`, date: m.prescribedDate, type: 'Medication Prescribed', title: `${m.name} ${m.dosage}`.trim(), subtitle: m.frequency, staff: m.prescribedBy })
   }
-  for (const c of consults) {
+  for (const c of (consults || [])) {
     events.push({ id: `cons-${c.id}`, date: c.date, type: 'Consultation', title: c.diagnosis || c.chiefComplaint || 'Consultation', subtitle: c.chiefComplaint, staff: c.staff, consultation: c })
   }
-  for (const a of appointments) {
+  for (const a of (appointments || [])) {
     if (a.patientId !== record.patientId) continue
     events.push({ id: `appt-${a.id}`, date: a.date, type: 'Appointment', title: a.type || 'Appointment', subtitle: a.status, staff: a.staff })
   }
@@ -234,11 +235,12 @@ function MedicationDetailsModal({ med, patientName, onClose }) {
 
 function MedicalRecords({ page }) {
   const {
-    data: records,
+    data: records = [],
     isLoading,
     error,
     refetch,
     isRefetching,
+    updateRecordStatus,
     addCondition,
     updateCondition,
     removeCondition,
@@ -247,8 +249,8 @@ function MedicalRecords({ page }) {
     removeAllergy,
   } = useMedicalRecords()
   const { data: registeredPatients = [] } = usePatients()
-  const { data: consultations } = useConsultations()
-  const { data: appointments } = useAppointments()
+  const { data: consultations = [] } = useConsultations()
+  const { data: appointments = [] } = useAppointments()
   const { showToast } = useToast()
   const { userRole } = useAuth()
   const canEdit = MEDICAL_ROLES.includes(userRole)
@@ -274,18 +276,20 @@ function MedicalRecords({ page }) {
   // Patients / students available for dropdown selection
   const patientOptions = useMemo(() => {
     const map = new Map()
-    for (const r of records) {
-      if (r.patientId) {
-        map.set(r.patientId, { patientId: r.patientId, name: r.name, type: r.type })
+    const recordList = Array.isArray(records) ? records : []
+    const patientList = Array.isArray(registeredPatients) ? registeredPatients : []
+    for (const r of recordList) {
+      if (r?.patientId) {
+        map.set(r.patientId, { patientId: r.patientId, name: r.name || '', type: r.type || '' })
       }
     }
-    for (const p of registeredPatients) {
+    for (const p of patientList) {
       const key = p.patientId || String(p.id)
       if (!map.has(key)) {
-        map.set(key, { patientId: key, name: p.name, type: p.type })
+        map.set(key, { patientId: key, name: p.name || '', type: p.type || '' })
       }
     }
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name))
+    return Array.from(map.values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''))
   }, [records, registeredPatients])
 
   // ---------- Detail view state ----------
@@ -296,6 +300,7 @@ function MedicalRecords({ page }) {
   const [conditionModal, setConditionModal] = useState(null) // { record, condition? }
   const [allergyModal, setAllergyModal] = useState(null) // { record, allergy? }
   const [removeTarget, setRemoveTarget] = useState(null) // { kind, record, item }
+  const [archiveTarget, setArchiveTarget] = useState(null) // { record, nextStatus: 'Active' | 'Archived' }
   const [consultDetails, setConsultDetails] = useState(null)
   const [medDetails, setMedDetails] = useState(null) // { med, patientName }
   const [busy, setBusy] = useState(false)
@@ -314,32 +319,36 @@ function MedicalRecords({ page }) {
   // Per-patient consultation metadata (count + last date) from the shared store.
   const consultMeta = useMemo(() => {
     const map = {}
-    for (const c of consultations) {
+    const list = Array.isArray(consultations) ? consultations : []
+    for (const c of list) {
+      if (!c?.patientId) continue
       const entry = map[c.patientId] || (map[c.patientId] = { count: 0, last: '' })
       entry.count += 1
-      if (c.date > entry.last) entry.last = c.date
+      if (c.date && c.date > entry.last) entry.last = c.date
     }
     return map
   }, [consultations])
 
   const statusCounts = useMemo(() => {
-    const counts = { All: records.length, Active: 0, Archived: 0 }
-    for (const r of records) counts[r.status] = (counts[r.status] || 0) + 1
+    const list = Array.isArray(records) ? records : []
+    const counts = { All: list.length, Active: 0, Archived: 0 }
+    for (const r of list) counts[r.status] = (counts[r.status] || 0) + 1
     return counts
   }, [records])
 
   // ---------- Detail derivations ----------
-  const selected = selectedId ? records.find((r) => r.id === selectedId) || null : null
+  const recordList = Array.isArray(records) ? records : []
+  const selected = selectedId ? recordList.find((r) => r.id === selectedId) || null : null
   const patientConsults = useMemo(
-    () => (selected ? consultations.filter((c) => c.patientId === selected.patientId) : []),
+    () => (selected && Array.isArray(consultations) ? consultations.filter((c) => c.patientId === selected.patientId) : []),
     [selected, consultations],
   )
   const timeline = useMemo(
     () => (selected ? buildTimeline(selected, patientConsults, appointments) : []),
     [selected, patientConsults, appointments],
   )
-  const activeConditions = selected ? selected.conditions.filter((c) => c.status === 'Active') : []
-  const activeMedications = selected ? selected.medications.filter((m) => m.status === 'Active') : []
+  const activeConditions = selected ? (selected.conditions || []).filter((c) => c.status === 'Active') : []
+  const activeMedications = selected ? (selected.medications || []).filter((m) => m.status === 'Active') : []
 
   // Escape closes whichever dialog is on top.
   useEffect(() => {
@@ -348,12 +357,13 @@ function MedicalRecords({ page }) {
       if (conditionModal) setConditionModal(null)
       else if (allergyModal) setAllergyModal(null)
       else if (removeTarget) setRemoveTarget(null)
+      else if (archiveTarget) setArchiveTarget(null)
       else if (consultDetails) setConsultDetails(null)
       else if (medDetails) setMedDetails(null)
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [busy, conditionModal, allergyModal, removeTarget, consultDetails, medDetails])
+  }, [busy, conditionModal, allergyModal, removeTarget, archiveTarget, consultDetails, medDetails])
 
   const openRecord = (record) => {
     setSelectedId(record.id)
@@ -363,6 +373,28 @@ function MedicalRecords({ page }) {
   const closeRecord = () => {
     setSelectedId(null)
     setActiveTab('overview')
+  }
+
+  // ---------- Archive / Restore handlers ----------
+  const handleConfirmArchive = async () => {
+    if (!archiveTarget || busy || busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    const { record, nextStatus } = archiveTarget
+    try {
+      await updateRecordStatus(record.id, nextStatus)
+      showToast(
+        nextStatus === 'Archived'
+          ? `Medical record for "${record.name}" has been archived.`
+          : `Medical record for "${record.name}" has been restored to Active.`,
+      )
+      setArchiveTarget(null)
+    } catch (err) {
+      showToast(err?.message || `Failed to ${nextStatus === 'Archived' ? 'archive' : 'restore'} the record.`, 'error')
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
   }
 
   // ---------- Condition handlers ----------
@@ -546,6 +578,16 @@ function MedicalRecords({ page }) {
             )}
             {!isLoading && !error && (
               <>
+                <button
+                  type="button"
+                  className={`${PILL} flex items-center gap-1.5`}
+                  onClick={() => refetch()}
+                  disabled={isRefetching}
+                  title="Refresh medical records"
+                >
+                  <span className={isRefetching ? 'animate-spin' : ''}>↻</span>
+                  {isRefetching ? 'Refreshing...' : 'Refresh'}
+                </button>
                 <RefreshingBadge refreshing={isRefetching} />
                 <span className="ml-auto whitespace-nowrap text-[12.5px] font-bold text-muted">
                   {filtered.length} of {records.length} records
@@ -634,6 +676,29 @@ function MedicalRecords({ page }) {
                           <button type="button" className={BTN_VIEW} onClick={() => openRecord(record)}>
                             View Record
                           </button>
+                          {canEdit && (
+                            record.status === 'Archived' ? (
+                              <button
+                                type="button"
+                                className={BTN_SUCCESS}
+                                onClick={() => setArchiveTarget({ record, nextStatus: 'Active' })}
+                                disabled={busy}
+                                title="Restore this record to Active"
+                              >
+                                Restore
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className={BTN_INFO}
+                                onClick={() => setArchiveTarget({ record, nextStatus: 'Archived' })}
+                                disabled={busy}
+                                title="Archive this medical record"
+                              >
+                                Archive
+                              </button>
+                            )
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1051,7 +1116,30 @@ function MedicalRecords({ page }) {
           <p className="m-0 text-[12.5px] text-muted">{selected.age} years old · {selected.sex} · {selected.contact}</p>
         </div>
         <div className="ml-auto flex flex-col items-end gap-[6px]">
-          <StatusBadge status={selected.status} />
+          <div className="flex items-center gap-2">
+            <StatusBadge status={selected.status} />
+            {canEdit && (
+              selected.status === 'Archived' ? (
+                <button
+                  type="button"
+                  className={BTN_SUCCESS}
+                  onClick={() => setArchiveTarget({ record: selected, nextStatus: 'Active' })}
+                  disabled={busy}
+                >
+                  Restore Record
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className={PILL}
+                  onClick={() => setArchiveTarget({ record: selected, nextStatus: 'Archived' })}
+                  disabled={busy}
+                >
+                  Archive Record
+                </button>
+              )
+            )}
+          </div>
           <span className="block text-[12px] text-muted">Updated {formatDate(selected.lastUpdated)}</span>
         </div>
       </div>
@@ -1317,6 +1405,63 @@ function MedicalRecords({ page }) {
                 </button>
                 <button type="button" className={`${BTN_ACTION_DANGER} min-h-10 px-[14px] text-[13px]`} onClick={handleConfirmRemove} disabled={busy}>
                   {busy ? 'Removing...' : 'Confirm Remove'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============ ARCHIVE / RESTORE CONFIRMATION MODAL ============ */}
+      {archiveTarget && (
+        <div
+          className={MODAL_BACKDROP}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm Archive Status"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !busy) setArchiveTarget(null)
+          }}
+        >
+          <div className={MODAL_CARD_SM}>
+            <div className={MODAL_HEADER}>
+              <h3 className="m-0 text-[18px] text-ink">
+                {archiveTarget.nextStatus === 'Archived' ? 'Archive Medical Record' : 'Restore Medical Record'}
+              </h3>
+              <button type="button" className={MODAL_CLOSE} onClick={() => { if (!busy) setArchiveTarget(null) }}>✕</button>
+            </div>
+            <div className={MODAL_BODY}>
+              <p className="mt-0">
+                {archiveTarget.nextStatus === 'Archived' ? (
+                  <>
+                    Are you sure you want to archive the medical record for <strong>{archiveTarget.record.name}</strong> ({archiveTarget.record.patientId})?
+                  </>
+                ) : (
+                  <>
+                    Restore the medical record for <strong>{archiveTarget.record.name}</strong> ({archiveTarget.record.patientId}) back to <strong>Active</strong> status?
+                  </>
+                )}
+              </p>
+              <p className="mb-0 text-muted">
+                {archiveTarget.nextStatus === 'Archived'
+                  ? 'Archived records remain securely preserved and can be viewed anytime by filtering by "Archived" status, or restored whenever needed.'
+                  : 'This will return the record back to the Active records list.'}
+              </p>
+            </div>
+            <div className={MODAL_FOOTER}>
+              <div className={MODAL_FOOTER_ACTIONS}>
+                <button type="button" className={PILL} onClick={() => { if (!busy) setArchiveTarget(null) }} disabled={busy}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className={archiveTarget.nextStatus === 'Archived' ? `${BTN_ACTION_DANGER} min-h-10 px-[14px] text-[13px]` : `${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`}
+                  onClick={handleConfirmArchive}
+                  disabled={busy}
+                >
+                  {busy
+                    ? (archiveTarget.nextStatus === 'Archived' ? 'Archiving...' : 'Restoring...')
+                    : (archiveTarget.nextStatus === 'Archived' ? 'Confirm Archive' : 'Confirm Restore')}
                 </button>
               </div>
             </div>

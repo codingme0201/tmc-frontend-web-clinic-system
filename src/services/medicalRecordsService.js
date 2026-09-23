@@ -61,8 +61,19 @@ export async function removeAllergy(recordId, allergyId) {
   return res.data
 }
 
+// ---------- Record Status (Active / Archived) ----------
+
+export async function updateRecordStatus(recordId, status) {
+  const res = await request(`/medical-records/${recordId}/status`, {
+    method: 'PATCH',
+    body: { status },
+  })
+  return res.data
+}
+
 export const medicalRecordsService = {
   fetchMedicalRecords,
+  updateRecordStatus,
   addCondition,
   updateCondition,
   removeCondition,
@@ -70,3 +81,4 @@ export const medicalRecordsService = {
   updateAllergy,
   removeAllergy,
 }
+

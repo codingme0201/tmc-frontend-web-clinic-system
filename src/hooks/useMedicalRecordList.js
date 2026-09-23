@@ -20,7 +20,7 @@ import { usePagination } from './usePagination'
  * `queryParams` and returns `{ data, total, totalPages }` — the UI below
  * (list rows + <Pagination>) stays unchanged.
  */
-export function useMedicalRecordList(records, { pageSize = 8, debounceDelay = 300 } = {}) {
+export function useMedicalRecordList(records = [], { pageSize = 8, debounceDelay = 300 } = {}) {
   // Debounced query — the same value would be sent to the API as `?q=`.
   const { search, setSearch, debouncedSearch, resetSearch } = useSearch({ debounceMs: debounceDelay })
   const [statusFilter, setStatusFilter] = useState('All')
@@ -28,21 +28,22 @@ export function useMedicalRecordList(records, { pageSize = 8, debounceDelay = 30
 
   // Search + filter pipeline (runs against the debounced query only).
   const filtered = useMemo(() => {
+    const list = Array.isArray(records) ? records : []
     const q = debouncedSearch.trim().toLowerCase()
-    return records.filter((r) => {
+    return list.filter((r) => {
       const matchStatus = statusFilter === 'All' || r.status === statusFilter
       const matchPatient =
         patientFilter === 'All' ||
         r.patientId === patientFilter ||
         String(r.id) === String(patientFilter) ||
-        r.name.toLowerCase() === patientFilter.toLowerCase()
+        (r.name && r.name.toLowerCase() === patientFilter.toLowerCase())
       const matchQuery =
         !q ||
-        r.name.toLowerCase().includes(q) ||
-        r.patientId.toLowerCase().includes(q) ||
-        r.id.toLowerCase().includes(q) ||
-        r.conditions.some((c) => c.name.toLowerCase().includes(q)) ||
-        r.allergies.some((a) => a.allergen.toLowerCase().includes(q))
+        (r.name && r.name.toLowerCase().includes(q)) ||
+        (r.patientId && r.patientId.toLowerCase().includes(q)) ||
+        String(r.id ?? '').toLowerCase().includes(q) ||
+        (Array.isArray(r.conditions) && r.conditions.some((c) => c?.name?.toLowerCase().includes(q))) ||
+        (Array.isArray(r.allergies) && r.allergies.some((a) => a?.allergen?.toLowerCase().includes(q)))
       return matchStatus && matchPatient && matchQuery
     })
   }, [records, debouncedSearch, statusFilter, patientFilter])
