@@ -110,7 +110,7 @@ function CertificateSheet({ certificate }) {
       <div className="mt-10 flex items-end justify-between gap-6">
         <div className="text-[12.5px] text-muted">
           <p className="m-0 font-extrabold text-ink">Issued on {formatDate(certificate.issueDate)}</p>
-          <p className="m-0 mt-1">University Clinic, TMC</p>
+          <p className="m-0 mt-1">Tagum Norte, Trinidad, Bohol, Philippines</p>
         </div>
         <div className="text-center">
           <div className="mb-1 w-[200px] border-t border-ink/60 pt-1 text-[12.5px] font-extrabold text-ink">

@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../hooks/useToast'
 import InlineSpinner from '../components/Spinner'
 import BackendStatusBanner from '../components/BackendStatusBanner'
+import ClinicLogo from '../components/ClinicLogo'
 import heroImage from '../assets/hero.png'
 
 function Login() {
@@ -60,17 +61,7 @@ function Login() {
           backgroundImage: `linear-gradient(rgba(8, 59, 63, 0.9), rgba(8, 59, 63, 0.94)), url(${heroImage})`,
         }}
       >
-        <div className="flex items-center gap-3">
-          <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-gold font-extrabold text-primary-dark shadow-md">
-            TC
-          </div>
-          <div>
-            <strong className="block text-[17px] leading-[1.1] text-white font-extrabold">TMC CareLink</strong>
-            <span className="mt-[3px] block text-[12px] text-[#a9d1ca]">
-              Trinidad Municipal College Clinic
-            </span>
-          </div>
-        </div>
+        <ClinicLogo size={46} subtitle="Trinidad Municipal College Clinic" />
         <div className="max-w-[620px] my-auto">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11.5px] font-extrabold text-[#c1e2dc] backdrop-blur-sm mb-3">
             Clinic Appointment and Medical Record Management System

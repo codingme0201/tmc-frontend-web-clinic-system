@@ -1,6 +1,7 @@
 import Icon from './Icon'
 import InlineSpinner from './Spinner'
 import ConfirmLogoutModal from './ConfirmLogoutModal'
+import ClinicLogo from './ClinicLogo'
 import { useAppContext } from '../context/AppContext'
 import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../hooks/useToast'
@@ -45,17 +46,7 @@ function Sidebar({ collapsed = false, mobileOpen = false, onNavigate, onClose })
     >
       {/* Brand Header + Mobile Close Button */}
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-gold font-extrabold text-primary-dark shadow-xs">
-            TC
-          </div>
-          <div className={collapsed ? 'desktop:hidden' : ''}>
-            <strong className="block text-[16px] leading-[1.1] text-white font-extrabold tracking-tight">
-              TMC CareLink
-            </strong>
-            <span className="mt-[2px] block text-[11.5px] text-[#9bd1c8]">Clinic Administration</span>
-          </div>
-        </div>
+        <ClinicLogo size={38} collapsed={collapsed} />
 
         {/* Dedicated Mobile Close Button */}
         <button

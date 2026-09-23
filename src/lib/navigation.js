@@ -40,7 +40,7 @@ export const navSections = [
     label: 'System',
     items: [
       { id: 'auditLogs', label: 'Audit Logs', icon: 'scrollText', permission: 'audit_logs.view' },
-      { id: 'settingsAudit', label: 'Settings', icon: 'settings', permission: 'settings.view' },
+      { id: 'settingsAudit', label: 'System Settings', icon: 'settings', permission: 'settings.view' },
       { id: 'rolesPermissions', label: 'Roles & Permissions', icon: 'key', permission: 'roles.view' },
     ],
   },
@@ -114,9 +114,9 @@ export const pageContent = {
     description: 'Track and review all user actions and system events across the clinic platform.',
   },
   settingsAudit: {
-    title: 'Settings',
+    title: 'System Settings',
     eyebrow: 'System',
-    description: 'Review configuration changes and activity history.',
+    description: 'Configure clinic identity, contact channels, operating schedules, and preferences.',
   },
   rolesPermissions: {
     title: 'Roles & Permissions',
