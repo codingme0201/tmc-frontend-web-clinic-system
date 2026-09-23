@@ -68,11 +68,32 @@ function UserManagement({ page }) {
   const busyRef = useRef(false)
   const [busy, setBusy] = useState(false)
 
+  const DEFAULT_USER_FORM = {
+    name: '',
+    email: '',
+    password: '',
+    password_confirmation: '',
+    role_id: '',
+    patient_id: '',
+    student_id: '',
+    first_name: '',
+    middle_name: '',
+    last_name: '',
+    age: '',
+    course: '',
+    block: 'Block 1',
+    address: 'Tagum Norte, Trinidad, Bohol, Philippines',
+    nationality: 'Filipino',
+    phone: '',
+    emergency_contact_name: '',
+    emergency_contact_phone: '',
+  }
+
   // Create / Edit modal
   const [editing, setEditing] = useState(null)
   const [userModalOpen, setUserModalOpen] = useState(false)
   const userForm = useForm({
-    defaultValues: { name: '', email: '', password: '', password_confirmation: '', role_id: '', patient_id: '' },
+    defaultValues: DEFAULT_USER_FORM,
   })
   const linkedPatientId = useWatch({ control: userForm.control, name: 'patient_id' })
 
@@ -107,19 +128,32 @@ function UserManagement({ page }) {
 
   const openCreate = () => {
     setEditing(null)
-    userForm.reset({ name: '', email: '', password: '', password_confirmation: '', role_id: '', patient_id: '' })
+    userForm.reset(DEFAULT_USER_FORM)
     setUserModalOpen(true)
   }
 
   const openEdit = (user) => {
     setEditing(user)
+    const p = user.patient || {}
     userForm.reset({
-      name: user.name,
-      email: user.email,
+      name: user.name || '',
+      email: user.email || '',
       password: '',
       password_confirmation: '',
-      role_id: user.role_id || '',
-      patient_id: user.patient_id || user.patientId || '',
+      role_id: user.role_id || user.role?.id || '',
+      patient_id: user.patient_id || user.patientId || p.patientId || '',
+      student_id: p.studentId || p.patientId || user.patient_id || '',
+      first_name: p.firstName || p.first_name || '',
+      middle_name: p.middleName || p.middle_name || '',
+      last_name: p.lastName || p.last_name || '',
+      age: p.age !== undefined && p.age !== null ? String(p.age) : '',
+      course: p.course || p.courseDept || p.course_dept || '',
+      block: p.block || 'Block 1',
+      address: p.address || 'Tagum Norte, Trinidad, Bohol, Philippines',
+      nationality: p.nationality || 'Filipino',
+      phone: p.phone || p.contact || '',
+      emergency_contact_name: p.emergencyContactName || p.emergency_contact_name || '',
+      emergency_contact_phone: p.emergencyContactPhone || p.emergency_contact_phone || '',
     })
     setUserModalOpen(true)
   }
@@ -133,25 +167,48 @@ function UserManagement({ page }) {
     busyRef.current = true
     setBusy(true)
     try {
-      const patientId = isPatientRole ? (values.patient_id || null) : null
+      const studentId = isPatientRole ? (values.student_id || values.patient_id || null) : null
+      let fullName = values.name
+      if (isPatientRole && (values.first_name || values.last_name)) {
+        fullName = [values.first_name, values.middle_name, values.last_name].filter(Boolean).join(' ').trim()
+      }
+
+      const payload = {
+        name: fullName || values.name,
+        email: values.email,
+        role_id: values.role_id ? Number(values.role_id) : undefined,
+        patient_id: studentId,
+        student_id: studentId,
+        first_name: isPatientRole ? values.first_name : undefined,
+        firstName: isPatientRole ? values.first_name : undefined,
+        middle_name: isPatientRole ? values.middle_name : undefined,
+        middleName: isPatientRole ? values.middle_name : undefined,
+        last_name: isPatientRole ? values.last_name : undefined,
+        lastName: isPatientRole ? values.last_name : undefined,
+        age: isPatientRole && values.age ? Number(values.age) : null,
+        course: isPatientRole ? values.course : undefined,
+        courseDept: isPatientRole ? values.course : undefined,
+        block: isPatientRole ? values.block : undefined,
+        address: isPatientRole ? values.address : undefined,
+        nationality: isPatientRole ? values.nationality : undefined,
+        phone: isPatientRole ? values.phone : undefined,
+        contact: isPatientRole ? values.phone : undefined,
+        emergency_contact_name: isPatientRole ? values.emergency_contact_name : undefined,
+        emergencyContactName: isPatientRole ? values.emergency_contact_name : undefined,
+        emergency_contact_phone: isPatientRole ? values.emergency_contact_phone : undefined,
+        emergencyContactPhone: isPatientRole ? values.emergency_contact_phone : undefined,
+      }
+
       if (editing) {
-        const payload = {
-          name: values.name,
-          email: values.email,
-          patient_id: patientId,
-        }
         await users.updateUser(editing.id, payload)
-        showToast(`User "${values.name}" updated.`)
+        showToast(`User "${fullName || values.name}" updated.`)
       } else {
         await users.createUser({
-          name: values.name,
-          email: values.email,
+          ...payload,
           password: values.password,
           password_confirmation: values.password_confirmation,
-          role_id: Number(values.role_id),
-          patient_id: patientId,
         })
-        showToast(`User "${values.name}" created.`)
+        showToast(`User "${fullName || values.name}" created.`)
       }
       setUserModalOpen(false)
     } catch (err) {
@@ -375,10 +432,15 @@ function UserManagement({ page }) {
                       <td>
                         <strong className="font-bold text-ink">{user.name}</strong>
                         {(user.patient_id || user.patientId) && (
-                          <div className="mt-0.5">
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                             <span className="inline-flex items-center rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] font-bold text-primary">
                               ID: {user.patient_id || user.patientId}
                             </span>
+                            {user.patient?.course && (
+                              <span className="text-[11px] text-muted">
+                                {user.patient.course} {user.patient.block ? `(${user.patient.block})` : ''}
+                              </span>
+                            )}
                           </div>
                         )}
                       </td>
@@ -442,7 +504,7 @@ function UserManagement({ page }) {
             if (e.target === e.currentTarget && !busy) setUserModalOpen(false)
           }}
         >
-          <div className={MODAL_CARD}>
+          <div className={`${MODAL_CARD} ${isPatientRole ? '!w-[min(680px,100%)]' : ''}`}>
             <div className={MODAL_HEADER}>
               <h3 className="m-0 text-[18px] text-ink">
                 {editing ? `Edit User — ${editing.name}` : 'Create User'}
@@ -458,15 +520,34 @@ function UserManagement({ page }) {
             <div className={MODAL_BODY}>
               <form className={SIDEBAR_FORM} onSubmit={submitUserForm}>
                 <label className={FORM_LABEL}>
-                  Full Name
-                  <input
-                    type="text"
-                    placeholder="e.g. Juan Dela Cruz"
+                  Role
+                  <select
                     className={FORM_FIELD}
-                    {...userForm.register('name', { required: 'Name is required.' })}
+                    {...userForm.register('role_id', { required: 'Role is required.' })}
                     disabled={busy}
-                  />
+                  >
+                    <option value="">Select a role</option>
+                    {roleOptions.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name.charAt(0).toUpperCase() + r.name.slice(1)}
+                      </option>
+                    ))}
+                  </select>
                 </label>
+
+                {!isPatientRole && (
+                  <label className={FORM_LABEL}>
+                    Full Name
+                    <input
+                      type="text"
+                      placeholder="e.g. Juan Dela Cruz"
+                      className={FORM_FIELD}
+                      {...userForm.register('name', { required: !isPatientRole ? 'Name is required.' : false })}
+                      disabled={busy}
+                    />
+                  </label>
+                )}
+
                 <label className={FORM_LABEL}>
                   Email Address
                   <input
@@ -477,6 +558,7 @@ function UserManagement({ page }) {
                     disabled={busy}
                   />
                 </label>
+
                 {!editing && (
                   <div className={FORM_ROW}>
                     <label className={FORM_LABEL}>
@@ -506,41 +588,194 @@ function UserManagement({ page }) {
                     </label>
                   </div>
                 )}
-                <label className={FORM_LABEL}>
-                  Role
-                  <select
-                    className={FORM_FIELD}
-                    {...userForm.register('role_id', { required: 'Role is required.' })}
-                    disabled={busy}
-                  >
-                    <option value="">Select a role</option>
-                    {roleOptions.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name.charAt(0).toUpperCase() + r.name.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+
                 {isPatientRole && (
-                  <label className={FORM_LABEL}>
-                    <span>Linked Student Record *</span>
-                    <StudentSelect
-                      value={linkedPatientId || ''}
-                      valueKey="patientId"
-                      patients={patients.data || []}
-                      disabled={busy}
-                      placeholder="Type student name or ID (e.g. 24-012345)..."
-                      onChange={(val, matchedPatient) => {
-                        userForm.setValue('patient_id', val)
-                        if (matchedPatient && !editing && !userForm.getValues('name')) {
-                          userForm.setValue('name', matchedPatient.name)
-                        }
-                      }}
-                    />
-                    <span className="text-[11.5px] text-muted-soft">
-                      Associates this user account with clinic medical records and mobile portal data.
-                    </span>
-                  </label>
+                  <div className="mt-2 flex flex-col gap-3.5 rounded-xl border border-line bg-[#fbfdfc] p-4">
+                    <div className="border-b border-line pb-2">
+                      <span className="text-[12px] font-extrabold uppercase tracking-wider text-primary">
+                        Student Medical & Academic Information
+                      </span>
+                      <p className="mt-0.5 text-[11.5px] text-muted">
+                        Configures student credentials, academic identity, and emergency contact details.
+                      </p>
+                    </div>
+
+                    <label className={FORM_LABEL}>
+                      <span>Link or Auto-fill from Existing Patient (Optional)</span>
+                      <StudentSelect
+                        value={linkedPatientId || ''}
+                        valueKey="patientId"
+                        patients={patients.data || []}
+                        disabled={busy}
+                        placeholder="Search existing student name or ID..."
+                        onChange={(val, matchedPatient) => {
+                          userForm.setValue('patient_id', val)
+                          userForm.setValue('student_id', val)
+                          if (matchedPatient) {
+                            userForm.setValue('name', matchedPatient.name || '')
+                            userForm.setValue('first_name', matchedPatient.firstName || matchedPatient.first_name || '')
+                            userForm.setValue('middle_name', matchedPatient.middleName || matchedPatient.middle_name || '')
+                            userForm.setValue('last_name', matchedPatient.lastName || matchedPatient.last_name || '')
+                            if (matchedPatient.age) userForm.setValue('age', String(matchedPatient.age))
+                            if (matchedPatient.course || matchedPatient.courseDept) {
+                              userForm.setValue('course', matchedPatient.course || matchedPatient.courseDept)
+                            }
+                            if (matchedPatient.block) userForm.setValue('block', matchedPatient.block)
+                            if (matchedPatient.address) userForm.setValue('address', matchedPatient.address)
+                            if (matchedPatient.nationality) userForm.setValue('nationality', matchedPatient.nationality)
+                            if (matchedPatient.phone || matchedPatient.contact) {
+                              userForm.setValue('phone', matchedPatient.phone || matchedPatient.contact)
+                            }
+                            if (matchedPatient.emergencyContactName) {
+                              userForm.setValue('emergency_contact_name', matchedPatient.emergencyContactName)
+                            }
+                            if (matchedPatient.emergencyContactPhone) {
+                              userForm.setValue('emergency_contact_phone', matchedPatient.emergencyContactPhone)
+                            }
+                          }
+                        }}
+                      />
+                    </label>
+
+                    {/* Section 1: Personal Details */}
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <label className={FORM_LABEL}>
+                        First Name *
+                        <input
+                          type="text"
+                          placeholder="e.g. Juan"
+                          className={FORM_FIELD}
+                          {...userForm.register('first_name', { required: isPatientRole ? 'First name is required.' : false })}
+                          disabled={busy}
+                        />
+                      </label>
+                      <label className={FORM_LABEL}>
+                        Middle Name
+                        <input
+                          type="text"
+                          placeholder="e.g. Santos (Optional)"
+                          className={FORM_FIELD}
+                          {...userForm.register('middle_name')}
+                          disabled={busy}
+                        />
+                      </label>
+                      <label className={FORM_LABEL}>
+                        Last Name *
+                        <input
+                          type="text"
+                          placeholder="e.g. Dela Cruz"
+                          className={FORM_FIELD}
+                          {...userForm.register('last_name', { required: isPatientRole ? 'Last name is required.' : false })}
+                          disabled={busy}
+                        />
+                      </label>
+                    </div>
+
+                    <div className={FORM_ROW}>
+                      <label className={FORM_LABEL}>
+                        Age *
+                        <input
+                          type="number"
+                          placeholder="e.g. 20"
+                          className={FORM_FIELD}
+                          {...userForm.register('age', { required: isPatientRole ? 'Age is required.' : false })}
+                          disabled={busy}
+                        />
+                      </label>
+                      <label className={FORM_LABEL}>
+                        Nationality *
+                        <input
+                          type="text"
+                          placeholder="e.g. Filipino"
+                          className={FORM_FIELD}
+                          {...userForm.register('nationality', { required: isPatientRole ? 'Nationality is required.' : false })}
+                          disabled={busy}
+                        />
+                      </label>
+                    </div>
+
+                    {/* Section 2: Academic Information */}
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <label className={FORM_LABEL}>
+                        Student ID *
+                        <input
+                          type="text"
+                          placeholder="e.g. 24-021128"
+                          className={FORM_FIELD}
+                          {...userForm.register('student_id', { required: isPatientRole ? 'Student ID is required.' : false })}
+                          disabled={busy}
+                        />
+                      </label>
+                      <label className={FORM_LABEL}>
+                        Course / Program *
+                        <input
+                          type="text"
+                          placeholder="e.g. BS Information Technology"
+                          className={FORM_FIELD}
+                          {...userForm.register('course', { required: isPatientRole ? 'Course is required.' : false })}
+                          disabled={busy}
+                        />
+                      </label>
+                      <label className={FORM_LABEL}>
+                        Block No. *
+                        <input
+                          type="text"
+                          placeholder="e.g. Block 1"
+                          className={FORM_FIELD}
+                          {...userForm.register('block', { required: isPatientRole ? 'Block is required.' : false })}
+                          disabled={busy}
+                        />
+                      </label>
+                    </div>
+
+                    {/* Section 3: Contact & Address */}
+                    <div className={FORM_ROW}>
+                      <label className={FORM_LABEL}>
+                        Phone Number *
+                        <input
+                          type="text"
+                          placeholder="e.g. 09123456789"
+                          className={FORM_FIELD}
+                          {...userForm.register('phone', { required: isPatientRole ? 'Phone number is required.' : false })}
+                          disabled={busy}
+                        />
+                      </label>
+                      <label className={FORM_LABEL}>
+                        Home Address *
+                        <input
+                          type="text"
+                          placeholder="Tagum Norte, Trinidad, Bohol, Philippines"
+                          className={FORM_FIELD}
+                          {...userForm.register('address', { required: isPatientRole ? 'Address is required.' : false })}
+                          disabled={busy}
+                        />
+                      </label>
+                    </div>
+
+                    {/* Section 4: Emergency Contact */}
+                    <div className={FORM_ROW}>
+                      <label className={FORM_LABEL}>
+                        Emergency Contact — Guardian *
+                        <input
+                          type="text"
+                          placeholder="e.g. Maria Dela Cruz (Mother)"
+                          className={FORM_FIELD}
+                          {...userForm.register('emergency_contact_name', { required: isPatientRole ? 'Guardian name is required.' : false })}
+                          disabled={busy}
+                        />
+                      </label>
+                      <label className={FORM_LABEL}>
+                        Emergency Contact Phone *
+                        <input
+                          type="text"
+                          placeholder="e.g. 09987654321"
+                          className={FORM_FIELD}
+                          {...userForm.register('emergency_contact_phone', { required: isPatientRole ? 'Guardian contact no. is required.' : false })}
+                          disabled={busy}
+                        />
+                      </label>
+                    </div>
+                  </div>
                 )}
                 <div className={MODAL_FOOTER_ACTIONS}>
                   <button type="button" className={PILL} onClick={() => setUserModalOpen(false)} disabled={busy}>
