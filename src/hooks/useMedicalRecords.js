@@ -93,6 +93,87 @@ export function useMedicalRecordsStore({ onLog } = {}, scope = 'page') {
     },
   })
 
+  const createRecordMutation = useMutation({
+    mutationFn: medicalRecordsService.createRecord,
+    onSuccess: (created) => {
+      refresh()
+      onLogRef.current?.(`Created medical record for ${created.name}`)
+    },
+  })
+
+  const addMedicationMutation = useMutation({
+    mutationFn: ({ recordId, payload }) => medicalRecordsService.addMedication(recordId, payload),
+    onSuccess: (updated, { payload }) => {
+      refresh()
+      onLogRef.current?.(`Added medication "${payload.name}" to ${updated.name}'s medical record`)
+    },
+  })
+
+  const updateMedicationMutation = useMutation({
+    mutationFn: ({ recordId, medicationId, patch }) =>
+      medicalRecordsService.updateMedication(recordId, medicationId, patch),
+    onSuccess: (updated) => {
+      refresh()
+      onLogRef.current?.(`Updated medication on ${updated.name}'s medical record`)
+    },
+  })
+
+  const removeMedicationMutation = useMutation({
+    mutationFn: ({ recordId, medicationId }) => medicalRecordsService.removeMedication(recordId, medicationId),
+    onSuccess: (updated, { medicationName }) => {
+      refresh()
+      onLogRef.current?.(`Removed medication "${medicationName}" from ${updated.name}'s medical record`)
+    },
+  })
+
+  const addHistoryMutation = useMutation({
+    mutationFn: ({ recordId, payload }) => medicalRecordsService.addHistory(recordId, payload),
+    onSuccess: (updated, { payload }) => {
+      refresh()
+      onLogRef.current?.(`Added history entry "${payload.condition}" to ${updated.name}'s medical record`)
+    },
+  })
+
+  const removeHistoryMutation = useMutation({
+    mutationFn: ({ recordId, historyId }) => medicalRecordsService.removeHistory(recordId, historyId),
+    onSuccess: (updated) => {
+      refresh()
+      onLogRef.current?.(`Removed a history entry from ${updated.name}'s medical record`)
+    },
+  })
+
+  const createRecord = useCallback(
+    async (payload) => createRecordMutation.mutateAsync(payload),
+    [createRecordMutation],
+  )
+
+  const addMedication = useCallback(
+    async (recordId, payload) => addMedicationMutation.mutateAsync({ recordId, payload }),
+    [addMedicationMutation],
+  )
+
+  const updateMedication = useCallback(
+    async (recordId, medicationId, patch) =>
+      updateMedicationMutation.mutateAsync({ recordId, medicationId, patch }),
+    [updateMedicationMutation],
+  )
+
+  const removeMedication = useCallback(
+    async (recordId, medicationId, medicationName) =>
+      removeMedicationMutation.mutateAsync({ recordId, medicationId, medicationName }),
+    [removeMedicationMutation],
+  )
+
+  const addHistory = useCallback(
+    async (recordId, payload) => addHistoryMutation.mutateAsync({ recordId, payload }),
+    [addHistoryMutation],
+  )
+
+  const removeHistory = useCallback(
+    async (recordId, historyId) => removeHistoryMutation.mutateAsync({ recordId, historyId }),
+    [removeHistoryMutation],
+  )
+
   const addCondition = useCallback(
     async (recordId, payload) => addConditionMutation.mutateAsync({ recordId, payload }),
     [addConditionMutation],
@@ -145,6 +226,12 @@ export function useMedicalRecordsStore({ onLog } = {}, scope = 'page') {
     addAllergy,
     updateAllergy,
     removeAllergy,
+    createRecord,
+    addMedication,
+    updateMedication,
+    removeMedication,
+    addHistory,
+    removeHistory,
   }
 }
 

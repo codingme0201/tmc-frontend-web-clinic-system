@@ -3,10 +3,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAppContext } from '../context/AppContext'
 import { eventsService } from '../services/eventsService'
 
-// --- Legacy Dashboard hook (kept for backward compatibility) ---
+// --- Dashboard widget hook ---
 
 /**
- * Campus events store — Dashboard widget only.
+ * Clinic events store — Dashboard widget only.
  * Scoped so module pages fetch fresh data independently.
  */
 export function useClinicEventsStore({ onLog } = {}, scope = 'page') {
@@ -25,6 +25,8 @@ export function useClinicEventsStore({ onLog } = {}, scope = 'page') {
     mutationFn: eventsService.createEvent,
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ['events'] })
+      queryClient.invalidateQueries({ queryKey: ['calendar-events'] })
+      queryClient.invalidateQueries({ queryKey: ['calendar'] })
       onLogRef.current?.(`Scheduled new clinic event: ${created.title}`)
     },
   })

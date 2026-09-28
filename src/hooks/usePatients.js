@@ -67,6 +67,27 @@ export function usePatientRecordHistory(id) {
   })
 }
 
+export function useUpdatePatient() {
+  const queryClient = useQueryClient()
+  const { log } = useAppContext()
+
+  const mutation = useMutation({
+    mutationFn: ({ id, payload }) => patientsService.updatePatient(id, payload),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ['patients'] })
+      queryClient.invalidateQueries({ queryKey: ['patient', updated.id] })
+      queryClient.invalidateQueries({ queryKey: ['patient-medical', updated.id] })
+      queryClient.invalidateQueries({ queryKey: ['medical-records'] })
+      log?.(`Updated patient profile for ${updated.name}`)
+    },
+  })
+
+  return useCallback(
+    async (id, payload) => mutation.mutateAsync({ id, payload }),
+    [mutation],
+  )
+}
+
 export function useUpdatePatientStatus() {
   const queryClient = useQueryClient()
 

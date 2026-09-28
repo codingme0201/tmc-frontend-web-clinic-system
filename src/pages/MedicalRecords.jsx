@@ -25,6 +25,7 @@ const MEDICAL_ROLES = ['admin', 'doctor', 'nurse']
 const RECORD_STATUSES = ['Active', 'Archived']
 const CONDITION_STATUSES = ['Active', 'Inactive', 'Resolved']
 const ALLERGY_SEVERITIES = ['Mild', 'Moderate', 'Severe']
+const MEDICATION_STATUSES = ['Active', 'Completed', 'Discontinued']
 
 const DETAIL_TABS = [
   { id: 'overview', label: 'Overview' },
@@ -247,6 +248,12 @@ function MedicalRecords({ page }) {
     addAllergy,
     updateAllergy,
     removeAllergy,
+    createRecord,
+    addMedication,
+    updateMedication,
+    removeMedication,
+    addHistory,
+    removeHistory,
   } = useMedicalRecords()
   const { data: registeredPatients = [] } = usePatients()
   const { data: consultations = [] } = useConsultations()
@@ -303,6 +310,10 @@ function MedicalRecords({ page }) {
   const [archiveTarget, setArchiveTarget] = useState(null) // { record, nextStatus: 'Active' | 'Archived' }
   const [consultDetails, setConsultDetails] = useState(null)
   const [medDetails, setMedDetails] = useState(null) // { med, patientName }
+  const [medicationModal, setMedicationModal] = useState(null) // { record, medication? }
+  const [historyModal, setHistoryModal] = useState(null) // { record }
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createPatientId, setCreatePatientId] = useState('')
   const [busy, setBusy] = useState(false)
   const busyRef = useRef(false)
 
@@ -315,6 +326,25 @@ function MedicalRecords({ page }) {
   const allergyForm = useForm(emptyAllergyForm(), {
     validate: (values) => (values.allergen.trim() ? {} : { allergen: 'Allergen is required.' }),
   })
+  const emptyMedicationForm = () => ({
+    name: '', dosage: '', frequency: '', route: '', status: 'Active',
+    startDate: todayISO(), endDate: '', instructions: '',
+  })
+  const emptyHistoryForm = () => ({ date: todayISO(), condition: '', notes: '' })
+  const medicationForm = useForm(emptyMedicationForm(), {
+    validate: (values) => (values.name.trim() ? {} : { name: 'Medication name is required.' }),
+  })
+  const historyForm = useForm(emptyHistoryForm(), {
+    validate: (values) => (values.condition.trim() ? {} : { condition: 'History / event is required.' }),
+  })
+
+  // Registered patients that do not have a medical record yet.
+  const patientsWithoutRecord = useMemo(() => {
+    const withRecord = new Set((Array.isArray(records) ? records : []).map((r) => r.patientId))
+    return (Array.isArray(registeredPatients) ? registeredPatients : [])
+      .filter((p) => p.patientId && !withRecord.has(p.patientId))
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+  }, [records, registeredPatients])
 
   // Per-patient consultation metadata (count + last date) from the shared store.
   const consultMeta = useMemo(() => {
@@ -356,6 +386,9 @@ function MedicalRecords({ page }) {
       if (e.key !== 'Escape' || busy) return
       if (conditionModal) setConditionModal(null)
       else if (allergyModal) setAllergyModal(null)
+      else if (medicationModal) setMedicationModal(null)
+      else if (historyModal) setHistoryModal(null)
+      else if (createOpen) setCreateOpen(false)
       else if (removeTarget) setRemoveTarget(null)
       else if (archiveTarget) setArchiveTarget(null)
       else if (consultDetails) setConsultDetails(null)
@@ -363,7 +396,7 @@ function MedicalRecords({ page }) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [busy, conditionModal, allergyModal, removeTarget, archiveTarget, consultDetails, medDetails])
+  }, [busy, conditionModal, allergyModal, medicationModal, historyModal, createOpen, removeTarget, archiveTarget, consultDetails, medDetails])
 
   const openRecord = (record) => {
     setSelectedId(record.id)
@@ -492,17 +525,128 @@ function MedicalRecords({ page }) {
     }
   }
 
+  // ---------- Medication handlers ----------
+  const openMedicationModal = (record, medication = null) => {
+    setMedicationModal({ record, medication })
+    medicationForm.reset(
+      medication
+        ? {
+            name: medication.name, dosage: medication.dosage, frequency: medication.frequency,
+            route: medication.route, status: medication.status, startDate: medication.startDate,
+            endDate: medication.endDate, instructions: medication.instructions,
+          }
+        : emptyMedicationForm(),
+    )
+  }
+
+  const handleSaveMedication = async () => {
+    if (!medicationModal || busy || busyRef.current) return
+    const validationErrors = medicationForm.runValidation()
+    if (Object.keys(validationErrors).length > 0) return
+    busyRef.current = true
+    setBusy(true)
+    const v = medicationForm.values
+    try {
+      const payload = {
+        name: v.name.trim(),
+        dosage: v.dosage.trim(),
+        frequency: v.frequency.trim(),
+        route: v.route.trim(),
+        status: v.status,
+        startDate: v.startDate || null,
+        endDate: v.endDate || null,
+        instructions: v.instructions.trim(),
+      }
+      if (medicationModal.medication) {
+        await updateMedication(medicationModal.record.id, medicationModal.medication.id, payload)
+        showToast(`Medication "${payload.name}" updated.`)
+      } else {
+        await addMedication(medicationModal.record.id, payload)
+        showToast(`Medication "${payload.name}" added.`)
+      }
+      setMedicationModal(null)
+    } catch (err) {
+      showToast(err?.message || 'Failed to save the medication.', 'error')
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }
+
+  // ---------- Medical history handlers ----------
+  const openHistoryModal = (record) => {
+    setHistoryModal({ record })
+    historyForm.reset(emptyHistoryForm())
+  }
+
+  const handleSaveHistory = async () => {
+    if (!historyModal || busy || busyRef.current) return
+    const validationErrors = historyForm.runValidation()
+    if (Object.keys(validationErrors).length > 0) return
+    busyRef.current = true
+    setBusy(true)
+    try {
+      const payload = {
+        date: historyForm.values.date || todayISO(),
+        condition: historyForm.values.condition.trim(),
+        notes: historyForm.values.notes.trim(),
+      }
+      await addHistory(historyModal.record.id, payload)
+      showToast(`History entry "${payload.condition}" added.`)
+      setHistoryModal(null)
+    } catch (err) {
+      showToast(err?.message || 'Failed to save the history entry.', 'error')
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }
+
+  // ---------- Create record ----------
+  const handleCreateRecord = async () => {
+    if (!createPatientId || busy || busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    try {
+      const created = await createRecord({ patientId: createPatientId })
+      showToast(`Medical record created for ${created.name}.`)
+      setCreateOpen(false)
+      setCreatePatientId('')
+      setSelectedId(created.id)
+      setActiveTab('overview')
+    } catch (err) {
+      showToast(err?.message || 'Failed to create the medical record.', 'error')
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }
+
+  const REMOVE_KINDS = {
+    condition: { title: 'Remove Condition', label: (item) => item.name },
+    allergy: { title: 'Remove Allergy', label: (item) => item.allergen },
+    medication: { title: 'Remove Medication', label: (item) => item.name },
+    history: { title: 'Remove History Entry', label: (item) => item.condition },
+  }
+
   const handleConfirmRemove = async () => {
     if (!removeTarget || busy || busyRef.current) return
     busyRef.current = true
     setBusy(true)
+    const { kind, record, item } = removeTarget
     try {
-      if (removeTarget.kind === 'condition') {
-        await removeCondition(removeTarget.record.id, removeTarget.item.id, removeTarget.item.name)
-        showToast(`Condition "${removeTarget.item.name}" removed.`)
+      if (kind === 'condition') {
+        await removeCondition(record.id, item.id, item.name)
+        showToast(`Condition "${item.name}" removed.`)
+      } else if (kind === 'allergy') {
+        await removeAllergy(record.id, item.id, item.allergen)
+        showToast(`Allergy "${item.allergen}" removed.`)
+      } else if (kind === 'medication') {
+        await removeMedication(record.id, item.id, item.name)
+        showToast(`Medication "${item.name}" removed.`)
       } else {
-        await removeAllergy(removeTarget.record.id, removeTarget.item.id, removeTarget.item.allergen)
-        showToast(`Allergy "${removeTarget.item.allergen}" removed.`)
+        await removeHistory(record.id, item.id)
+        showToast(`History entry "${item.condition}" removed.`)
       }
       setRemoveTarget(null)
     } catch (err) {
@@ -574,6 +718,16 @@ function MedicalRecords({ page }) {
             {(search || statusFilter !== 'All' || patientFilter !== 'All') && (
               <button type="button" className={PILL} onClick={clearFilters}>
                 Clear filters
+              </button>
+            )}
+            {canEdit && patientsWithoutRecord.length > 0 && (
+              <button
+                type="button"
+                className={`${PRIMARY_BTN} min-h-[38px] text-[13px]`}
+                onClick={() => { setCreatePatientId(''); setCreateOpen(true) }}
+                disabled={busy}
+              >
+                + New Record
               </button>
             )}
             {!isLoading && !error && (
@@ -837,7 +991,17 @@ function MedicalRecords({ page }) {
 
   const renderHistory = () => (
     <div className={`${PANEL} p-5`}>
-      <h3 className={SECTION_TITLE}>Medical History</h3>
+      <div className="mb-[14px] flex flex-wrap items-center justify-between gap-[10px]">
+        <div>
+          <h3 className="m-0 mb-0.5 text-[16px] text-[#143d40]">Medical History</h3>
+          <p className="m-0 text-muted">Completed consultations are added here automatically.</p>
+        </div>
+        {canEdit && (
+          <button type="button" className={`${PRIMARY_BTN} min-h-[38px] text-[13px]`} onClick={() => openHistoryModal(selected)} disabled={busy}>
+            + Add Entry
+          </button>
+        )}
+      </div>
       {selected.medicalHistory.length > 0 ? (
         <div className="overflow-x-auto rounded-lg border border-line">
           <table className={TABLE}>
@@ -846,6 +1010,7 @@ function MedicalRecords({ page }) {
                 <th>Date</th>
                 <th>History / Event</th>
                 <th>Notes</th>
+                {canEdit && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -853,7 +1018,14 @@ function MedicalRecords({ page }) {
                 <tr key={h.id}>
                   <td className="font-bold text-ink">{formatDate(h.date)}</td>
                   <td className="font-bold text-ink">{h.condition}</td>
-                  <td className="text-muted">{h.notes || '—'}</td>
+                  <td className="whitespace-pre-line text-muted">{h.notes || '—'}</td>
+                  {canEdit && (
+                    <td>
+                      <button type="button" className={BTN_DANGER} onClick={() => setRemoveTarget({ kind: 'history', record: selected, item: h })} disabled={busy}>
+                        Remove
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -1037,7 +1209,14 @@ function MedicalRecords({ page }) {
 
   const renderMedications = () => (
     <div className={`${PANEL} p-5`}>
-      <h3 className={SECTION_TITLE}>Medication History</h3>
+      <div className="mb-[14px] flex flex-wrap items-center justify-between gap-[10px]">
+        <h3 className="m-0 text-[16px] text-[#143d40]">Medication History</h3>
+        {canEdit && (
+          <button type="button" className={`${PRIMARY_BTN} min-h-[38px] text-[13px]`} onClick={() => openMedicationModal(selected)} disabled={busy}>
+            + Add Medication
+          </button>
+        )}
+      </div>
       {selected.medications.length > 0 ? (
         <div className="grid gap-[10px]">
           {selected.medications.map((m) => (
@@ -1061,6 +1240,16 @@ function MedicalRecords({ page }) {
                 <button type="button" className={BTN_VIEW} onClick={() => setMedDetails({ med: m, patientName: selected.name })}>
                   View Details
                 </button>
+                {canEdit && (
+                  <>
+                    <button type="button" className={BTN_INFO} onClick={() => openMedicationModal(selected, m)} disabled={busy}>
+                      Edit
+                    </button>
+                    <button type="button" className={BTN_DANGER} onClick={() => setRemoveTarget({ kind: 'medication', record: selected, item: m })} disabled={busy}>
+                      Remove
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           ))}
@@ -1373,6 +1562,242 @@ function MedicalRecords({ page }) {
         </div>
       )}
 
+      {/* ============ MEDICATION FORM MODAL ============ */}
+      {medicationModal && (
+        <div
+          className={MODAL_BACKDROP}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Medication form"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !busy) setMedicationModal(null)
+          }}
+        >
+          <div className={MODAL_CARD_SM}>
+            <div className={MODAL_HEADER}>
+              <h3 className="m-0 text-[18px] text-ink">{medicationModal.medication ? 'Edit Medication' : 'Add Medication'}</h3>
+              <button type="button" className={MODAL_CLOSE} onClick={() => { if (!busy) setMedicationModal(null) }}>✕</button>
+            </div>
+            <div className={MODAL_BODY}>
+              <div className={SIDEBAR_FORM}>
+                <label className={FORM_LABEL}>
+                  Medication name *
+                  <input
+                    type="text"
+                    placeholder="e.g. Amoxicillin"
+                    className={FORM_FIELD}
+                    value={medicationForm.values.name}
+                    onChange={(e) => medicationForm.setValue('name', e.target.value)}
+                    disabled={busy}
+                  />
+                </label>
+                <div className={FORM_ROW}>
+                  <label className={FORM_LABEL}>
+                    Dosage
+                    <input
+                      type="text"
+                      placeholder="e.g. 500 mg"
+                      className={FORM_FIELD}
+                      value={medicationForm.values.dosage}
+                      onChange={(e) => medicationForm.setValue('dosage', e.target.value)}
+                      disabled={busy}
+                    />
+                  </label>
+                  <label className={FORM_LABEL}>
+                    Frequency
+                    <input
+                      type="text"
+                      placeholder="e.g. 3x a day"
+                      className={FORM_FIELD}
+                      value={medicationForm.values.frequency}
+                      onChange={(e) => medicationForm.setValue('frequency', e.target.value)}
+                      disabled={busy}
+                    />
+                  </label>
+                </div>
+                <div className={FORM_ROW}>
+                  <label className={FORM_LABEL}>
+                    Route
+                    <input
+                      type="text"
+                      placeholder="e.g. Oral"
+                      className={FORM_FIELD}
+                      value={medicationForm.values.route}
+                      onChange={(e) => medicationForm.setValue('route', e.target.value)}
+                      disabled={busy}
+                    />
+                  </label>
+                  <label className={FORM_LABEL}>
+                    Status
+                    <select className={FORM_FIELD} value={medicationForm.values.status} onChange={(e) => medicationForm.setValue('status', e.target.value)} disabled={busy}>
+                      {MEDICATION_STATUSES.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <div className={FORM_ROW}>
+                  <label className={FORM_LABEL}>
+                    Start date
+                    <input
+                      type="date"
+                      className={FORM_FIELD}
+                      value={medicationForm.values.startDate}
+                      onChange={(e) => medicationForm.setValue('startDate', e.target.value)}
+                      disabled={busy}
+                    />
+                  </label>
+                  <label className={FORM_LABEL}>
+                    End date
+                    <input
+                      type="date"
+                      className={FORM_FIELD}
+                      value={medicationForm.values.endDate}
+                      onChange={(e) => medicationForm.setValue('endDate', e.target.value)}
+                      disabled={busy}
+                    />
+                  </label>
+                </div>
+                <label className={FORM_LABEL}>
+                  Instructions
+                  <textarea
+                    placeholder="e.g. Take after meals."
+                    className={`${FORM_FIELD} min-h-20 resize-y`}
+                    value={medicationForm.values.instructions}
+                    onChange={(e) => medicationForm.setValue('instructions', e.target.value)}
+                    disabled={busy}
+                  />
+                </label>
+                {medicationForm.errors.name && <p className="mt-2 text-[12px] font-bold text-danger">{medicationForm.errors.name}</p>}
+              </div>
+            </div>
+            <div className={MODAL_FOOTER}>
+              <div className={MODAL_FOOTER_ACTIONS}>
+                <button type="button" className={PILL} onClick={() => { if (!busy) setMedicationModal(null) }} disabled={busy}>
+                  Cancel
+                </button>
+                <button type="button" className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`} onClick={handleSaveMedication} disabled={busy}>
+                  {busy ? 'Saving...' : 'Save Medication'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============ HISTORY ENTRY MODAL ============ */}
+      {historyModal && (
+        <div
+          className={MODAL_BACKDROP}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Medical history form"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !busy) setHistoryModal(null)
+          }}
+        >
+          <div className={MODAL_CARD_SM}>
+            <div className={MODAL_HEADER}>
+              <h3 className="m-0 text-[18px] text-ink">Add History Entry</h3>
+              <button type="button" className={MODAL_CLOSE} onClick={() => { if (!busy) setHistoryModal(null) }}>✕</button>
+            </div>
+            <div className={MODAL_BODY}>
+              <div className={SIDEBAR_FORM}>
+                <div className={FORM_ROW}>
+                  <label className={FORM_LABEL}>
+                    History / event *
+                    <input
+                      type="text"
+                      placeholder="e.g. Appendectomy"
+                      className={FORM_FIELD}
+                      value={historyForm.values.condition}
+                      onChange={(e) => historyForm.setValue('condition', e.target.value)}
+                      disabled={busy}
+                    />
+                  </label>
+                  <label className={FORM_LABEL}>
+                    Date
+                    <input
+                      type="date"
+                      className={FORM_FIELD}
+                      value={historyForm.values.date}
+                      onChange={(e) => historyForm.setValue('date', e.target.value)}
+                      disabled={busy}
+                    />
+                  </label>
+                </div>
+                <label className={FORM_LABEL}>
+                  Notes
+                  <textarea
+                    className={`${FORM_FIELD} min-h-20 resize-y`}
+                    value={historyForm.values.notes}
+                    onChange={(e) => historyForm.setValue('notes', e.target.value)}
+                    disabled={busy}
+                  />
+                </label>
+                {historyForm.errors.condition && <p className="mt-2 text-[12px] font-bold text-danger">{historyForm.errors.condition}</p>}
+              </div>
+            </div>
+            <div className={MODAL_FOOTER}>
+              <div className={MODAL_FOOTER_ACTIONS}>
+                <button type="button" className={PILL} onClick={() => { if (!busy) setHistoryModal(null) }} disabled={busy}>
+                  Cancel
+                </button>
+                <button type="button" className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`} onClick={handleSaveHistory} disabled={busy}>
+                  {busy ? 'Saving...' : 'Save Entry'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============ CREATE RECORD MODAL ============ */}
+      {createOpen && (
+        <div
+          className={MODAL_BACKDROP}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Create medical record"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !busy) setCreateOpen(false)
+          }}
+        >
+          <div className={MODAL_CARD_SM}>
+            <div className={MODAL_HEADER}>
+              <h3 className="m-0 text-[18px] text-ink">New Medical Record</h3>
+              <button type="button" className={MODAL_CLOSE} onClick={() => { if (!busy) setCreateOpen(false) }}>✕</button>
+            </div>
+            <div className={MODAL_BODY}>
+              <label className={FORM_LABEL}>
+                Patient *
+                <select className={FORM_FIELD} value={createPatientId} onChange={(e) => setCreatePatientId(e.target.value)} disabled={busy}>
+                  <option value="">Select a registered patient…</option>
+                  {patientsWithoutRecord.map((p) => (
+                    <option key={p.patientId} value={p.patientId}>
+                      {p.name} ({p.patientId})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="mb-0 text-[12.5px] text-muted">
+                Demographics are copied from the patient registry. Only patients without a record are listed.
+              </p>
+            </div>
+            <div className={MODAL_FOOTER}>
+              <div className={MODAL_FOOTER_ACTIONS}>
+                <button type="button" className={PILL} onClick={() => { if (!busy) setCreateOpen(false) }} disabled={busy}>
+                  Cancel
+                </button>
+                <button type="button" className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`} onClick={handleCreateRecord} disabled={busy || !createPatientId}>
+                  {busy ? 'Creating...' : 'Create Record'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ============ REMOVE CONFIRMATION MODAL ============ */}
       {removeTarget && (
         <div
@@ -1386,12 +1811,12 @@ function MedicalRecords({ page }) {
         >
           <div className={MODAL_CARD_SM}>
             <div className={MODAL_HEADER}>
-              <h3 className="m-0 text-[18px] text-ink">{removeTarget.kind === 'condition' ? 'Remove Condition' : 'Remove Allergy'}</h3>
+              <h3 className="m-0 text-[18px] text-ink">{REMOVE_KINDS[removeTarget.kind].title}</h3>
               <button type="button" className={MODAL_CLOSE} onClick={() => { if (!busy) setRemoveTarget(null) }}>✕</button>
             </div>
             <div className={MODAL_BODY}>
               <p className="mt-0">
-                Remove <strong>{removeTarget.kind === 'condition' ? removeTarget.item.name : removeTarget.item.allergen}</strong>{' '}
+                Remove <strong>{REMOVE_KINDS[removeTarget.kind].label(removeTarget.item)}</strong>{' '}
                 from <strong>{removeTarget.record.name}</strong>&apos;s medical record?
               </p>
               <p className="mb-0 text-muted">

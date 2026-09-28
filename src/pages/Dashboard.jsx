@@ -235,7 +235,7 @@ function Dashboard() {
     setAddingEvent(true)
     try {
       await addEvent({
-        date: evtDate,
+        start_date: evtDate,
         title: evtTitle,
         description: evtDesc,
       })
@@ -1269,9 +1269,11 @@ function Dashboard() {
                   <ListSkeleton rows={3} />
                 ) : (
                   <div className="mt-3 flex flex-col gap-3">
-                    {events.map((evt, idx) => (
-                      <div className="border-l-[3px] border-primary pl-[14px]" key={idx}>
-                        <div className="text-[11px] font-extrabold uppercase text-primary">{evt.date}</div>
+                    {events.map((evt) => (
+                      <div className="border-l-[3px] border-primary pl-[14px]" key={evt.id}>
+                        <div className="text-[11px] font-extrabold uppercase text-primary">
+                          {evt.startDate ? formatDate(evt.startDate) : evt.date}
+                        </div>
                         <div>
                           <h4 className="my-[3px] text-[14px] text-ink">{evt.title}</h4>
                           <p className="m-0 text-[12.5px] text-muted">{evt.description}</p>
@@ -1295,8 +1297,8 @@ function Dashboard() {
                 <label className={FORM_LABEL}>
                   Event Date
                   <input
-                    type="text"
-                    placeholder="e.g. Aug 15, 2026"
+                    type="date"
+                    min={todayISO()}
                     value={evtDate}
                     onChange={(e) => setEvtDate(e.target.value)}
                     required

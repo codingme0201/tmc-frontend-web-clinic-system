@@ -52,6 +52,11 @@ export async function resetPassword(id, password) {
   return res.data
 }
 
+/** Delete (soft-delete) a user account. */
+export async function deleteUser(id) {
+  return request(`/users/${id}`, { method: 'DELETE' })
+}
+
 export const usersService = {
   fetchUsers,
   fetchUser,
@@ -60,4 +65,5 @@ export const usersService = {
   updateUserStatus,
   updateUserRole,
   resetPassword,
+  deleteUser,
 }

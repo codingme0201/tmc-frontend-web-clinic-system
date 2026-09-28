@@ -2,17 +2,17 @@
 
 import { request } from './api'
 
-// --- Legacy Dashboard endpoints (kept for backward compatibility) ---
+// --- Dashboard widget (backed by the Clinic Calendar event endpoints) ---
 
-/** Fetch upcoming campus health events (Dashboard widget). */
+/** Fetch clinic events for the Dashboard widget, newest first. */
 export async function fetchEvents() {
-  const res = await request('/events')
+  const res = await request('/calendar/events')
   return res.data
 }
 
-/** Schedule a new campus health event (Dashboard widget). */
+/** Schedule a new clinic event from the Dashboard ({ title, description, start_date }). */
 export async function createEvent(payload) {
-  const res = await request('/events', { method: 'POST', body: payload })
+  const res = await request('/calendar/events', { method: 'POST', body: payload })
   return res.data
 }
 

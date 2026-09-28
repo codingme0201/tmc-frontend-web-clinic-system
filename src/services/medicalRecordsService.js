@@ -61,6 +61,43 @@ export async function removeAllergy(recordId, allergyId) {
   return res.data
 }
 
+// ---------- Record creation ----------
+
+/** Creates the medical record for a registered patient ({ patientId, age?, sex? }). */
+export async function createRecord(payload) {
+  const res = await request('/medical-records', { method: 'POST', body: payload })
+  return res.data
+}
+
+// ---------- Medications ----------
+
+export async function addMedication(recordId, payload) {
+  const res = await request(`/medical-records/${recordId}/medications`, { method: 'POST', body: payload })
+  return res.data
+}
+
+export async function updateMedication(recordId, medicationId, patch) {
+  const res = await request(`/medical-records/${recordId}/medications/${medicationId}`, { method: 'PATCH', body: patch })
+  return res.data
+}
+
+export async function removeMedication(recordId, medicationId) {
+  const res = await request(`/medical-records/${recordId}/medications/${medicationId}`, { method: 'DELETE' })
+  return res.data
+}
+
+// ---------- Medical history ----------
+
+export async function addHistory(recordId, payload) {
+  const res = await request(`/medical-records/${recordId}/histories`, { method: 'POST', body: payload })
+  return res.data
+}
+
+export async function removeHistory(recordId, historyId) {
+  const res = await request(`/medical-records/${recordId}/histories/${historyId}`, { method: 'DELETE' })
+  return res.data
+}
+
 // ---------- Record Status (Active / Archived) ----------
 
 export async function updateRecordStatus(recordId, status) {
@@ -80,5 +117,11 @@ export const medicalRecordsService = {
   addAllergy,
   updateAllergy,
   removeAllergy,
+  createRecord,
+  addMedication,
+  updateMedication,
+  removeMedication,
+  addHistory,
+  removeHistory,
 }
 

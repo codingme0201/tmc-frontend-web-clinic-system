@@ -34,6 +34,12 @@ export async function createPatient(payload) {
   return res.data
 }
 
+/** Update a patient's registry details (the patient ID itself is not editable). */
+export async function updatePatient(id, payload) {
+  const res = await request(`/patients/${id}`, { method: 'PUT', body: payload })
+  return res.data
+}
+
 export const patientsService = {
   fetchPatients,
   fetchPatient,
@@ -41,4 +47,5 @@ export const patientsService = {
   fetchPatientRecordHistory,
   updatePatientStatus,
   createPatient,
+  updatePatient,
 }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { usePatients, usePatientProfile, usePatientMedicalInfo, usePatientRecordHistory, useUpdatePatientStatus } from '../hooks/usePatients'
+import { usePatients, usePatientProfile, usePatientMedicalInfo, usePatientRecordHistory, useUpdatePatient, useUpdatePatientStatus } from '../hooks/usePatients'
+import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { usePagination } from '../hooks/usePagination'
@@ -50,7 +51,12 @@ function Patients({ page }) {
     addPatient,
   } = usePatients()
   const updateStatus = useUpdatePatientStatus()
+  const updatePatient = useUpdatePatient()
+  const { can } = useAuth()
+  const canUpdate = can('patients.update')
   const { showToast } = useToast()
+  const [editTarget, setEditTarget] = useState(null)
+  const [editForm, setEditForm] = useState(null)
 
   const { search, setSearch, debouncedSearch, resetSearch } = useSearch({ debounceMs: 300 })
   const [statusFilter, setStatusFilter] = useState('All')
@@ -126,6 +132,50 @@ function Patients({ page }) {
       setActivateTarget(null)
     } catch (err) {
       showToast(err?.message || 'Failed to activate patient.', 'error')
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }
+
+  const openEdit = (patient) => {
+    setEditTarget(patient)
+    setEditForm({
+      name: patient.name || '',
+      age: patient.age ?? '',
+      courseDept: patient.courseDept || '',
+      block: patient.block || '',
+      address: patient.address || '',
+      contact: patient.contact || '',
+      emergencyContactName: patient.emergencyContactName || '',
+      emergencyContactPhone: patient.emergencyContactPhone || '',
+      allergies: patient.allergies || '',
+      history: patient.history || '',
+    })
+  }
+
+  const handleUpdatePatient = async (e) => {
+    e.preventDefault()
+    if (!editTarget || !editForm.name.trim() || busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    try {
+      await updatePatient(editTarget.id, {
+        name: editForm.name.trim(),
+        age: editForm.age === '' ? null : Number(editForm.age),
+        courseDept: editForm.courseDept.trim(),
+        block: editForm.block.trim(),
+        address: editForm.address.trim(),
+        contact: editForm.contact.trim(),
+        emergencyContactName: editForm.emergencyContactName.trim(),
+        emergencyContactPhone: editForm.emergencyContactPhone.trim(),
+        allergies: editForm.allergies.trim() || 'None',
+        history: editForm.history.trim() || 'None',
+      })
+      showToast(`Patient profile updated for ${editForm.name.trim()}.`)
+      setEditTarget(null)
+    } catch (err) {
+      showToast(err?.message || 'Failed to update patient profile.', 'error')
     } finally {
       busyRef.current = false
       setBusy(false)
@@ -292,6 +342,11 @@ function Patients({ page }) {
                         <button type="button" className={BTN_VIEW} onClick={() => { setSelectedId(patient.id); setActiveTab('profile') }}>
                           View
                         </button>
+                        {canUpdate && (
+                          <button type="button" className={BTN_INFO} onClick={() => openEdit(patient)}>
+                            Edit
+                          </button>
+                        )}
                         {patient.status === 'Active' ? (
                           <button type="button" className={BTN_DANGER} onClick={() => setDeactivateTarget(patient)}>
                             Deactivate
@@ -542,6 +597,147 @@ function Patients({ page }) {
                   >
                     {busy && <InlineSpinner />}
                     {busy ? 'Registering...' : 'Register Patient'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Patient Modal */}
+      {editTarget && editForm && (
+        <div
+          className={MODAL_BACKDROP}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Edit ${editTarget.name}`}
+          onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) setEditTarget(null) }}
+        >
+          <div className={MODAL_CARD}>
+            <div className={MODAL_HEADER}>
+              <div>
+                <p className={KICKER}>{editTarget.patientId}</p>
+                <h3 className="m-0 text-[18px] font-bold text-ink">Edit Patient</h3>
+              </div>
+              <button type="button" className={MODAL_CLOSE} onClick={() => { if (!busy) setEditTarget(null) }}>✕</button>
+            </div>
+            <form onSubmit={handleUpdatePatient} className="flex flex-col flex-1 overflow-hidden">
+              <div className={`${MODAL_BODY} flex flex-col gap-3.5`}>
+                <div className={FORM_ROW}>
+                  <label className={FORM_LABEL}>
+                    <span>Full Name <span className="text-danger">*</span></span>
+                    <input
+                      type="text"
+                      className={FORM_FIELD}
+                      value={editForm.name}
+                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                      required
+                    />
+                  </label>
+                  <label className={FORM_LABEL}>
+                    <span>Age</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="120"
+                      className={FORM_FIELD}
+                      value={editForm.age}
+                      onChange={(e) => setEditForm({ ...editForm, age: e.target.value })}
+                    />
+                  </label>
+                </div>
+                <div className={FORM_ROW}>
+                  <label className={FORM_LABEL}>
+                    <span>Course / Department</span>
+                    <input
+                      type="text"
+                      className={FORM_FIELD}
+                      value={editForm.courseDept}
+                      onChange={(e) => setEditForm({ ...editForm, courseDept: e.target.value })}
+                    />
+                  </label>
+                  <label className={FORM_LABEL}>
+                    <span>Block</span>
+                    <input
+                      type="text"
+                      className={FORM_FIELD}
+                      value={editForm.block}
+                      onChange={(e) => setEditForm({ ...editForm, block: e.target.value })}
+                    />
+                  </label>
+                </div>
+                <div className={FORM_ROW}>
+                  <label className={FORM_LABEL}>
+                    <span>Address</span>
+                    <input
+                      type="text"
+                      className={FORM_FIELD}
+                      value={editForm.address}
+                      onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                    />
+                  </label>
+                  <label className={FORM_LABEL}>
+                    <span>Contact Number</span>
+                    <input
+                      type="tel"
+                      className={FORM_FIELD}
+                      value={editForm.contact}
+                      onChange={(e) => setEditForm({ ...editForm, contact: formatPhone(e.target.value) })}
+                      maxLength={13}
+                    />
+                  </label>
+                </div>
+                <div className={FORM_ROW}>
+                  <label className={FORM_LABEL}>
+                    <span>Emergency Contact Name</span>
+                    <input
+                      type="text"
+                      className={FORM_FIELD}
+                      value={editForm.emergencyContactName}
+                      onChange={(e) => setEditForm({ ...editForm, emergencyContactName: e.target.value })}
+                    />
+                  </label>
+                  <label className={FORM_LABEL}>
+                    <span>Emergency Contact Phone</span>
+                    <input
+                      type="tel"
+                      className={FORM_FIELD}
+                      value={editForm.emergencyContactPhone}
+                      onChange={(e) => setEditForm({ ...editForm, emergencyContactPhone: formatPhone(e.target.value) })}
+                      maxLength={13}
+                    />
+                  </label>
+                </div>
+                <div className={FORM_ROW}>
+                  <label className={FORM_LABEL}>
+                    <span>Known Allergies</span>
+                    <input
+                      type="text"
+                      className={FORM_FIELD}
+                      value={editForm.allergies}
+                      onChange={(e) => setEditForm({ ...editForm, allergies: e.target.value })}
+                    />
+                  </label>
+                  <label className={FORM_LABEL}>
+                    <span>Medical History / Notes</span>
+                    <input
+                      type="text"
+                      className={FORM_FIELD}
+                      value={editForm.history}
+                      onChange={(e) => setEditForm({ ...editForm, history: e.target.value })}
+                    />
+                  </label>
+                </div>
+              </div>
+              <div className={MODAL_FOOTER}>
+                <div className={MODAL_FOOTER_ACTIONS}>
+                  <button type="button" className={PILL} onClick={() => setEditTarget(null)} disabled={busy}>
+                    Cancel
+                  </button>
+                  <button type="submit" className={PRIMARY_BTN} disabled={busy || !editForm.name.trim()}>
+                    {busy && <InlineSpinner />}
+                    {busy ? 'Saving...' : 'Save Changes'}
                   </button>
                 </div>
               </div>

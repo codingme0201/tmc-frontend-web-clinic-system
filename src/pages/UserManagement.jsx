@@ -111,8 +111,12 @@ function UserManagement({ page }) {
   // Activate confirmation modal
   const [activateTarget, setActivateTarget] = useState(null)
 
+  // Delete confirmation modal
+  const [deleteTarget, setDeleteTarget] = useState(null)
+
   const canCreate = can('users.create')
   const canUpdate = can('users.update')
+  const canDelete = can('users.delete')
 
   const roleOptions = useMemo(() => {
     return roles.data || []
@@ -303,6 +307,22 @@ function UserManagement({ page }) {
     }
   }
 
+  const handleDelete = async () => {
+    if (!deleteTarget || busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    try {
+      await users.deleteUser(deleteTarget.id)
+      showToast(`"${deleteTarget.name}" has been deleted.`)
+      setDeleteTarget(null)
+    } catch (err) {
+      showToast(err?.message || 'Failed to delete user.', 'error')
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }
+
   // ---------- Render --------------------------------------------------------
 
   const activeCount = users.data.filter((u) => u.status === 'active').length
@@ -479,6 +499,11 @@ function UserManagement({ page }) {
                                 </button>
                               )}
                             </>
+                          )}
+                          {canDelete && (
+                            <button type="button" className={BTN_DANGER} onClick={() => setDeleteTarget(user)}>
+                              Delete
+                            </button>
                           )}
                         </div>
                       </td>
@@ -1006,6 +1031,54 @@ function UserManagement({ page }) {
                 >
                   {busy && <InlineSpinner />}
                   {busy ? 'Activating...' : 'Activate'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= DELETE CONFIRMATION MODAL ================= */}
+      {deleteTarget && (
+        <div
+          className={MODAL_BACKDROP}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Delete ${deleteTarget.name}`}
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !busy) setDeleteTarget(null)
+          }}
+        >
+          <div className={MODAL_CARD}>
+            <div className={MODAL_HEADER}>
+              <h3 className="m-0 text-[18px] text-ink">Delete User</h3>
+              <button
+                type="button"
+                className={MODAL_CLOSE}
+                onClick={() => { if (!busy) setDeleteTarget(null) }}
+              >
+                ✕
+              </button>
+            </div>
+            <div className={MODAL_BODY}>
+              <p className="mt-0">
+                Are you sure you want to delete <strong>{deleteTarget.name}</strong>? They will be signed out
+                everywhere and can no longer log in. Their clinic records are kept.
+              </p>
+            </div>
+            <div className={MODAL_FOOTER}>
+              <div className={MODAL_FOOTER_ACTIONS}>
+                <button type="button" className={PILL} onClick={() => setDeleteTarget(null)} disabled={busy}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className={`${BTN_DANGER} min-h-10 px-[14px] text-[13px]`}
+                  onClick={handleDelete}
+                  disabled={busy}
+                >
+                  {busy && <InlineSpinner />}
+                  {busy ? 'Deleting...' : 'Delete'}
                 </button>
               </div>
             </div>

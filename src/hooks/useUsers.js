@@ -45,6 +45,11 @@ export function useUsersStore() {
     mutationFn: ({ id, password }) => usersService.resetPassword(id, password),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: usersService.deleteUser,
+    onSuccess: invalidateUsers,
+  })
+
   const createUser = useCallback(
     async (payload) => createMutation.mutateAsync(payload),
     [createMutation],
@@ -70,6 +75,11 @@ export function useUsersStore() {
     [passwordMutation],
   )
 
+  const deleteUser = useCallback(
+    async (id) => deleteMutation.mutateAsync(id),
+    [deleteMutation],
+  )
+
   return {
     data: data || [],
     isLoading,
@@ -81,5 +91,6 @@ export function useUsersStore() {
     updateUserStatus,
     updateUserRole,
     resetUserPassword,
+    deleteUser,
   }
 }
