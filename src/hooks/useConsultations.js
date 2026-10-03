@@ -13,7 +13,7 @@ import { consultationsService } from '../services/consultationsService'
  * `onLog` keeps the shared activity/audit log in sync (mirrors a
  * server-side audit trail).
  */
-export function useConsultationsStore({ onLog } = {}, scope = 'page') {
+export function useConsultationsStore({ onLog, enabled = true } = {}, scope = 'page') {
   const queryClient = useQueryClient()
   const onLogRef = useRef(onLog)
   useEffect(() => {
@@ -25,12 +25,20 @@ export function useConsultationsStore({ onLog } = {}, scope = 'page') {
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ['consultations', scope],
     queryFn: consultationsService.fetchConsultations,
+    enabled,
   })
+
+  // Consultation changes also move the queue and the linked appointments.
+  const invalidateLinked = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['consultations'] })
+    queryClient.invalidateQueries({ queryKey: ['appointments'] })
+    queryClient.invalidateQueries({ queryKey: ['queue'] })
+  }, [queryClient])
 
   const createMutation = useMutation({
     mutationFn: consultationsService.createConsultation,
     onSuccess: (created) => {
-      queryClient.invalidateQueries({ queryKey: ['consultations'] })
+      invalidateLinked()
       onLogRef.current?.(
         `Logged clinical consultation for patient ${created.patient} - Diagnosis: ${created.diagnosis}`,
       )
@@ -40,7 +48,7 @@ export function useConsultationsStore({ onLog } = {}, scope = 'page') {
   const startMutation = useMutation({
     mutationFn: consultationsService.startConsultation,
     onSuccess: (updated) => {
-      queryClient.invalidateQueries({ queryKey: ['consultations'] })
+      invalidateLinked()
       onLogRef.current?.(`Started consultation ${updated.reference} for patient ${updated.patient}`)
     },
   })
@@ -48,7 +56,7 @@ export function useConsultationsStore({ onLog } = {}, scope = 'page') {
   const saveMutation = useMutation({
     mutationFn: ({ id, patch }) => consultationsService.updateConsultation(id, patch),
     onSuccess: (updated) => {
-      queryClient.invalidateQueries({ queryKey: ['consultations'] })
+      invalidateLinked()
       onLogRef.current?.(`Updated consultation ${updated.reference} for patient ${updated.patient}`)
     },
   })
@@ -56,9 +64,19 @@ export function useConsultationsStore({ onLog } = {}, scope = 'page') {
   const completeMutation = useMutation({
     mutationFn: ({ id, finalData }) => consultationsService.completeConsultation(id, finalData),
     onSuccess: (updated) => {
-      queryClient.invalidateQueries({ queryKey: ['consultations'] })
+      invalidateLinked()
       onLogRef.current?.(
         `Completed consultation ${updated.reference} for patient ${updated.patient} - Diagnosis: ${updated.diagnosis}`,
+      )
+    },
+  })
+
+  const followUpMutation = useMutation({
+    mutationFn: ({ id, payload }) => consultationsService.scheduleFollowUp(id, payload),
+    onSuccess: (updated) => {
+      invalidateLinked()
+      onLogRef.current?.(
+        `Scheduled follow-up ${updated.followUpAppointment?.reference ?? ''} for ${updated.patient} from ${updated.reference}`,
       )
     },
   })
@@ -83,6 +101,11 @@ export function useConsultationsStore({ onLog } = {}, scope = 'page') {
     [completeMutation],
   )
 
+  const scheduleFollowUp = useCallback(
+    async (id, payload) => followUpMutation.mutateAsync({ id, payload }),
+    [followUpMutation],
+  )
+
   return {
     data: data || [],
     isLoading,
@@ -93,15 +116,17 @@ export function useConsultationsStore({ onLog } = {}, scope = 'page') {
     startConsultation,
     saveConsultation,
     completeConsultation,
+    scheduleFollowUp,
   }
 }
 
 /**
  * Public hook — pages call this on mount (page-scoped fetch + app-level
  * audit log). Returns { data, isLoading, error, refetch, isRefetching,
- * addConsultation, startConsultation, saveConsultation, completeConsultation }.
+ * addConsultation, startConsultation, saveConsultation, completeConsultation,
+ * scheduleFollowUp }. Pass `{ enabled: false }` when the user cannot view consultations.
  */
-export function useConsultations(scope = 'page') {
+export function useConsultations(scope = 'page', { enabled = true } = {}) {
   const { log } = useAppContext()
-  return useConsultationsStore({ onLog: log }, scope)
+  return useConsultationsStore({ onLog: log, enabled }, scope)
 }

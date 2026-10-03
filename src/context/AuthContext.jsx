@@ -77,7 +77,7 @@ export function AuthProvider({ children }) {
     const { token, user: authenticatedUser } = await authService.login({ email, password })
     if (authenticatedUser?.role === 'patient') {
       clearAuthToken()
-      const err = new Error('Patient accounts can only access TMC CareLink via the mobile application. Only doctors, nurses, and administrators can enter the web clinic system.')
+      const err = new Error('Patient accounts can only access TMC CareLink via the mobile application. Only doctors, nurses, front desk staff, and administrators can enter the web clinic system.')
       err.data = { code: 'PATIENT_MOBILE_ONLY', role: 'patient' }
       throw err
     }

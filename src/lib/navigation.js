@@ -26,6 +26,7 @@ export const navSections = [
     label: 'Schedules',
     items: [
       { id: 'staffSchedule', label: 'Doctor/Nurse Schedule', icon: 'clipboardClock', permission: 'schedules.view' },
+      { id: 'clinicStaff', label: 'Medical Staff', icon: 'shieldUser', permission: 'schedules.view' },
       { id: 'clinicCalendar', label: 'Clinic Calendar', icon: 'calendarDays', permission: 'calendar.view' },
     ],
   },
@@ -56,7 +57,7 @@ export const pageContent = {
   appointments: {
     title: 'Appointments',
     eyebrow: 'Clinic',
-    description: 'Manage student, faculty, and staff clinic appointment requests.',
+    description: 'Manage student appointment requests, doctor assignment, and new or follow-up visits.',
   },
   consultations: {
     title: 'Consultations',
@@ -86,7 +87,12 @@ export const pageContent = {
   staffSchedule: {
     title: 'Medical Staff Schedule',
     eyebrow: 'Schedules',
-    description: 'Plan doctor, nurse, and assigned medical staff clinic shifts.',
+    description: 'Plan doctor and nurse clinic shifts (working hours 8:00 AM – 5:00 PM) and see their assigned patients.',
+  },
+  clinicStaff: {
+    title: 'Medical Staff',
+    eyebrow: 'Schedules',
+    description: 'View doctors, nurses and front desk staff, their PRC licenses and credential verification.',
   },
   clinicCalendar: {
     title: 'Clinic Calendar',
@@ -106,7 +112,7 @@ export const pageContent = {
   users: {
     title: 'User Management',
     eyebrow: 'Administration',
-    description: 'Manage administrator, doctor, nurse, and patient accounts.',
+    description: 'Manage administrator, doctor, nurse, front desk, and student accounts.',
   },
   auditLogs: {
     title: 'Audit Logs',

@@ -104,6 +104,7 @@ export function useCalendarEventsStore({ onLog } = {}, scope = 'page') {
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ['calendar-events'] })
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      queryClient.invalidateQueries({ queryKey: ['events'] })
       onLogRef.current?.(`Created clinic event: ${created.title}`)
     },
   })
@@ -113,6 +114,7 @@ export function useCalendarEventsStore({ onLog } = {}, scope = 'page') {
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ['calendar-events'] })
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      queryClient.invalidateQueries({ queryKey: ['events'] })
       onLogRef.current?.(`Updated clinic event: ${updated.title}`)
     },
   })
@@ -122,6 +124,7 @@ export function useCalendarEventsStore({ onLog } = {}, scope = 'page') {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar-events'] })
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      queryClient.invalidateQueries({ queryKey: ['events'] })
       onLogRef.current?.('Deleted clinic event')
     },
   })

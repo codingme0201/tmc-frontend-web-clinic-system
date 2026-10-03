@@ -46,7 +46,7 @@ function Sidebar({ collapsed = false, mobileOpen = false, onNavigate, onClose })
     >
       {/* Brand Header + Mobile Close Button */}
       <div className="flex items-center justify-between gap-3">
-        <ClinicLogo size={38} collapsed={collapsed} />
+        <ClinicLogo size={38} collapsed={collapsed} subtitle="TMC Expansion Clinic" />
 
         {/* Dedicated Mobile Close Button */}
         <button

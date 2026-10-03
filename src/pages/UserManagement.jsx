@@ -19,6 +19,8 @@ import Pagination from '../components/Pagination'
 import RefreshingBadge from '../components/RefreshingBadge'
 import TableSkeleton from '../components/skeletons/TableSkeleton'
 import StudentSelect from '../components/StudentSelect'
+import CourseSelect from '../components/CourseSelect'
+import { roleLabel } from '../lib/clinic'
 import { EmptyState, ErrorState } from '../components/AsyncState'
 
 const MODAL_CARD = 'flex max-h-[90vh] w-[min(520px,100%)] animate-modal-scale flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgba(8,20,20,0.22)]'
@@ -96,6 +98,7 @@ function UserManagement({ page }) {
     defaultValues: DEFAULT_USER_FORM,
   })
   const linkedPatientId = useWatch({ control: userForm.control, name: 'patient_id' })
+  const userCourse = useWatch({ control: userForm.control, name: 'course' })
 
   // Role assignment modal
   const [roleTarget, setRoleTarget] = useState(null)
@@ -163,7 +166,10 @@ function UserManagement({ page }) {
   }
 
   const submitUserForm = (event) => {
-    userForm.handleSubmit(handleSaveUser, () => showToast('Please fill in all required fields.', 'error'))(event)
+    userForm.handleSubmit(handleSaveUser, (errors) => {
+      const firstError = Object.values(errors)[0]
+      showToast(firstError?.message || 'Please fill in all required fields.', 'error')
+    })(event)
   }
 
   const handleSaveUser = async (values) => {
@@ -181,7 +187,7 @@ function UserManagement({ page }) {
         name: fullName || values.name,
         email: values.email,
         role_id: values.role_id ? Number(values.role_id) : undefined,
-        patient_id: studentId,
+        patient_id: isPatientRole ? (values.patient_id || null) : null,
         student_id: studentId,
         first_name: isPatientRole ? values.first_name : undefined,
         firstName: isPatientRole ? values.first_name : undefined,
@@ -392,7 +398,7 @@ function UserManagement({ page }) {
             <option value="All">All Roles</option>
             {roleOptions.map((r) => (
               <option key={r.id} value={r.name}>
-                {r.name}
+                {roleLabel(r.name)}
               </option>
             ))}
           </select>
@@ -467,7 +473,7 @@ function UserManagement({ page }) {
                       <td className="text-muted">{user.email}</td>
                       <td>
                         <span className="font-bold text-ink">
-                          {user.role?.name ? user.role.name.charAt(0).toUpperCase() + user.role.name.slice(1) : '—'}
+                          {roleLabel(user.role?.name)}
                         </span>
                       </td>
                       <td>
@@ -554,7 +560,7 @@ function UserManagement({ page }) {
                     <option value="">Select a role</option>
                     {roleOptions.map((r) => (
                       <option key={r.id} value={r.id}>
-                        {r.name.charAt(0).toUpperCase() + r.name.slice(1)}
+                        {roleLabel(r.name)}
                       </option>
                     ))}
                   </select>
@@ -733,13 +739,12 @@ function UserManagement({ page }) {
                       </label>
                       <label className={FORM_LABEL}>
                         Course / Program *
-                        <input
-                          type="text"
-                          placeholder="e.g. BS Information Technology"
-                          className={FORM_FIELD}
-                          {...userForm.register('course', { required: isPatientRole ? 'Course is required.' : false })}
+                        <CourseSelect
+                          value={userCourse}
+                          onChange={(v) => userForm.setValue('course', v, { shouldValidate: true })}
                           disabled={busy}
                         />
+                        <input type="hidden" {...userForm.register('course', { required: isPatientRole ? 'Course is required.' : false })} />
                       </label>
                       <label className={FORM_LABEL}>
                         Block No. *
@@ -851,7 +856,7 @@ function UserManagement({ page }) {
                   <option value="">Select a role</option>
                   {roleOptions.map((r) => (
                     <option key={r.id} value={r.id}>
-                      {r.name.charAt(0).toUpperCase() + r.name.slice(1)}
+                      {roleLabel(r.name)}
                       {r.description ? ` — ${r.description}` : ''}
                     </option>
                   ))}

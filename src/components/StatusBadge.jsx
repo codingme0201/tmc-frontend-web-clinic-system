@@ -26,6 +26,14 @@ const BADGE_CLASSES = {
   severe: 'bg-[#ffebe0] text-[#a33c12]',
   discontinued: 'bg-[#ffebe0] text-[#a33c12]',
   'no-show': 'bg-[#ffebe6] text-[#b3361f]',
+  waiting: 'bg-[#fff3d6] text-[#8a5a00]',
+  expected: 'bg-[#e8f0fe] text-[#1a56c4]',
+  'in-consultation': 'bg-[#d8f5e3] text-[#157347]',
+  'awaiting-approval': 'bg-[#fff2d5] text-[#815400]',
+  served: 'bg-[#e1f5fe] text-[#0d47a1]',
+  verified: 'bg-[#d8f5e3] text-[#157347]',
+  'pending-verification': 'bg-[#fff2d5] text-[#815400]',
+  'not-submitted': 'bg-[#f0f3f2] text-[#5d6e6c]',
 }
 
 const DEFAULT_BADGE = 'bg-[#f0f3f2] text-[#5d6e6c]'

@@ -6,10 +6,14 @@ import { useStaff } from '../hooks/useStaff'
 import { useActivityLogs } from '../hooks/useActivityLogs'
 import { useClinicEvents } from '../hooks/useClinicEvents'
 import { useClinicInsights } from '../hooks/useClinicInsights'
+import { useQueue } from '../hooks/useQueue'
+import { useAuth } from '../hooks/useAuth'
+import { useAppContext } from '../context/AppContext'
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { usePagination } from '../hooks/usePagination'
 import { formatDate, todayISO, formatPhone } from '../lib/format'
+import { APPOINTMENT_TYPES, TIME_SLOTS, VISIT_TYPES, VISIT_NEW, currentSlot } from '../lib/clinic'
 import { PILL, PRIMARY_BTN, PANEL, PANEL_HEADER, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT, SIDEBAR_FORM, FORM_LABEL, FORM_FIELD, FORM_ROW } from '../lib/ui'
 import Pagination from '../components/Pagination'
 import StatusBadge from '../components/StatusBadge'
@@ -22,9 +26,17 @@ import ListSkeleton from '../components/skeletons/ListSkeleton'
 import CardSkeleton from '../components/skeletons/CardSkeleton'
 import FormSkeleton from '../components/skeletons/FormSkeleton'
 import StudentSelect from '../components/StudentSelect'
+import QueueBoard from '../components/QueueBoard'
+import ClinicianSelect from '../components/ClinicianSelect'
+import CourseSelect from '../components/CourseSelect'
+import VisitTypeBadge from '../components/VisitTypeBadge'
 
 function Dashboard() {
   const [activeTab, setActiveTab] = useState('overview') // 'overview', 'appointments', 'consultations', 'patients', 'schedule', 'activity'
+  const { can } = useAuth()
+  const { navigate } = useAppContext()
+  const canViewConsultations = can('consultations.view')
+  const canViewActivity = can('audit_logs.view')
 
   // All data flows through shared custom hooks — the page never imports or
   // mutates shared store data directly.
@@ -33,7 +45,6 @@ function Dashboard() {
     isLoading: appointmentsLoading,
     error: appointmentsError,
     refetch: refetchAppointments,
-    isRefetching: appointmentsRefetching,
     createAppointment,
     updateStatus: updateAppointmentStatus,
   } = useAppointments('dashboard')
@@ -61,7 +72,8 @@ function Dashboard() {
     error: consultationsError,
     refetch: refetchConsultations,
     addConsultation,
-  } = useConsultations('dashboard')
+  } = useConsultations('dashboard', { enabled: canViewConsultations })
+  const queue = useQueue('dashboard')
 
   const { data: activityLogs, isLoading: logsLoading, error: logsError, refetch: refetchLogs } = useActivityLogs()
   const { data: events, isLoading: eventsLoading, error: eventsError, refetch: refetchEvents, addEvent } = useClinicEvents()
@@ -79,8 +91,12 @@ function Dashboard() {
 
   // Book Appointment Form State
   const [appPatient, setAppPatient] = useState('')
+  const [appPatientId, setAppPatientId] = useState('')
   const [appType, setAppType] = useState('Check-up')
-  const [appTime, setAppTime] = useState('09:00 AM')
+  const [appVisitType, setAppVisitType] = useState(VISIT_NEW)
+  const [appTime, setAppTime] = useState(() => currentSlot())
+  const [appStaffId, setAppStaffId] = useState(null)
+  const [queueBusyId, setQueueBusyId] = useState(null)
   const [booking, setBooking] = useState(false)
   const [logging, setLogging] = useState(false)
   const [addingPatient, setAddingPatient] = useState(false)
@@ -96,7 +112,7 @@ function Dashboard() {
   const [consDiagnosis, setConsDiagnosis] = useState('')
   const [consTreatment, setConsTreatment] = useState('')
   const [consDisposition, setConsDisposition] = useState('Sent to Class')
-  const [consStaff, setConsStaff] = useState('')
+  const [consStaffId, setConsStaffId] = useState(null)
 
   // Add Patient Form State
   const [patId, setPatId] = useState('')
@@ -114,26 +130,14 @@ function Dashboard() {
   const [evtDesc, setEvtDesc] = useState('')
 
   // Search/Filters State
-  const { search: appSearch, setSearch: setAppSearch, debouncedSearch: debouncedAppSearch } = useSearch()
   const { search: consSearch, setSearch: setConsSearch, debouncedSearch: debouncedConsSearch } = useSearch()
   const { search: patSearch, setSearch: setPatSearch, debouncedSearch: debouncedPatSearch } = useSearch()
-  const [appFilter, setAppFilter] = useState('All')
   const [patFilter, setPatFilter] = useState('All')
 
   // Derived defaults for the consultation form (patients/staff load async).
   const effectiveConsPatient = consPatient || patients[0]?.name || ''
-  const effectiveConsStaff = consStaff || staff[0]?.name || ''
 
   // Appointment Actions
-  const handleUpdateAppointmentStatus = async (id, newStatus) => {
-    try {
-      await updateAppointmentStatus(id, newStatus)
-      showToast(`Appointment updated to ${newStatus}.`)
-    } catch (err) {
-      showToast(err?.message || 'Failed to update the appointment.', 'error')
-    }
-  }
-
   const handleAddAppointment = async (e) => {
     e.preventDefault()
     if (booking || !appPatient.trim()) return
@@ -141,19 +145,52 @@ function Dashboard() {
     try {
       await createAppointment({
         patient: appPatient.trim(),
+        patientId: appPatientId,
         type: appType,
+        visitType: appVisitType,
         date: todayISO(),
         time: appTime,
         reason: appType,
+        staffId: appStaffId,
       })
-      showToast('Appointment booked successfully.')
+      showToast('Walk-in appointment booked. Approve and check the patient in to add them to the queue.')
       setAppPatient('')
+      setAppPatientId('')
+      setAppStaffId(null)
     } catch (err) {
       showToast(err?.message || 'Failed to book the appointment.', 'error')
     } finally {
       setBooking(false)
     }
   }
+
+  // Queue actions (FIFO) — one entry at a time per button.
+  const runQueueAction = async (entry, action, success) => {
+    if (queueBusyId) return
+    setQueueBusyId(entry.appointmentId)
+    try {
+      const result = await action()
+      showToast(typeof success === 'function' ? success(result) : success)
+    } catch (err) {
+      showToast(err?.message || 'The queue action failed.', 'error')
+    } finally {
+      setQueueBusyId(null)
+    }
+  }
+  const handleCheckIn = (entry) =>
+    runQueueAction(entry, () => queue.checkIn(entry.appointmentId), (res) => `${res.patient} checked in — queue #${res.queueNumber}.`)
+  const handleUndoCheckIn = (entry) =>
+    runQueueAction(entry, () => queue.undoCheckIn(entry.appointmentId), `Check-in of ${entry.patient} undone.`)
+  const handleServe = (entry) =>
+    runQueueAction(
+      entry,
+      () => queue.serve(entry.appointmentId),
+      (consultation) => `${entry.patient} called in — consultation ${consultation.reference} started. Continue it in Consultations.`,
+    )
+  const handleApproveEntry = (entry) =>
+    runQueueAction(entry, () => updateAppointmentStatus(entry.appointmentId, 'Approved'), `${entry.reference} approved.`)
+  const handleNoShow = (entry) =>
+    runQueueAction(entry, () => updateAppointmentStatus(entry.appointmentId, 'No-Show'), `${entry.patient} marked as No-Show.`)
 
   // Consultation Actions
   const handleLogConsultation = async (e) => {
@@ -163,7 +200,7 @@ function Dashboard() {
     try {
       await addConsultation({
         patient: effectiveConsPatient,
-        staff: effectiveConsStaff,
+        staff_id: consStaffId,
         symptoms: consSymptoms,
         vitals: { bp: consBp, temp: consTemp, pulse: consPulse },
         diagnosis: consDiagnosis,
@@ -260,18 +297,11 @@ function Dashboard() {
       { label: 'Today Appointments', value: todayAppts, trend: `${appointments.filter((a) => a.status === 'Pending').length} pending review` },
       { label: 'On-Duty Staff', value: activeCons, trend: `${staff.filter((s) => s.status === 'Break').length} on break` },
       { label: 'Registered Patients', value: totalPats, trend: 'Unified clinic health list' },
-      { label: 'Total Consultations', value: totalConsults, trend: 'Clinic visit records logged' },
+      canViewConsultations
+        ? { label: 'Total Consultations', value: totalConsults, trend: 'Clinic visit records logged' }
+        : { label: 'Waiting in Queue', value: queue.meta?.waiting ?? 0, trend: `${queue.meta?.expected ?? 0} expected today` },
     ]
-  }, [appointments, staff, patients, consultations])
-
-  // Filtered Appointments
-  const filteredAppointments = useMemo(() => {
-    return appointments.filter((app) => {
-      const matchSearch = app.patient.toLowerCase().includes(debouncedAppSearch.toLowerCase())
-      const matchFilter = appFilter === 'All' || app.status === appFilter
-      return matchSearch && matchFilter
-    })
-  }, [appointments, debouncedAppSearch, appFilter])
+  }, [appointments, staff, patients, consultations, canViewConsultations, queue.meta])
 
   // Filtered Consultations
   const filteredConsultations = useMemo(() => {
@@ -296,20 +326,15 @@ function Dashboard() {
 
   // Client-side pagination per list — swap for API-driven pages later without
   // touching the tables or the Pagination UI.
-  const appPagination = usePagination(filteredAppointments)
   const consPagination = usePagination(filteredConsultations)
   const patPagination = usePagination(filteredPatients)
   const logsPagination = usePagination(activityLogs)
   const staffPagination = usePagination(staff)
 
-  const { resetPage: resetAppPage } = appPagination
   const { resetPage: resetConsPage } = consPagination
   const { resetPage: resetPatPage } = patPagination
 
   // Search/filter changes always reset to page 1.
-  useEffect(() => {
-    resetAppPage()
-  }, [debouncedAppSearch, appFilter, resetAppPage])
   useEffect(() => {
     resetConsPage()
   }, [debouncedConsSearch, resetConsPage])
@@ -323,22 +348,23 @@ function Dashboard() {
     return consultations.filter((c) => c.patient === selectedPatient.name)
   }, [selectedPatient, consultations])
 
-  // Appointments awaiting attention (pending + under review)
-  const pendingQueue = useMemo(() => {
-    return appointments.filter((a) => a.status === 'Pending' || a.status === 'Under Review')
-  }, [appointments])
+  // FIFO queue snapshot for the overview widget: who is being seen, then the waiting line.
+  const queuePreview = useMemo(
+    () => queue.entries.filter((e) => e.queueStatus === 'In Consultation' || e.queueStatus === 'Waiting').slice(0, 4),
+    [queue.entries],
+  )
 
   // Overview load state — each widget loads independently, so a slow API
   // never blocks the whole dashboard. These booleans drive the stat cards
   // (derived from four stores) while every other widget manages its own
   // loading/error state below.
-  const statsLoading = appointmentsLoading || staffLoading || patientsLoading || consultationsLoading
-  const statsError = appointmentsError || staffError || patientsError || consultationsError
+  const statsLoading = appointmentsLoading || staffLoading || patientsLoading || (canViewConsultations && consultationsLoading)
+  const statsError = appointmentsError || staffError || patientsError || (canViewConsultations && consultationsError)
   const retryStats = () => {
     refetchAppointments()
     refetchStaff()
     refetchPatients()
-    refetchConsultations()
+    if (canViewConsultations) refetchConsultations()
     refetchInsights()
   }
 
@@ -352,7 +378,7 @@ function Dashboard() {
         <div className="mb-4 sm:mb-5 flex items-center justify-between gap-3 sm:gap-4 max-[620px]:flex-col max-[620px]:items-start">
           <div>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-extrabold tracking-wide uppercase text-primary mb-1">
-              TMC Clinic Administration
+              TMC Expansion Clinic Administration
             </span>
             <h2 className="m-0 text-[22px] sm:text-[30px] md:text-[36px] font-extrabold tracking-tight text-ink leading-tight">
               Clinic Command Center
@@ -380,15 +406,17 @@ function Dashboard() {
             className={`cursor-pointer whitespace-nowrap rounded-xl border-0 px-3.5 py-2 text-[12.5px] sm:text-[13px] font-extrabold transition-all duration-150 ${activeTab === 'appointments' ? 'bg-primary text-white shadow-xs' : 'text-muted-soft hover:bg-white/60 hover:text-primary'}`}
             onClick={() => setActiveTab('appointments')}
           >
-            Queue ({pendingQueue.length})
+            Queue ({queue.meta?.waiting ?? 0} waiting)
           </button>
-          <button
-            type="button"
-            className={`cursor-pointer whitespace-nowrap rounded-xl border-0 px-3.5 py-2 text-[12.5px] sm:text-[13px] font-extrabold transition-all duration-150 ${activeTab === 'consultations' ? 'bg-primary text-white shadow-xs' : 'text-muted-soft hover:bg-white/60 hover:text-primary'}`}
-            onClick={() => setActiveTab('consultations')}
-          >
-            Consultations
-          </button>
+          {canViewConsultations && (
+            <button
+              type="button"
+              className={`cursor-pointer whitespace-nowrap rounded-xl border-0 px-3.5 py-2 text-[12.5px] sm:text-[13px] font-extrabold transition-all duration-150 ${activeTab === 'consultations' ? 'bg-primary text-white shadow-xs' : 'text-muted-soft hover:bg-white/60 hover:text-primary'}`}
+              onClick={() => setActiveTab('consultations')}
+            >
+              Consultations
+            </button>
+          )}
           <button
             type="button"
             className={`cursor-pointer whitespace-nowrap rounded-xl border-0 px-3.5 py-2 text-[12.5px] sm:text-[13px] font-extrabold transition-all duration-150 ${activeTab === 'patients' ? 'bg-primary text-white shadow-xs' : 'text-muted-soft hover:bg-white/60 hover:text-primary'}`}
@@ -403,13 +431,15 @@ function Dashboard() {
           >
             Staff Shifts
           </button>
-          <button
-            type="button"
-            className={`cursor-pointer whitespace-nowrap rounded-xl border-0 px-3.5 py-2 text-[12.5px] sm:text-[13px] font-extrabold transition-all duration-150 ${activeTab === 'activity' ? 'bg-primary text-white shadow-xs' : 'text-muted-soft hover:bg-white/60 hover:text-primary'}`}
-            onClick={() => setActiveTab('activity')}
-          >
-            Clinic Activity
-          </button>
+          {canViewActivity && (
+            <button
+              type="button"
+              className={`cursor-pointer whitespace-nowrap rounded-xl border-0 px-3.5 py-2 text-[12.5px] sm:text-[13px] font-extrabold transition-all duration-150 ${activeTab === 'activity' ? 'bg-primary text-white shadow-xs' : 'text-muted-soft hover:bg-white/60 hover:text-primary'}`}
+              onClick={() => setActiveTab('activity')}
+            >
+              Clinic Activity
+            </button>
+          )}
         </nav>
       </section>
 
@@ -454,63 +484,39 @@ function Dashboard() {
                   <article className={`${PANEL} row-span-2 max-[980px]:row-auto`}>
                     <div className={PANEL_HEADER}>
                       <div>
-                        <p className={KICKER}>Queue Management</p>
-                        <h3 className="m-0 text-[17px] sm:text-[18px] font-bold text-[#143d40]">Today's Pending Appointments</h3>
+                        <p className={KICKER}>Queue Management · First In, First Out</p>
+                        <h3 className="m-0 text-[17px] sm:text-[18px] font-bold text-[#143d40]">Today&apos;s Patient Queue</h3>
                       </div>
                       <div className="flex items-center gap-2">
-                        <RefreshingBadge refreshing={appointmentsRefetching && !appointmentsLoading} />
+                        <RefreshingBadge refreshing={queue.isRefetching && !queue.isLoading} />
                         <button type="button" className={PILL} onClick={() => setActiveTab('appointments')}>Manage Queue</button>
                       </div>
                     </div>
-                    {appointmentsError ? (
-                      <ErrorState message={appointmentsError} onRetry={refetchAppointments} />
-                    ) : appointmentsLoading ? (
+                    {queue.error ? (
+                      <ErrorState message={queue.error} onRetry={queue.refetch} />
+                    ) : queue.isLoading ? (
                       <ListSkeleton rows={3} />
                     ) : (
                     <div className="grid gap-2.5">
-                      {pendingQueue.slice(0, 3).map((app) => (
-                        <div className="flex flex-col sm:grid sm:grid-cols-[92px_minmax(0,1fr)_auto] items-start sm:items-center gap-2.5 sm:gap-3 rounded-xl border border-line-strong/80 bg-white/70 p-3 sm:p-3.5 shadow-2xs transition-all duration-150 hover:border-primary/40 hover:bg-white" key={app.id}>
-                          <div className="flex w-full items-center justify-between sm:w-auto">
+                      {queuePreview.map((entry) => (
+                        <div className="flex flex-col sm:grid sm:grid-cols-[92px_minmax(0,1fr)_auto] items-start sm:items-center gap-2.5 sm:gap-3 rounded-xl border border-line-strong/80 bg-white/70 p-3 sm:p-3.5 shadow-2xs transition-all duration-150 hover:border-primary/40 hover:bg-white" key={entry.appointmentId}>
+                          <div className="flex w-full items-center justify-between sm:w-auto sm:flex-col sm:items-start">
                             <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-0.5 text-[12px] font-extrabold text-primary">
-                              {app.time}
+                              {entry.queueStatus === 'Waiting' ? `#${entry.position}` : 'Now'} · {entry.time}
                             </span>
-                            <div className="sm:hidden">
-                              <StatusBadge status={app.status} />
-                            </div>
                           </div>
                           <div className="min-w-0">
-                            <strong className="block truncate font-bold text-ink text-[13.5px]">{app.patient}</strong>
-                            <span className="block text-[12px] text-muted">{app.type}</span>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <strong className="block truncate font-bold text-ink text-[13.5px]">{entry.patient}</strong>
+                              <VisitTypeBadge visitType={entry.visitType} compact />
+                            </div>
+                            <span className="block text-[12px] text-muted">{entry.type} · {entry.staff}</span>
                           </div>
-                          <div className="flex w-full sm:w-auto items-center justify-end gap-1.5 pt-1.5 sm:pt-0 border-t border-line/60 sm:border-0">
-                            {app.status === 'Pending' && (
-                              <button
-                                type="button"
-                                className="cursor-pointer rounded-lg bg-primary px-2.5 py-1.5 text-[11.5px] font-extrabold text-white transition-all hover:bg-[#08484d] active:scale-95 shadow-2xs"
-                                onClick={() => handleUpdateAppointmentStatus(app.id, 'Under Review')}
-                              >
-                                Review
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              className="cursor-pointer rounded-lg bg-success px-3 py-1.5 text-[11.5px] font-extrabold text-white transition-all hover:bg-[#238b55] active:scale-95 shadow-2xs"
-                              onClick={() => handleUpdateAppointmentStatus(app.id, 'Approved')}
-                            >
-                              Approve
-                            </button>
-                            <button
-                              type="button"
-                              className="cursor-pointer rounded-lg bg-accent px-3 py-1.5 text-[11.5px] font-extrabold text-white transition-all hover:bg-[#b6451e] active:scale-95 shadow-2xs"
-                              onClick={() => handleUpdateAppointmentStatus(app.id, 'Rejected')}
-                            >
-                              Reject
-                            </button>
-                          </div>
+                          <StatusBadge status={entry.queueStatus} />
                         </div>
                       ))}
-                      {pendingQueue.length === 0 && (
-                        <EmptyState message="No pending appointments today." />
+                      {queuePreview.length === 0 && (
+                        <EmptyState message={`No patients waiting. ${queue.meta?.expected ?? 0} expected and ${queue.meta?.awaitingApproval ?? 0} awaiting approval today.`} />
                       )}
                     </div>
                     )}
@@ -584,199 +590,84 @@ function Dashboard() {
         {/* ================= APPOINTMENTS TAB ================= */}
         {activeTab === 'appointments' && (
           <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)] gap-5 max-[980px]:grid-cols-1">
-            {/* Left Column: Appts List */}
+            {/* Left Column: FIFO queue */}
             <div className={`${PANEL} p-5`}>
-              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3 className="m-0 text-[18px] text-[#143d40]">Interactive Appointment Queue</h3>
-                  <p className={KICKER}>Student appointment requests</p>
-                </div>
-                <div className="flex gap-[10px]">
-                  <input
-                    type="text"
-                    placeholder="Search patient..."
-                    value={appSearch}
-                    onChange={(e) => setAppSearch(e.target.value)}
-                    className={SEARCH_INPUT}
-                  />
-                  <select
-                    value={appFilter}
-                    onChange={(e) => setAppFilter(e.target.value)}
-                    className={SELECT_INPUT}
-                  >
-                    <option value="All">All Statuses</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Under Review">Under Review</option>
-                    <option value="Approved">Approved</option>
-                    <option value="Rescheduled">Rescheduled</option>
-                    <option value="Rejected">Rejected</option>
-                    <option value="Cancelled">Cancelled</option>
-                    <option value="Completed">Completed</option>
-                  </select>
+                  <h3 className="m-0 text-[18px] text-[#143d40]">Today&apos;s Patient Queue</h3>
+                  <p className={KICKER}>First in, first out — earliest scheduled slot first, then arrival order</p>
                 </div>
               </div>
-
-              <div className="overflow-x-auto rounded-lg border border-line">
-                {appointmentsError ? (
-                  <ErrorState message={appointmentsError} onRetry={refetchAppointments} />
-                ) : appointmentsLoading ? (
-                  <TableSkeleton columns={5} />
-                ) : (
-                  <table className={TABLE}>
-                    <thead>
-                      <tr>
-                        <th>Time</th>
-                        <th>Patient</th>
-                        <th>Type</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {appPagination.pageItems.map((app) => (
-                        <tr key={app.id}>
-                          <td className="font-bold text-primary">
-                            {app.time}
-                            <span className="block text-[12px]">{formatDate(app.date)}</span>
-                          </td>
-                          <td className="font-bold text-ink">{app.patient}</td>
-                          <td>{app.type}</td>
-                          <td>
-                            <StatusBadge status={app.status} />
-                          </td>
-                          <td>
-                            {app.status === 'Pending' && (
-                              <>
-                                <button
-                                  className="cursor-pointer rounded-md bg-bg px-2 py-1 text-[12px] font-extrabold text-primary transition-all duration-200"
-                                  onClick={() => handleUpdateAppointmentStatus(app.id, 'Under Review')}
-                                >
-                                  Review
-                                </button>
-                                <button
-                                  className="cursor-pointer rounded-md bg-[#dff6dd] px-2 py-1 text-[12px] font-extrabold text-[#1e5a1b] transition-all duration-200"
-                                  onClick={() => handleUpdateAppointmentStatus(app.id, 'Approved')}
-                                >
-                                  Approve
-                                </button>
-                                <button
-                                  className="cursor-pointer rounded-md bg-[#ffebe0] px-2 py-1 text-[12px] font-extrabold text-[#a33c12] transition-all duration-200"
-                                  onClick={() => handleUpdateAppointmentStatus(app.id, 'Rejected')}
-                                >
-                                  Reject
-                                </button>
-                              </>
-                            )}
-                            {app.status === 'Under Review' && (
-                              <>
-                                <button
-                                  className="cursor-pointer rounded-md bg-[#dff6dd] px-2 py-1 text-[12px] font-extrabold text-[#1e5a1b] transition-all duration-200"
-                                  onClick={() => handleUpdateAppointmentStatus(app.id, 'Approved')}
-                                >
-                                  Approve
-                                </button>
-                                <button
-                                  className="cursor-pointer rounded-md bg-[#ffebe0] px-2 py-1 text-[12px] font-extrabold text-[#a33c12] transition-all duration-200"
-                                  onClick={() => handleUpdateAppointmentStatus(app.id, 'Rejected')}
-                                >
-                                  Reject
-                                </button>
-                              </>
-                            )}
-                            {app.status === 'Approved' && (
-                              <button
-                                className="cursor-pointer rounded-md bg-[#ffebe0] px-2 py-1 text-[12px] font-extrabold text-[#a33c12] transition-all duration-200"
-                                onClick={() => handleUpdateAppointmentStatus(app.id, 'Cancelled')}
-                              >
-                                Cancel
-                              </button>
-                            )}
-                            {app.status === 'Rescheduled' && (
-                              <>
-                                <button
-                                  className="cursor-pointer rounded-md bg-[#dff6dd] px-2 py-1 text-[12px] font-extrabold text-[#1e5a1b] transition-all duration-200"
-                                  onClick={() => handleUpdateAppointmentStatus(app.id, 'Approved')}
-                                >
-                                  Approve
-                                </button>
-                                <button
-                                  className="cursor-pointer rounded-md bg-[#ffebe0] px-2 py-1 text-[12px] font-extrabold text-[#a33c12] transition-all duration-200"
-                                  onClick={() => handleUpdateAppointmentStatus(app.id, 'Rejected')}
-                                >
-                                  Reject
-                                </button>
-                              </>
-                            )}
-                            {(app.status === 'Rejected' || app.status === 'Cancelled' || app.status === 'Completed') && (
-                              <span className="text-muted">-</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                      {filteredAppointments.length === 0 && (
-                        <tr>
-                          <td colSpan="5">
-                            <EmptyState message="No appointments matched the criteria." />
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-
-              <Pagination
-                currentPage={appPagination.currentPage}
-                totalPages={appPagination.totalPages}
-                onPageChange={appPagination.goToPage}
+              <QueueBoard
+                queue={queue}
+                canCheckIn={can('appointments.update')}
+                canServe={can('consultations.create')}
+                canApprove={can('appointments.approve')}
+                busyId={queueBusyId}
+                onCheckIn={handleCheckIn}
+                onUndoCheckIn={handleUndoCheckIn}
+                onServe={handleServe}
+                onApprove={handleApproveEntry}
+                onNoShow={handleNoShow}
+                onOpenConsultations={canViewConsultations ? () => navigate('consultations') : undefined}
               />
             </div>
 
             {/* Right Column: Book Appointment Form */}
             <div className={`${PANEL} self-start p-5`}>
-              <h3 className="m-0 text-[18px] text-[#143d40]">Book Appointment</h3>
-              <p className="mt-0.5 text-[12px] text-muted">Register a walk-in or phone schedule</p>
+              <h3 className="m-0 text-[18px] text-[#143d40]">Book Walk-in Appointment</h3>
+              <p className="mt-0.5 text-[12px] text-muted">Register a walk-in or phone schedule for today</p>
 
+              {can('appointments.create') ? (
               <form onSubmit={handleAddAppointment} className={SIDEBAR_FORM}>
                 <label className={FORM_LABEL}>
-                  Patient Name
-                  <input
-                    type="text"
-                    placeholder="Enter patient name"
-                    value={appPatient}
-                    onChange={(e) => setAppPatient(e.target.value)}
-                    required
-                    className={FORM_FIELD}
+                  Student / Patient
+                  <StudentSelect
+                    value={appPatientId || appPatient}
+                    valueKey="patientId"
+                    allowCustomInput
+                    placeholder="Type student name or ID..."
+                    onChange={(val, student) => {
+                      setAppPatient(student ? student.name : val || '')
+                      setAppPatientId(student ? student.patientId : '')
+                    }}
                   />
                 </label>
 
+                <div className={FORM_ROW}>
+                  <label className={FORM_LABEL}>
+                    Visit Type
+                    <select value={appVisitType} onChange={(e) => setAppVisitType(e.target.value)} className={FORM_FIELD}>
+                      {VISIT_TYPES.map((v) => (
+                        <option key={v} value={v}>{v}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className={FORM_LABEL}>
+                    Appointment Type
+                    <select value={appType} onChange={(e) => setAppType(e.target.value)} className={FORM_FIELD}>
+                      {APPOINTMENT_TYPES.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
                 <label className={FORM_LABEL}>
-                  Appointment Type
-                  <select value={appType} onChange={(e) => setAppType(e.target.value)} className={FORM_FIELD}>
-                    <option value="Check-up">General Check-up</option>
-                    <option value="Dental concern">Dental Care</option>
-                    <option value="Follow-up">Follow-up</option>
-                    <option value="Fever">Fever/Flu Treatment</option>
-                    <option value="Vaccination">Vaccination</option>
-                    <option value="Emergency">Emergency</option>
-                  </select>
+                  Assigned Doctor
+                  <ClinicianSelect value={appStaffId} onChange={(id) => setAppStaffId(id)} unassignedLabel="Assign later" />
                 </label>
 
                 <label className={FORM_LABEL}>
-                  Time Slot
+                  Time Slot (today)
                   <select value={appTime} onChange={(e) => setAppTime(e.target.value)} className={FORM_FIELD}>
-                    <option value="08:00 AM">08:00 AM</option>
-                    <option value="09:00 AM">09:00 AM</option>
-                    <option value="10:00 AM">10:00 AM</option>
-                    <option value="11:00 AM">11:00 AM</option>
-                    <option value="01:30 PM">01:30 PM</option>
-                    <option value="02:30 PM">02:30 PM</option>
-                    <option value="03:30 PM">03:30 PM</option>
-                    <option value="04:30 PM">04:30 PM</option>
+                    {TIME_SLOTS.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
                   </select>
                 </label>
 
-                <button type="submit" className={`${PRIMARY_BTN} w-full`} disabled={booking}>
+                <button type="submit" className={`${PRIMARY_BTN} w-full`} disabled={booking || !appPatient.trim()}>
                   {booking ? (
                     <>
                       <InlineSpinner />Booking...
@@ -786,12 +677,15 @@ function Dashboard() {
                   )}
                 </button>
               </form>
+              ) : (
+                <p className="mt-3 text-[12.5px] text-muted">Your role cannot book appointments.</p>
+              )}
             </div>
           </div>
         )}
 
         {/* ================= CONSULTATIONS TAB ================= */}
-        {activeTab === 'consultations' && (
+        {activeTab === 'consultations' && canViewConsultations && (
           <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)] gap-5 max-[980px]:grid-cols-1">
             {/* Left Column: List of consults */}
             <div className={`${PANEL} p-5`}>
@@ -898,15 +792,7 @@ function Dashboard() {
 
                 <label className={FORM_LABEL}>
                   Attending Doctor / Nurse
-                  <select value={effectiveConsStaff} onChange={(e) => setConsStaff(e.target.value)} className={FORM_FIELD} disabled={staffLoading}>
-                    {staffLoading ? (
-                      <option value="">Loading staff…</option>
-                    ) : (
-                      staff.map((s) => (
-                        <option key={s.name} value={s.name}>{s.name} - {s.role}</option>
-                      ))
-                    )}
-                  </select>
+                  <ClinicianSelect value={consStaffId} onChange={(id) => setConsStaffId(id)} unassignedLabel="Select doctor / nurse" />
                 </label>
 
                 <label className={FORM_LABEL}>
@@ -1127,14 +1013,7 @@ function Dashboard() {
                   </label>
                   <label className={FORM_LABEL}>
                     Course/Dept
-                    <input
-                      type="text"
-                      placeholder="BSCS / Registrar"
-                      value={patDept}
-                      onChange={(e) => setPatDept(e.target.value)}
-                      required
-                      className={FORM_FIELD}
-                    />
+                    <CourseSelect value={patDept} onChange={setPatDept} required />
                   </label>
                 </div>
 
@@ -1273,6 +1152,8 @@ function Dashboard() {
                       <div className="border-l-[3px] border-primary pl-[14px]" key={evt.id}>
                         <div className="text-[11px] font-extrabold uppercase text-primary">
                           {evt.startDate ? formatDate(evt.startDate) : evt.date}
+                          {evt.endDate && evt.endDate !== evt.startDate ? ` – ${formatDate(evt.endDate)}` : ''}
+                          {evt.type ? ` · ${evt.type}` : ''}
                         </div>
                         <div>
                           <h4 className="my-[3px] text-[14px] text-ink">{evt.title}</h4>
@@ -1344,7 +1225,7 @@ function Dashboard() {
         )}
 
         {/* ================= CLINIC ACTIVITY ================= */}
-        {activeTab === 'activity' && (
+        {activeTab === 'activity' && canViewActivity && (
           <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)] gap-5 max-[980px]:grid-cols-1">
             {/* Left: Peak Hours and Activity */}
             <div className={`${PANEL} p-5`}>

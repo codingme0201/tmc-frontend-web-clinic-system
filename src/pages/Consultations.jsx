@@ -1,20 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useConsultations } from '../hooks/useConsultations'
 import { usePatients } from '../hooks/usePatients'
-import { useStaff } from '../hooks/useStaff'
-import { useEligibleStaff } from '../hooks/useStaffSchedules'
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { useModal } from '../hooks/useModal'
 import { usePagination } from '../hooks/usePagination'
 import { useAuth } from '../hooks/useAuth'
-import { formatDate, timeToMinutes } from '../lib/format'
+import { formatDate, timeToMinutes, todayISO } from '../lib/format'
+import { TIME_SLOTS, VISIT_TYPES, VISIT_NEW, VISIT_FOLLOW_UP, currentSlot } from '../lib/clinic'
 import {
   PILL, PRIMARY_BTN, PANEL, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT,
   BTN_SUCCESS, BTN_INFO, BTN_VIEW, DISPO_TAG, dispoClasses,
 } from '../lib/ui'
 import StatusBadge from '../components/StatusBadge'
+import VisitTypeBadge from '../components/VisitTypeBadge'
+import ClinicianSelect from '../components/ClinicianSelect'
 import Pagination from '../components/Pagination'
 import RefreshingBadge from '../components/RefreshingBadge'
 import TableSkeleton from '../components/skeletons/TableSkeleton'
@@ -56,11 +57,30 @@ const ALERT_BOX = 'rounded-lg border border-[#f2cfc2] bg-[#fdf1ec] p-[12px_14px]
 const REASON_BOX = ALERT_BOX + ' border-[#cfe5df] bg-[#f4faf8]'
 const CONSULT_FIELD = 'flex flex-col gap-[5px] text-[12.5px] font-extrabold text-ink'
 const CONSULT_INPUT = 'w-full rounded-md border border-[#d4e4e0] bg-white p-[9px_10px] text-[13px] text-ink'
+const FOLLOW_UP_BOX = 'rounded-lg border border-[#d9ccf7] bg-[#f7f3ff] p-[12px_14px]'
+
+// Tomorrow's date (ISO) — follow-ups are scheduled on a later day.
+function tomorrowISO() {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  return d.toISOString().split('T')[0]
+}
+
+// Short follow-up status shown in lists and details.
+function followUpLabel(cons) {
+  if (cons.followUpAppointment) {
+    return `Follow-up ${formatDate(cons.followUpAppointment.date)} · ${cons.followUpAppointment.time}`
+  }
+  if (cons.followUpRequired) {
+    return cons.followUpDate ? `Follow-up due ${formatDate(cons.followUpDate)}` : 'Follow-up needed'
+  }
+  return ''
+}
 
 // Maps a consultation record to editable draft fields.
-function consultationToDraft(consultation, defaultStaff = '') {
+function consultationToDraft(consultation) {
   return {
-    staff: consultation.staff || defaultStaff,
+    staffId: consultation.staffId || null,
     chiefComplaint: consultation.chiefComplaint || '',
     temperature: consultation.vitals?.temperature || '',
     bloodPressure: consultation.vitals?.bloodPressure || '',
@@ -72,13 +92,17 @@ function consultationToDraft(consultation, defaultStaff = '') {
     diagnosis: consultation.diagnosis || '',
     treatment: consultation.treatment || '',
     disposition: consultation.disposition || '',
+    followUpRequired: Boolean(consultation.followUpRequired),
+    followUpDate: consultation.followUpDate || '',
+    followUpTime: '09:00 AM',
+    followUpNotes: consultation.followUpNotes || '',
   }
 }
 
 // Maps the draft back to the consultation record shape.
 function draftToPatch(draft) {
   return {
-    staff: draft.staff,
+    ...(draft.staffId ? { staff_id: draft.staffId } : {}),
     chiefComplaint: draft.chiefComplaint.trim(),
     vitals: {
       temperature: draft.temperature.trim(),
@@ -92,6 +116,18 @@ function draftToPatch(draft) {
     diagnosis: draft.diagnosis.trim(),
     treatment: draft.treatment.trim(),
     disposition: draft.disposition,
+    followUpRequired: draft.followUpRequired,
+    followUpNotes: draft.followUpRequired ? draft.followUpNotes.trim() : '',
+  }
+}
+
+// Completion payload: the draft plus the follow-up booking (date + slot).
+function draftToCompletion(draft) {
+  return {
+    ...draftToPatch(draft),
+    ...(draft.followUpRequired && draft.followUpDate
+      ? { followUpDate: draft.followUpDate, followUpTime: draft.followUpTime }
+      : {}),
   }
 }
 
@@ -120,37 +156,19 @@ function Consultations({ page }) {
     startConsultation,
     saveConsultation,
     completeConsultation,
+    scheduleFollowUp,
   } = useConsultations()
   const { data: patients = [] } = usePatients()
-  const { data: staff } = useStaff()
-  const { data: eligibleStaff = [] } = useEligibleStaff()
   const { showToast } = useToast()
-  const { userRole } = useAuth()
+  const { userRole, user, can } = useAuth()
   const canRecord = MEDICAL_ROLES.includes(userRole)
+  const canScheduleFollowUp = can('consultations.update')
   const [searchParams, setSearchParams] = useSearchParams()
-
-  const doctorNurseOptions = useMemo(() => {
-    if (eligibleStaff && eligibleStaff.length > 0) {
-      return eligibleStaff.map((u) => ({
-        id: u.id,
-        name: u.name,
-        role: u.role?.name ? (u.role.name.charAt(0).toUpperCase() + u.role.name.slice(1)) : 'Doctor / Nurse',
-      }))
-    }
-    return (staff || []).map((s) => ({
-      id: s.id || s.name,
-      name: s.name,
-      role: s.role?.includes('Physician') || s.role?.includes('Doctor') || s.role?.includes('Dentist')
-        ? 'Doctor'
-        : s.role?.includes('Nurse')
-          ? 'Nurse'
-          : 'Doctor / Nurse',
-    }))
-  }, [eligibleStaff, staff])
 
   // Search / filter state
   const { search, setSearch, debouncedSearch, resetSearch } = useSearch({ debounceMs: 300 })
   const [statusFilter, setStatusFilter] = useState('All')
+  const [visitFilter, setVisitFilter] = useState('All')
 
   // Modal state
   const [workspace, setWorkspace] = useState(null) // consultation being recorded
@@ -158,13 +176,14 @@ function Consultations({ page }) {
   const initialPatientParam = searchParams.get('patientId')
   const [newConsultModalOpen, setNewConsultModalOpen] = useState(() => Boolean(initialPatientParam))
   const [selectedPatientId, setSelectedPatientId] = useState(() => initialPatientParam || '')
-  const [selectedStaff, setSelectedStaff] = useState('')
+  const [selectedStaffId, setSelectedStaffId] = useState(null)
   const [newComplaint, setNewComplaint] = useState('')
-  const [newDate, setNewDate] = useState(() => new Date().toISOString().split('T')[0])
-  const [newTime, setNewTime] = useState(() => {
-    const d = new Date()
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  })
+  const [newDate, setNewDate] = useState(() => todayISO())
+  const [newTime, setNewTime] = useState(() => currentSlot())
+  const [newVisitType, setNewVisitType] = useState(VISIT_NEW)
+  const [newPreviousId, setNewPreviousId] = useState('')
+  const [followUpTarget, setFollowUpTarget] = useState(null)
+  const [followUpForm, setFollowUpForm] = useState({ date: '', time: '09:00 AM', notes: '' })
 
   const confirmComplete = useModal()
   const [busy, setBusy] = useState(false)
@@ -201,6 +220,7 @@ function Consultations({ page }) {
     return consultations
       .filter((cons) => {
         const matchStatus = statusFilter === 'All' || cons.status === statusFilter
+        const matchVisit = visitFilter === 'All' || cons.visitType === visitFilter
         const matchQuery =
           !q ||
           cons.patient.toLowerCase().includes(q) ||
@@ -208,7 +228,7 @@ function Consultations({ page }) {
           (cons.chiefComplaint || '').toLowerCase().includes(q) ||
           (cons.diagnosis || '').toLowerCase().includes(q) ||
           cons.staff.toLowerCase().includes(q)
-        return matchStatus && matchQuery
+        return matchStatus && matchVisit && matchQuery
       })
       .sort((a, b) => {
         const statusDiff = STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
@@ -216,7 +236,7 @@ function Consultations({ page }) {
         if (a.date !== b.date) return a.date.localeCompare(b.date)
         return timeToMinutes(a.time) - timeToMinutes(b.time)
       })
-  }, [consultations, debouncedSearch, statusFilter])
+  }, [consultations, debouncedSearch, statusFilter, visitFilter])
 
   // Client-side pagination over the filtered list; swap for API pagination later.
   const pagination = usePagination(filtered)
@@ -225,12 +245,26 @@ function Consultations({ page }) {
   // Any search/filter change starts back at page 1.
   useEffect(() => {
     resetPage()
-  }, [debouncedSearch, statusFilter, resetPage])
+  }, [debouncedSearch, statusFilter, visitFilter, resetPage])
+
+  // Completed visits of a patient (newest first), for follow-up context.
+  const patientHistory = useCallback(
+    (patientId, excludeId = null) =>
+      consultations
+        .filter((c) => c.patientId && c.patientId === patientId && c.status === 'Completed' && c.id !== excludeId)
+        .sort((a, b) => b.date.localeCompare(a.date) || timeToMinutes(b.time) - timeToMinutes(a.time)),
+    [consultations],
+  )
+  const newPatientHistory = useMemo(() => patientHistory(selectedPatientId), [patientHistory, selectedPatientId])
+  const workspaceHistory = useMemo(
+    () => (workspace ? patientHistory(workspace.patientId, workspace.id).slice(0, 5) : []),
+    [patientHistory, workspace],
+  )
 
   // ---------------- Workspace helpers ----------------
 
   const openWorkspace = (consultation) => {
-    setDraft(consultationToDraft(consultation, doctorNurseOptions[0]?.name || staff[0]?.name || ''))
+    setDraft(consultationToDraft(consultation))
     setDraftErrors({})
     setWorkspace(consultation)
   }
@@ -278,6 +312,9 @@ function Consultations({ page }) {
   const handleCompleteClick = () => {
     if (!workspace || busy || busyRef.current) return
     const errors = validateDraft(draft)
+    if (draft.followUpRequired && draft.followUpDate && draft.followUpDate <= todayISO()) {
+      errors.followUp = ['Follow-up date must be after today']
+    }
     setDraftErrors(errors)
     if (Object.keys(errors).length > 0) {
       showToast('Please complete the required fields before finishing the consultation.', 'error')
@@ -291,8 +328,12 @@ function Consultations({ page }) {
     busyRef.current = true
     setBusy(true)
     try {
-      const completed = await completeConsultation(workspace.id, draftToPatch(draft))
-      showToast(`Consultation ${completed.reference} completed successfully.`)
+      const completed = await completeConsultation(workspace.id, draftToCompletion(draft))
+      showToast(
+        completed.followUpAppointment
+          ? `Consultation ${completed.reference} completed. Follow-up booked for ${formatDate(completed.followUpAppointment.date)} at ${completed.followUpAppointment.time}.`
+          : `Consultation ${completed.reference} completed successfully.`,
+      )
       confirmComplete.close()
       setWorkspace(null)
       setDraftErrors({})
@@ -321,16 +362,20 @@ function Consultations({ page }) {
       const created = await addConsultation({
         patient: pat.name,
         patient_id: pat.patientId,
-        staff: selectedStaff || doctorNurseOptions[0]?.name || staff[0]?.name || '',
+        staff_id: selectedStaffId || (MEDICAL_ROLES.slice(1).includes(userRole) ? user?.id : null) || null,
         chiefComplaint: newComplaint.trim(),
         date: newDate,
         time: newTime,
+        visit_type: newVisitType,
+        previous_consultation_id: newVisitType === VISIT_FOLLOW_UP ? newPreviousId || null : null,
         status: startImmediately ? 'In Progress' : 'Scheduled',
       })
       showToast(`Consultation created for ${pat.name}.`)
       setNewConsultModalOpen(false)
       setSelectedPatientId('')
       setNewComplaint('')
+      setNewVisitType(VISIT_NEW)
+      setNewPreviousId('')
       if (startImmediately) {
         openWorkspace(created)
       }
@@ -342,9 +387,33 @@ function Consultations({ page }) {
     }
   }
 
+  const openFollowUp = (cons) => {
+    setFollowUpTarget(cons)
+    setFollowUpForm({ date: cons.followUpDate && cons.followUpDate > todayISO() ? cons.followUpDate : tomorrowISO(), time: '09:00 AM', notes: cons.followUpNotes || '' })
+  }
+
+  const handleScheduleFollowUp = async (e) => {
+    e.preventDefault()
+    if (!followUpTarget || busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    try {
+      const updated = await scheduleFollowUp(followUpTarget.id, followUpForm)
+      showToast(`Follow-up ${updated.followUpAppointment?.reference} booked for ${formatDate(followUpForm.date)} at ${followUpForm.time}.`)
+      setFollowUpTarget(null)
+      setDetails(updated)
+    } catch (err) {
+      showToast(err?.message || 'Failed to schedule the follow-up.', 'error')
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }
+
   const clearFilters = () => {
     resetSearch()
     setStatusFilter('All')
+    setVisitFilter('All')
   }
 
   // Action buttons per status
@@ -361,6 +430,15 @@ function Consultations({ page }) {
       buttons.push(
         <button key="continue" type="button" className={BTN_INFO} onClick={() => openWorkspace(cons)} disabled={busy}>
           Continue
+        </button>,
+      )
+    }
+    if (
+      cons.status === 'Completed' && cons.followUpRequired && !cons.followUpAppointment && canScheduleFollowUp
+    ) {
+      buttons.push(
+        <button key="follow-up" type="button" className={BTN_INFO} onClick={() => openFollowUp(cons)} disabled={busy}>
+          Schedule Follow-up
         </button>,
       )
     }
@@ -392,7 +470,11 @@ function Consultations({ page }) {
               className={`${PRIMARY_BTN} w-full sm:w-auto`}
               onClick={() => {
                 setSelectedPatientId(patients[0]?.patientId || '')
-                setSelectedStaff(staff[0]?.name || '')
+                setSelectedStaffId(userRole === 'doctor' ? user?.id ?? null : null)
+                setNewTime(currentSlot())
+                setNewDate(todayISO())
+                setNewVisitType(VISIT_NEW)
+                setNewPreviousId('')
                 setNewConsultModalOpen(true)
               }}
             >
@@ -465,7 +547,20 @@ function Consultations({ page }) {
                 </option>
               ))}
             </select>
-            {(search || statusFilter !== 'All') && (
+            <select
+              className={`${SELECT_INPUT} w-full sm:w-auto`}
+              value={visitFilter}
+              onChange={(e) => setVisitFilter(e.target.value)}
+              aria-label="Filter by visit type"
+            >
+              <option value="All">All Visit Types</option>
+              {VISIT_TYPES.map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </select>
+            {(search || statusFilter !== 'All' || visitFilter !== 'All') && (
               <button type="button" className={PILL} onClick={clearFilters}>
                 Clear filters
               </button>
@@ -511,14 +606,25 @@ function Consultations({ page }) {
                     <td>
                       <strong className="font-bold text-ink">{cons.patient}</strong>
                       {cons.patientId ? <span className="block text-[12px] text-muted">{cons.patientId}</span> : null}
+                      <div className="mt-1 flex flex-wrap items-center gap-1">
+                        <VisitTypeBadge visitType={cons.visitType} compact />
+                        {cons.isFollowUp && cons.previousConsultation ? (
+                          <span className="text-[11px] font-bold text-[#6b46c1]">of {cons.previousConsultation.reference}</span>
+                        ) : null}
+                      </div>
                     </td>
                     <td>
                       <span className="font-bold text-ink">{formatDate(cons.date)}</span>
                       <span className="block text-[12px] text-muted">{cons.time}</span>
                     </td>
-                    <td>{cons.staff}</td>
+                    <td>{cons.staff || <span className="font-bold text-[#a33c12]">Unassigned</span>}</td>
                     <td>
                       <StatusBadge status={cons.status} />
+                      {followUpLabel(cons) ? (
+                        <span className={`mt-1 block text-[11.5px] font-bold ${cons.followUpAppointment ? 'text-[#6b46c1]' : 'text-[#a33c12]'}`}>
+                          ↺ {followUpLabel(cons)}
+                        </span>
+                      ) : null}
                     </td>
                     <td>
                       <div className="flex flex-wrap gap-[6px]">{listActions(cons)}</div>
@@ -565,17 +671,61 @@ function Consultations({ page }) {
               </button>
             </div>
             <div className={MODAL_BODY}>
-              <div className="mb-4 flex items-center gap-3 rounded-lg border border-line bg-[#f4faf8] p-[12px_14px]">
+              <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-[#f4faf8] p-[12px_14px]">
                 <StatusBadge status={workspace.status} />
-                <div>
+                <div className="min-w-0 flex-1">
                   <strong className="block text-[15px] text-ink">{workspace.patient}</strong>
                   <span className="block text-[12px] text-muted">
                     {workspace.patientId} · {formatDate(workspace.date)} at {workspace.time}
                   </span>
                 </div>
+                <VisitTypeBadge visitType={workspace.visitType} />
               </div>
 
               <div className="grid gap-[14px]">
+                {workspace.isFollowUp && (
+                  <section className={FOLLOW_UP_BOX}>
+                    <h4 className="m-0 mb-[6px] text-[12px] uppercase tracking-[0.02em] text-[#6b46c1]">
+                      ↺ Follow-up patient — why they are returning
+                    </h4>
+                    {workspace.previousConsultation ? (
+                      <div className="text-[13px] text-ink">
+                        <p className="m-0">
+                          Previous visit <strong>{workspace.previousConsultation.reference}</strong> on{' '}
+                          {formatDate(workspace.previousConsultation.date)}
+                          {workspace.previousConsultation.staff ? ` with ${workspace.previousConsultation.staff}` : ''}
+                        </p>
+                        <p className="m-0 mt-1"><strong>Complaint:</strong> {workspace.previousConsultation.chiefComplaint || '—'}</p>
+                        <p className="m-0"><strong>Diagnosis:</strong> {workspace.previousConsultation.diagnosis || '—'}</p>
+                        <p className="m-0"><strong>Treatment:</strong> {workspace.previousConsultation.treatment || '—'}</p>
+                        {workspace.previousConsultation.followUpNotes ? (
+                          <p className="m-0"><strong>Follow-up instructions:</strong> {workspace.previousConsultation.followUpNotes}</p>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p className="m-0 text-[13px] text-muted">No previous consultation was linked. Check the visit history below.</p>
+                    )}
+                  </section>
+                )}
+
+                {workspaceHistory.length > 0 && (
+                  <section className="rounded-lg border border-line p-[14px_16px]">
+                    <h4 className="m-0 mb-[10px] text-[12px] uppercase tracking-[0.02em] text-ink">Patient Visit History</h4>
+                    <div className="grid gap-2">
+                      {workspaceHistory.map((h) => (
+                        <div key={h.id} className="rounded-md border border-line bg-[#fafcfb] p-[8px_10px] text-[12.5px]">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <strong className="text-primary">{h.reference}</strong>
+                            <span className="text-muted">{formatDate(h.date)} · {h.time}</span>
+                            <VisitTypeBadge visitType={h.visitType} compact />
+                          </div>
+                          <p className="m-0 mt-0.5 text-ink"><strong>Dx:</strong> {h.diagnosis || '—'} · <strong>Tx:</strong> {h.treatment || '—'}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
                 {/* Patient information */}
                 <section className="rounded-lg border border-line p-[14px_16px]">
                   <h4 className="m-0 mb-[10px] text-[12px] uppercase tracking-[0.02em] text-ink">Patient Information</h4>
@@ -596,18 +746,13 @@ function Consultations({ page }) {
                     </div>
                     <label className={CONSULT_FIELD}>
                       <span>Attending Doctor / Nurse</span>
-                      <select
+                      <ClinicianSelect
                         className={CONSULT_INPUT}
-                        value={draft.staff}
-                        onChange={(e) => updateDraft('staff', e.target.value)}
+                        value={draft.staffId}
+                        onChange={(id) => updateDraft('staffId', id)}
+                        unassignedLabel={workspace.staff ? `${workspace.staff} (current)` : 'Select doctor / nurse'}
                         disabled={busy}
-                      >
-                        {doctorNurseOptions.map((m) => (
-                          <option key={m.name} value={m.name}>
-                            {m.name} — {m.role}
-                          </option>
-                        ))}
-                      </select>
+                      />
                     </label>
                   </div>
                 </section>
@@ -773,6 +918,71 @@ function Consultations({ page }) {
                     <p className="mt-2 text-[12px] font-bold text-danger">Required: {draftErrors.treatment.join(', ')}</p>
                   )}
                 </section>
+
+                {/* Follow-up */}
+                <section className={`rounded-lg border border-line p-[14px_16px] ${draftErrors.followUp ? 'border-[#f2cfc2] bg-[#fffaf8]' : ''}`}>
+                  <h4 className="m-0 mb-[10px] text-[12px] uppercase tracking-[0.02em] text-ink">Follow-up</h4>
+                  <label className="flex items-center gap-2 text-[13px] font-bold text-ink">
+                    <input
+                      type="checkbox"
+                      className="size-4 accent-primary"
+                      checked={draft.followUpRequired}
+                      onChange={(e) => updateDraft('followUpRequired', e.target.checked)}
+                      disabled={busy}
+                    />
+                    Patient needs a follow-up consultation
+                  </label>
+                  {draft.followUpRequired && (
+                    <div className="mt-[10px] grid gap-[10px]">
+                      <div className="grid grid-cols-2 gap-[10px] max-[620px]:grid-cols-1">
+                        <label className={CONSULT_FIELD}>
+                          Follow-up Date (optional — book now)
+                          <input
+                            type="date"
+                            min={tomorrowISO()}
+                            className={CONSULT_INPUT}
+                            value={draft.followUpDate}
+                            onChange={(e) => updateDraft('followUpDate', e.target.value)}
+                            disabled={busy}
+                          />
+                        </label>
+                        <label className={CONSULT_FIELD}>
+                          Time Slot
+                          <select
+                            className={CONSULT_INPUT}
+                            value={draft.followUpTime}
+                            onChange={(e) => updateDraft('followUpTime', e.target.value)}
+                            disabled={busy || !draft.followUpDate}
+                          >
+                            {TIME_SLOTS.map((t) => (
+                              <option key={t} value={t}>
+                                {t}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                      <label className={CONSULT_FIELD}>
+                        Follow-up Instructions
+                        <textarea
+                          placeholder="e.g. Return after 1 week to re-check the wound and blood pressure"
+                          className={`${CONSULT_INPUT} min-h-[60px] resize-y`}
+                          value={draft.followUpNotes}
+                          onChange={(e) => updateDraft('followUpNotes', e.target.value)}
+                          disabled={busy}
+                        />
+                      </label>
+                      <p className="m-0 text-[12px] text-muted">
+                        With a date, the follow-up appointment is booked automatically (same doctor, marked as a
+                        follow-up of this visit) when you complete the consultation. Without a date, it is flagged as
+                        &quot;Follow-up needed&quot; so it can be scheduled later.
+                      </p>
+                    </div>
+                  )}
+                  {draftErrors.followUp && (
+                    <p className="mt-2 text-[12px] font-bold text-danger">{draftErrors.followUp.join(', ')}</p>
+                  )}
+                </section>
               </div>
             </div>
             <div className={MODAL_FOOTER}>
@@ -836,6 +1046,14 @@ function Consultations({ page }) {
                 <p className="m-0 text-[13px]">
                   <strong>Diagnosis:</strong> {draft.diagnosis}
                 </p>
+                {draft.followUpRequired && (
+                  <p className="m-0 text-[13px]">
+                    <strong>Follow-up:</strong>{' '}
+                    {draft.followUpDate
+                      ? `${formatDate(draft.followUpDate)} at ${draft.followUpTime} (will be booked)`
+                      : 'Needed — schedule later'}
+                  </p>
+                )}
               </div>
               <p className="mb-0 text-muted">
                 The consultation will be locked for editing once completed.
@@ -881,15 +1099,26 @@ function Consultations({ page }) {
               </button>
             </div>
             <div className={MODAL_BODY}>
-              <div className="mb-[18px] flex items-center gap-3 rounded-lg border border-line bg-[#f4faf8] p-[14px]">
+              <div className="mb-[18px] flex flex-wrap items-center gap-3 rounded-lg border border-line bg-[#f4faf8] p-[14px]">
                 <StatusBadge status={details.status} />
-                <div>
+                <div className="min-w-0 flex-1">
                   <strong className="block text-[15px] text-ink">{details.patient}</strong>
                   <span className="block text-[12px] text-muted">
                     {details.patientId} · {formatDate(details.date)} at {details.time}
                   </span>
                 </div>
+                <VisitTypeBadge visitType={details.visitType} />
               </div>
+
+              {details.isFollowUp && details.previousConsultation && (
+                <div className={`${FOLLOW_UP_BOX} mb-3`}>
+                  <h4 className="mb-1 m-0 text-[13px] font-extrabold text-[#6b46c1]">↺ Follow-up of {details.previousConsultation.reference}</h4>
+                  <p className="m-0 text-[13px] text-ink">
+                    {formatDate(details.previousConsultation.date)} · Diagnosis: {details.previousConsultation.diagnosis || '—'} ·
+                    Treatment: {details.previousConsultation.treatment || '—'}
+                  </p>
+                </div>
+              )}
 
               <div className={PROFILE_GRID}>
                 <div>
@@ -952,12 +1181,108 @@ function Consultations({ page }) {
                   </span>
                 </div>
               )}
+
+              {(details.followUpRequired || details.followUpAppointment) && (
+                <div className={`${FOLLOW_UP_BOX} mt-3`}>
+                  <h4 className="mb-1 m-0 text-[13px] font-extrabold text-[#6b46c1]">↺ Follow-up</h4>
+                  {details.followUpAppointment ? (
+                    <p className="m-0 text-[13px] text-ink">
+                      Scheduled: <strong>{details.followUpAppointment.reference}</strong> on{' '}
+                      {formatDate(details.followUpAppointment.date)} at {details.followUpAppointment.time} with{' '}
+                      {details.followUpAppointment.staff} · <StatusBadge status={details.followUpAppointment.status} />
+                    </p>
+                  ) : (
+                    <p className="m-0 text-[13px] font-bold text-[#a33c12]">
+                      Follow-up needed{details.followUpDate ? ` around ${formatDate(details.followUpDate)}` : ''} — not yet scheduled.
+                    </p>
+                  )}
+                  {details.followUpNotes ? (
+                    <p className="m-0 mt-1 text-[13px] text-ink"><strong>Instructions:</strong> {details.followUpNotes}</p>
+                  ) : null}
+                  {!details.followUpAppointment && details.status === 'Completed' && canScheduleFollowUp && (
+                    <button type="button" className={`${BTN_INFO} mt-2`} onClick={() => openFollowUp(details)}>
+                      Schedule Follow-up
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
             <div className={MODAL_FOOTER}>
               <button type="button" className={PILL} onClick={() => setDetails(null)}>
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Schedule Follow-up Modal */}
+      {followUpTarget && (
+        <div className={MODAL_BACKDROP} role="dialog" aria-modal="true" aria-label="Schedule follow-up">
+          <div className={MODAL_CARD_SM}>
+            <div className={MODAL_HEADER}>
+              <div>
+                <span className={KICKER}>Follow-up of {followUpTarget.reference}</span>
+                <h3 className="m-0 text-[18px] font-bold text-ink">Schedule Follow-up</h3>
+              </div>
+              <button type="button" className={MODAL_CLOSE} onClick={() => setFollowUpTarget(null)} disabled={busy}>
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleScheduleFollowUp} className="flex flex-1 flex-col overflow-hidden">
+              <div className={`${MODAL_BODY} flex flex-col gap-4`}>
+                <p className="m-0 text-[13px] text-ink">
+                  <strong>{followUpTarget.patient}</strong> · last seen {formatDate(followUpTarget.date)} by{' '}
+                  {followUpTarget.staff || 'the clinic'} · Diagnosis: {followUpTarget.diagnosis || '—'}
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className={CONSULT_FIELD}>
+                    <span>Date</span>
+                    <input
+                      type="date"
+                      min={tomorrowISO()}
+                      className={CONSULT_INPUT}
+                      value={followUpForm.date}
+                      onChange={(e) => setFollowUpForm({ ...followUpForm, date: e.target.value })}
+                      required
+                    />
+                  </label>
+                  <label className={CONSULT_FIELD}>
+                    <span>Time Slot</span>
+                    <select
+                      className={CONSULT_INPUT}
+                      value={followUpForm.time}
+                      onChange={(e) => setFollowUpForm({ ...followUpForm, time: e.target.value })}
+                    >
+                      {TIME_SLOTS.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <label className={CONSULT_FIELD}>
+                  <span>Instructions</span>
+                  <textarea
+                    className={`${CONSULT_INPUT} min-h-[70px] resize-y`}
+                    value={followUpForm.notes}
+                    onChange={(e) => setFollowUpForm({ ...followUpForm, notes: e.target.value })}
+                    placeholder="Why the patient should return"
+                  />
+                </label>
+              </div>
+              <div className={MODAL_FOOTER}>
+                <div className={MODAL_FOOTER_ACTIONS}>
+                  <button type="button" className={PILL} onClick={() => setFollowUpTarget(null)} disabled={busy}>
+                    Cancel
+                  </button>
+                  <button type="submit" className={PRIMARY_BTN} disabled={busy || !followUpForm.date}>
+                    {busy ? 'Booking...' : 'Book Follow-up'}
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -1001,19 +1326,50 @@ function Consultations({ page }) {
 
                 <label className={CONSULT_FIELD}>
                   <span>Attending Doctor / Nurse</span>
-                  <select
+                  <ClinicianSelect
                     className={CONSULT_INPUT}
-                    value={selectedStaff}
-                    onChange={(e) => setSelectedStaff(e.target.value)}
-                  >
-                    <option value="">-- Select Doctor or Nurse --</option>
-                    {doctorNurseOptions.map((s) => (
-                      <option key={s.id || s.name} value={s.name}>
-                        {s.name} ({s.role})
-                      </option>
-                    ))}
-                  </select>
+                    value={selectedStaffId}
+                    onChange={(id) => setSelectedStaffId(id)}
+                    unassignedLabel="-- Select Doctor or Nurse --"
+                  />
                 </label>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <label className={CONSULT_FIELD}>
+                    <span>Visit Type</span>
+                    <select
+                      className={CONSULT_INPUT}
+                      value={newVisitType}
+                      onChange={(e) => {
+                        setNewVisitType(e.target.value)
+                        setNewPreviousId('')
+                      }}
+                    >
+                      {VISIT_TYPES.map((v) => (
+                        <option key={v} value={v}>
+                          {v}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {newVisitType === VISIT_FOLLOW_UP && (
+                    <label className={CONSULT_FIELD}>
+                      <span>Follow-up of</span>
+                      <select
+                        className={CONSULT_INPUT}
+                        value={newPreviousId}
+                        onChange={(e) => setNewPreviousId(e.target.value ? Number(e.target.value) : '')}
+                      >
+                        <option value="">{newPatientHistory.length ? 'Select previous visit' : 'No previous visits'}</option>
+                        {newPatientHistory.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.reference} · {formatDate(c.date)} · {c.diagnosis || 'No diagnosis'}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <label className={CONSULT_FIELD}>
@@ -1027,14 +1383,19 @@ function Consultations({ page }) {
                     />
                   </label>
                   <label className={CONSULT_FIELD}>
-                    <span>Time</span>
-                    <input
-                      type="time"
+                    <span>Time Slot</span>
+                    <select
                       className={CONSULT_INPUT}
                       value={newTime}
                       onChange={(e) => setNewTime(e.target.value)}
                       required
-                    />
+                    >
+                      {TIME_SLOTS.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                 </div>
 

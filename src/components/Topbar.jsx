@@ -56,7 +56,7 @@ function Topbar({ onToggleSidebar }) {
           </button>
           <div className="min-w-0">
             <p className="mb-0 text-[10.5px] sm:text-[11.5px] font-extrabold uppercase tracking-wider text-muted-soft truncate">
-              Trinidad Municipal College
+              Trinidad Municipal College · Expansion Clinic
             </p>
             <h1 className="text-[16px] sm:text-[20px] font-extrabold text-ink leading-tight truncate">
               TMC CareLink

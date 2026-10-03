@@ -60,7 +60,7 @@ function CertificateSheet({ certificate }) {
     <div className="mx-auto w-full max-w-[700px] rounded-md border border-[#c9d8d4] bg-white p-[26px_28px]">
       {/* Clinic letterhead */}
       <header className="border-b-2 border-[#147a70] pb-3 text-center">
-        <p className="m-0 text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#147a70]">TMC University Health Services</p>
+        <p className="m-0 text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#147a70]">TMC Expansion Clinic</p>
         <h3 className="m-0 mt-1 text-[22px] font-extrabold tracking-[0.08em] text-ink">MEDICAL CERTIFICATE</h3>
         <p className="m-0 mt-1 font-mono text-[11.5px] font-bold text-muted">Ref. No. {certificate.reference}</p>
       </header>
@@ -88,7 +88,7 @@ function CertificateSheet({ certificate }) {
       {/* Body */}
       <div className="mt-4 space-y-3 text-[13.5px] leading-relaxed text-ink">
         <p className="m-0">
-          This is to certify that <strong>{certificate.patient}</strong> was examined at the TMC University Clinic
+          This is to certify that <strong>{certificate.patient}</strong> was examined at the TMC Expansion Clinic
           on <strong>{formatDate(certificate.issueDate)}</strong> and was diagnosed with{' '}
           <strong>{certificate.diagnosis || '—'}</strong>.
         </p>

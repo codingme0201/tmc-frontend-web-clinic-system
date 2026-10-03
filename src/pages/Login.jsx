@@ -61,13 +61,13 @@ function Login() {
           backgroundImage: `linear-gradient(rgba(8, 59, 63, 0.9), rgba(8, 59, 63, 0.94)), url(${heroImage})`,
         }}
       >
-        <ClinicLogo size={46} subtitle="Trinidad Municipal College Clinic" />
+        <ClinicLogo size={46} subtitle="TMC Expansion Clinic" />
         <div className="max-w-[620px] my-auto">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11.5px] font-extrabold text-[#c1e2dc] backdrop-blur-sm mb-3">
             Clinic Appointment and Medical Record Management System
           </span>
           <h1 className="text-[26px] sm:text-[36px] lg:text-[46px] font-extrabold leading-[1.1] text-white tracking-tight">
-            Clinic portal for doctors, nurses, and administrators.
+            Clinic portal for doctors, nurses, front desk staff, and administrators.
           </h1>
         </div>
       </section>

@@ -9,7 +9,9 @@ import { useAuth } from './hooks/useAuth'
 import AdminLayout from './layouts/AdminLayout'
 import AuthLoadingScreen from './components/AuthLoadingScreen'
 import TableSkeleton from './components/skeletons/TableSkeleton'
-import { pageContent } from './lib/navigation'
+import { ErrorState } from './components/AsyncState'
+import { navSections, pageContent } from './lib/navigation'
+import { PANEL } from './lib/ui'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Appointments = lazy(() => import('./pages/Appointments'))
@@ -22,6 +24,7 @@ const RolesPermissions = lazy(() => import('./pages/RolesPermissions'))
 const UserManagement = lazy(() => import('./pages/UserManagement'))
 const Login = lazy(() => import('./pages/Login'))
 const StaffSchedule = lazy(() => import('./pages/StaffSchedule'))
+const ClinicStaff = lazy(() => import('./pages/ClinicStaff'))
 const ClinicCalendar = lazy(() => import('./pages/ClinicCalendar'))
 const Notifications = lazy(() => import('./pages/Notifications'))
 const Reports = lazy(() => import('./pages/Reports'))
@@ -40,6 +43,7 @@ const pageComponents = {
   prescriptions: Prescriptions,
   patients: Patients,
   staffSchedule: StaffSchedule,
+  clinicStaff: ClinicStaff,
   clinicCalendar: ClinicCalendar,
   notifications: Notifications,
   reports: Reports,
@@ -85,8 +89,19 @@ function LoginRoute() {
 /** Renders the page matching the current route segment (e.g. /#/appointments). */
 function ModulePage() {
   const { pageId } = useParams()
+  const { can } = useAuth()
   const page = pageContent[pageId] ?? pageContent.dashboard
   const PageComponent = pageComponents[pageId] ?? PlaceholderPage
+  const navItem = navSections.flatMap((section) => section.items).find((item) => item.id === pageId)
+
+  if (navItem?.permission && !can(navItem.permission)) {
+    return (
+      <div className={PANEL}>
+        <ErrorState message="You do not have access to this page." />
+      </div>
+    )
+  }
+
   return (
     <Suspense fallback={<TableSkeleton columns={6} />}>
       <PageComponent page={page} />

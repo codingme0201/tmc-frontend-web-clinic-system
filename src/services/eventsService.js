@@ -45,16 +45,16 @@ export async function fetchCalendarEvent(id) {
   return res.data
 }
 
-/** Create a new clinic event. */
+/** Create a new clinic event (meta warns when a closure affects appointments). */
 export async function createCalendarEvent(payload) {
   const res = await request('/calendar/events', { method: 'POST', body: payload })
-  return res.data
+  return { ...res.data, meta: res.meta }
 }
 
-/** Update an existing clinic event. */
+/** Update an existing clinic event (meta warns when a closure affects appointments). */
 export async function updateCalendarEvent(id, payload) {
   const res = await request(`/calendar/events/${id}`, { method: 'PUT', body: payload })
-  return res.data
+  return { ...res.data, meta: res.meta }
 }
 
 /** Delete a clinic event. */

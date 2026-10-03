@@ -10,12 +10,13 @@ import { activityLogsService } from '../services/activityLogsService'
  *   - `addActivityLog` (used by every other store's `onLog`) posts the entry
  *     and invalidates the list so the trail refreshes from the server.
  */
-export function useActivityLogsStore() {
+export function useActivityLogsStore({ enabled = true } = {}) {
   const queryClient = useQueryClient()
 
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ['activity-logs'],
     queryFn: activityLogsService.fetchActivityLogs,
+    enabled,
   })
 
   const addMutation = useMutation({

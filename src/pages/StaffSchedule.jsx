@@ -6,6 +6,7 @@ import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { usePagination } from '../hooks/usePagination'
 import { formatDate } from '../lib/format'
+import { SHIFT_TIMES, normalizeTime, roleLabel } from '../lib/clinic'
 import {
   PILL, PRIMARY_BTN, PANEL, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT,
   SIDEBAR_FORM, FORM_LABEL, FORM_FIELD, FORM_ROW,
@@ -25,12 +26,8 @@ const MODAL_BODY = 'flex-1 overflow-y-auto p-5'
 const MODAL_FOOTER = 'flex justify-end border-t border-line bg-[#fafcfb] p-[14px_20px]'
 const MODAL_FOOTER_ACTIONS = 'flex flex-wrap items-center justify-end gap-2'
 
-const TIME_OPTIONS = [
-  '7:00 AM','7:30 AM','8:00 AM','8:30 AM','9:00 AM','9:30 AM','10:00 AM','10:30 AM',
-  '11:00 AM','11:30 AM','12:00 PM','12:30 PM','1:00 PM','1:30 PM','2:00 PM','2:30 PM',
-  '3:00 PM','3:30 PM','4:00 PM','4:30 PM','5:00 PM','5:30 PM','6:00 PM','6:30 PM',
-  '7:00 PM','7:30 PM','8:00 PM',
-]
+// Clinic working hours start at 8:00 AM — same time format as appointments.
+const TIME_OPTIONS = SHIFT_TIMES
 
 function StaffSchedule({ page }) {
   const { can } = useAuth()
@@ -97,8 +94,8 @@ function StaffSchedule({ page }) {
     scheduleForm.reset({
       user_id: schedule.userId || '',
       date: schedule.date || '',
-      start_time: schedule.startTime || '',
-      end_time: schedule.endTime || '',
+      start_time: normalizeTime(schedule.startTime),
+      end_time: normalizeTime(schedule.endTime),
       status: schedule.status || 'Available',
       notes: schedule.notes || '',
     })
@@ -217,7 +214,7 @@ function StaffSchedule({ page }) {
           <input type="text" placeholder="Search by staff name..." className={SEARCH_INPUT} value={search} onChange={(e) => setSearch(e.target.value)} />
           <select className={SELECT_INPUT} value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
             <option value="All">All Roles</option>
-            {roleOptions.map((r) => (<option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>))}
+            {roleOptions.map((r) => (<option key={r} value={r}>{roleLabel(r)}</option>))}
           </select>
           {(search || statusFilter !== 'All' || roleFilter !== 'All') && (
             <button type="button" className={PILL} onClick={() => { resetSearch(); setStatusFilter('All'); setRoleFilter('All') }}>Clear filters</button>
@@ -238,25 +235,43 @@ function StaffSchedule({ page }) {
                   <th>Date</th>
                   <th>Start Time</th>
                   <th>End Time</th>
+                  <th>Assigned Patients</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {schedules.isLoading ? (
-                  <TableSkeleton columns={7} />
+                  <TableSkeleton columns={8} />
                 ) : pageItems.length === 0 ? (
-                  <tr><td colSpan="7">
+                  <tr><td colSpan="8">
                     <EmptyState message={search || statusFilter !== 'All' || roleFilter !== 'All' ? 'No schedules match the current filters.' : 'No schedules found. Create one to get started.'} />
                   </td></tr>
                 ) : (
                   pageItems.map((s) => (
                     <tr key={s.id}>
                       <td><strong className="font-bold text-ink">{s.user?.name || '—'}</strong></td>
-                      <td className="text-muted">{s.user?.role ? s.user.role.charAt(0).toUpperCase() + s.user.role.slice(1) : '—'}</td>
+                      <td className="text-muted">{roleLabel(s.user?.role)}</td>
                       <td className="text-[12.5px] text-muted">{formatDate(s.date)}</td>
                       <td className="text-[12.5px] text-muted">{s.startTime}</td>
                       <td className="text-[12.5px] text-muted">{s.endTime}</td>
+                      <td className="text-[12px]">
+                        {s.bookedAppointments?.length ? (
+                          <div className="grid gap-0.5">
+                            <strong className="text-primary">{s.bookedAppointments.length} booked</strong>
+                            {s.bookedAppointments.slice(0, 3).map((a) => (
+                              <span key={a.id} className="text-muted" title={`${a.reference} · ${a.visitType} · ${a.status}`}>
+                                {a.time} · {a.patient}{a.visitType === 'Follow-up Consultation' ? ' (follow-up)' : ''}
+                              </span>
+                            ))}
+                            {s.bookedAppointments.length > 3 && (
+                              <span className="font-bold text-muted">+{s.bookedAppointments.length - 3} more</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted">None</span>
+                        )}
+                      </td>
                       <td>
                         <span className={`inline-flex rounded-[4px] px-2 py-[3px] text-[11px] font-bold ${
                           s.status === 'Available' ? 'bg-[#dff6dd] text-[#1e5a1b]' : 'bg-[#ffebe0] text-[#a33c12]'
@@ -301,13 +316,14 @@ function StaffSchedule({ page }) {
                   Staff Member
                   <select className={FORM_FIELD} {...scheduleForm.register('user_id', { required: 'Staff member is required.' })} disabled={busy || !!editing}>
                     <option value="">Select staff member</option>
-                    {staffOptions.map((u) => (<option key={u.id} value={u.id}>{u.name} ({u.role?.name ? u.role.name.charAt(0).toUpperCase() + u.role.name.slice(1) : ''})</option>))}
+                    {staffOptions.map((u) => (<option key={u.id} value={u.id}>{u.name} ({roleLabel(u.role?.name)})</option>))}
                   </select>
                 </label>
                 <label className={FORM_LABEL}>
                   Date
                   <input type="date" className={FORM_FIELD} {...scheduleForm.register('date', { required: 'Date is required.' })} disabled={busy} />
                 </label>
+                <p className="m-0 text-[12px] text-muted">Clinic working hours are 8:00 AM to 5:00 PM.</p>
                 <div className={FORM_ROW}>
                   <label className={FORM_LABEL}>
                     Start Time

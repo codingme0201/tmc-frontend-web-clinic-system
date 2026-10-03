@@ -16,6 +16,7 @@ import Pagination from '../components/Pagination'
 import RefreshingBadge from '../components/RefreshingBadge'
 import TableSkeleton from '../components/skeletons/TableSkeleton'
 import { EmptyState, ErrorState } from '../components/AsyncState'
+import CourseSelect from '../components/CourseSelect'
 
 const MODAL_CARD = 'flex max-h-[90vh] w-[min(700px,100%)] animate-modal-scale flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgba(8,20,20,0.22)]'
 const MODAL_CARD_SM = 'flex max-h-[90vh] w-[min(440px,100%)] animate-modal-scale flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgba(8,20,20,0.22)]'
@@ -524,12 +525,9 @@ function Patients({ page }) {
                 <div className={FORM_ROW}>
                   <label className={FORM_LABEL}>
                     <span>Course / Department</span>
-                    <input
-                      type="text"
-                      className={FORM_FIELD}
-                      placeholder="e.g. BS Information Technology"
+                    <CourseSelect
                       value={newPatient.courseDept}
-                      onChange={(e) => setNewPatient({ ...newPatient, courseDept: e.target.value })}
+                      onChange={(v) => setNewPatient({ ...newPatient, courseDept: v })}
                     />
                   </label>
                   <label className={FORM_LABEL}>
@@ -650,11 +648,9 @@ function Patients({ page }) {
                 <div className={FORM_ROW}>
                   <label className={FORM_LABEL}>
                     <span>Course / Department</span>
-                    <input
-                      type="text"
-                      className={FORM_FIELD}
+                    <CourseSelect
                       value={editForm.courseDept}
-                      onChange={(e) => setEditForm({ ...editForm, courseDept: e.target.value })}
+                      onChange={(v) => setEditForm({ ...editForm, courseDept: v })}
                     />
                   </label>
                   <label className={FORM_LABEL}>

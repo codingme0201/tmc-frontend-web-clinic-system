@@ -28,10 +28,18 @@ export function useAppointmentsStore({ onLog } = {}, scope = 'page') {
     queryFn: appointmentsService.fetchAppointments,
   })
 
+  // Appointment changes also move the queue, consultations and the doctor schedule.
+  const invalidateLinked = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['appointments'] })
+    queryClient.invalidateQueries({ queryKey: ['queue'] })
+    queryClient.invalidateQueries({ queryKey: ['consultations'] })
+    queryClient.invalidateQueries({ queryKey: ['staff-schedules'] })
+  }, [queryClient])
+
   const createMutation = useMutation({
     mutationFn: appointmentsService.createAppointment,
     onSuccess: (created) => {
-      queryClient.invalidateQueries({ queryKey: ['appointments'] })
+      invalidateLinked()
       onLogRef.current?.(`Booked new ${created.type} appointment for ${created.patient} at ${created.time}`)
     },
   })
@@ -39,8 +47,16 @@ export function useAppointmentsStore({ onLog } = {}, scope = 'page') {
   const statusMutation = useMutation({
     mutationFn: ({ id, status, note }) => appointmentsService.updateAppointmentStatus(id, status, note),
     onSuccess: (updated, { status }) => {
-      queryClient.invalidateQueries({ queryKey: ['appointments'] })
+      invalidateLinked()
       onLogRef.current?.(`Updated appointment ${updated.reference} (${updated.patient}) to: ${status}`)
+    },
+  })
+
+  const assignMutation = useMutation({
+    mutationFn: ({ id, staffId }) => appointmentsService.assignAppointmentStaff(id, staffId),
+    onSuccess: (updated) => {
+      invalidateLinked()
+      onLogRef.current?.(`Assigned ${updated.staff} to appointment ${updated.reference} (${updated.patient})`)
     },
   })
 
@@ -48,7 +64,7 @@ export function useAppointmentsStore({ onLog } = {}, scope = 'page') {
     mutationFn: ({ id, date, time, note }) =>
       appointmentsService.rescheduleAppointment(id, { date, time, note }),
     onSuccess: (updated, { date, time }) => {
-      queryClient.invalidateQueries({ queryKey: ['appointments'] })
+      invalidateLinked()
       onLogRef.current?.(`Rescheduled appointment ${updated.reference} (${updated.patient}) to ${date} ${time}`)
     },
   })
@@ -68,6 +84,11 @@ export function useAppointmentsStore({ onLog } = {}, scope = 'page') {
     [rescheduleMutation],
   )
 
+  const assignStaff = useCallback(
+    async (id, staffId) => assignMutation.mutateAsync({ id, staffId }),
+    [assignMutation],
+  )
+
   return {
     data: data || [],
     isLoading,
@@ -77,6 +98,7 @@ export function useAppointmentsStore({ onLog } = {}, scope = 'page') {
     createAppointment,
     updateStatus,
     reschedule,
+    assignStaff,
   }
 }
 
@@ -86,9 +108,22 @@ export function useAppointmentsStore({ onLog } = {}, scope = 'page') {
  * like the Roles & Permissions page), while the shared React Query cache
  * keeps revisits instant. Mutations route their audit activity through the
  * app-level `log`.
- * Returns { data, isLoading, error, refetch, isRefetching, createAppointment, updateStatus, reschedule }.
+ * Returns { data, isLoading, error, refetch, isRefetching, createAppointment, updateStatus, reschedule, assignStaff }.
  */
 export function useAppointments(scope = 'page') {
   const { log } = useAppContext()
   return useAppointmentsStore({ onLog: log }, scope)
+}
+
+/**
+ * A patient's completed consultations — the visits a follow-up appointment
+ * can be linked to. Only fetched once a patient is chosen.
+ */
+export function useFollowUpOptions(patientId, enabled = true) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['follow-up-options', patientId],
+    queryFn: () => appointmentsService.fetchFollowUpOptions(patientId),
+    enabled: enabled && !!patientId,
+  })
+  return { data: data || [], isLoading }
 }

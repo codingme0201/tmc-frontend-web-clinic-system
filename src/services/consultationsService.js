@@ -36,10 +36,20 @@ export async function completeConsultation(id, finalData = {}) {
   return res.data
 }
 
+/** Books the follow-up appointment for a completed consultation. */
+export async function scheduleFollowUp(id, { date, time, notes = '', staffId = null }) {
+  const res = await request(`/consultations/${id}/follow-up`, {
+    method: 'POST',
+    body: { date, time, notes, staff_id: staffId || null },
+  })
+  return res.data
+}
+
 export const consultationsService = {
   fetchConsultations,
   createConsultation,
   startConsultation,
   updateConsultation,
   completeConsultation,
+  scheduleFollowUp,
 }

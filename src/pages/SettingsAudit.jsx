@@ -91,7 +91,7 @@ function SettingsAudit({ page }) {
                       className="w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-ink transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
                       value={form.clinicName || ''}
                       onChange={(e) => handleChange('clinicName', e.target.value)}
-                      placeholder="e.g. TMC CareLink Student Health Clinic"
+                      placeholder="e.g. TMC Expansion Clinic"
                     />
                   </div>
                 </div>
@@ -269,7 +269,7 @@ function SettingsAudit({ page }) {
                   </div>
                   <div>
                     <h3 className="text-base font-extrabold text-[#062c30] leading-tight">
-                      {form.clinicName || 'TMC CareLink Clinic'}
+                      {form.clinicName || 'TMC Expansion Clinic'}
                     </h3>
                     <p className="text-xs font-semibold text-[#0d5c58] mt-0.5">
                       {form.clinicAddress || 'Tagum Norte, Trinidad, Bohol, Philippines'}

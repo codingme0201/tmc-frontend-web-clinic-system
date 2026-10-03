@@ -5,6 +5,7 @@
 import { createContext, useCallback, useContext, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useActivityLogsStore } from '../hooks/useActivityLogs'
+import { useAuth } from '../hooks/useAuth'
 
 export const AppContext = createContext(undefined)
 
@@ -31,7 +32,8 @@ export function AppProvider({ children }) {
 
   // Global audit trail (small, app-wide) — also the target of `log`, which
   // every page store calls after a successful mutation.
-  const activityLogs = useActivityLogsStore()
+  const { can } = useAuth()
+  const activityLogs = useActivityLogsStore({ enabled: can('audit_logs.view') })
   const log = useCallback(
     (action) => activityLogs.addActivityLog(action).catch(() => {}),
     [activityLogs],
