@@ -23,12 +23,6 @@ export async function updateMyStaffProfile(payload) {
   return res.data
 }
 
-/** An administrator updates a staff member's profile and license details. */
-export async function updateStaffProfile(id, payload) {
-  const res = await request(`/clinic-staff/${id}/profile`, { method: 'PUT', body: payload })
-  return res.data
-}
-
 /** An administrator marks the submitted credentials Verified or Rejected. */
 export async function verifyCredentials(id, { status, notes = '' }) {
   const res = await request(`/clinic-staff/${id}/verify`, { method: 'POST', body: { status, notes } })
@@ -40,6 +34,5 @@ export const clinicStaffService = {
   fetchClinicStaffMember,
   fetchMyStaffProfile,
   updateMyStaffProfile,
-  updateStaffProfile,
   verifyCredentials,
 }

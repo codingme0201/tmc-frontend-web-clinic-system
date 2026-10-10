@@ -12,6 +12,9 @@ export function useAuditLogsStore() {
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ['audit-logs', filters],
     queryFn: () => activityLogsService.fetchAuditLogs(filters),
+    placeholderData: (prev) => prev,
+    // Server-side entries (sign-ins, student mobile actions) appear on their own.
+    refetchInterval: 15000,
   })
 
   const updateFilter = useCallback((key, value) => {

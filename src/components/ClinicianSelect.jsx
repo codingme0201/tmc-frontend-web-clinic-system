@@ -14,9 +14,15 @@ export default function ClinicianSelect({
   allowUnassigned = true,
   unassignedLabel = 'Unassigned',
   className = FORM_FIELD,
+  roles = ['doctor', 'nurse'],
   ...rest
 }) {
-  const { data: clinicians = [], isLoading } = useEligibleStaff()
+  const { data: allClinicians = [], isLoading } = useEligibleStaff()
+  const roleKey = roles.join(',')
+  const clinicians = useMemo(
+    () => allClinicians.filter((c) => roleKey.split(',').includes(c.role?.name)),
+    [allClinicians, roleKey],
+  )
 
   const groups = useMemo(() => {
     const byRole = (role) => clinicians.filter((c) => c.role?.name === role)

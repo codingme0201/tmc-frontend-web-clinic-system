@@ -6,7 +6,6 @@ import { useToast } from '../hooks/useToast'
 import {
   PILL, PRIMARY_BTN, PANEL, KICKER, TABLE,
   FORM_LABEL, FORM_FIELD,
-  BTN_PRIMARY,
 } from '../lib/ui'
 import Icon from '../components/Icon'
 import InlineSpinner from '../components/Spinner'
@@ -145,195 +144,189 @@ function Reports({ page }) {
 
   const colCount = reports.activeReport === 'prescriptions' ? 5 : 7
 
+  const statCards = [
+    { label: 'Appointments', value: reports.statsData?.appointments?.total ?? 0 },
+    { label: 'Consultations', value: reports.statsData?.consultations?.total ?? 0 },
+    { label: 'Completed Consults', value: reports.statsData?.consultations?.completed ?? 0 },
+    { label: 'Patients', value: reports.statsData?.patients?.total ?? 0 },
+    { label: 'Active Patients', value: reports.statsData?.patients?.active ?? 0 },
+    { label: 'Med. Certificates', value: reports.statsData?.medicalCertificates?.total ?? 0 },
+    { label: 'Issued Certificates', value: reports.statsData?.medicalCertificates?.issued ?? 0 },
+    { label: 'Prescriptions', value: reports.statsData?.prescriptions?.total ?? 0 },
+  ]
+  const breakdowns = [
+    { title: 'Appointment Status Breakdown', data: reports.statsData?.appointments?.byStatus },
+    { title: 'Appointment Type Breakdown', data: reports.statsData?.appointments?.byType },
+  ].filter((b) => b.data && Object.keys(b.data).length > 0)
+
   return (
     <div>
       {/* Page header */}
-      <section className="mb-5 flex items-center justify-between gap-4 max-[620px]:flex-col max-[620px]:items-start">
+      <section className="mb-5 flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className={KICKER}>{page.eyebrow}</p>
           <h2 className="m-0 text-[clamp(30px,5vw,48px)] leading-[1.02] text-ink">{page.title}</h2>
           <span className="mt-[6px] block text-[13px] text-muted">{page.description}</span>
         </div>
-        {can('reports.export') && (
-          <button
-            type="button"
-            className={PRIMARY_BTN}
-            onClick={handleExport}
-            disabled={busy || !reports.reportData.length}
-          >
-            {busy ? <InlineSpinner /> : <Icon name="download" size={16} />}
-            Export CSV
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className={PILL} onClick={showStats ? () => setShowStats(false) : handleGenerateStats} disabled={busy}>
+            <Icon name="barChart" size={15} />
+            {showStats ? 'Hide Statistics' : 'Clinic Statistics'}
           </button>
-        )}
+          {can('reports.export') && (
+            <button
+              type="button"
+              className={PRIMARY_BTN}
+              onClick={handleExport}
+              disabled={busy || !reports.reportData.length}
+            >
+              {busy ? <InlineSpinner /> : <Icon name="download" size={16} />}
+              Export CSV
+            </button>
+          )}
+        </div>
       </section>
 
-      {/* Report type selector */}
-      <div className="mb-5 grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
-        {REPORT_TYPES.map((rt) => (
-          <button
-            type="button"
-            key={rt.id}
-            className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition ${
-              reports.activeReport === rt.id
-                ? 'border-primary bg-white shadow-sm'
-                : 'border-line bg-surface hover:border-primary/30'
-            }`}
-            onClick={() => {
-              reports.generateReport(rt.id, {})
-              form.reset({ start_date: '', end_date: '', status: 'All', patient: '', staff: '', type: 'All' })
-              setShowStats(false)
-            }}
-          >
-            <Icon name={rt.icon} size={20} />
-            <div>
-              <span className={`block text-[13px] font-bold ${reports.activeReport === rt.id ? 'text-primary' : 'text-ink'}`}>
+      {/* Report type selector — one horizontal row (scrolls on small screens) */}
+      <div className="mb-5 overflow-x-auto">
+        <div className="inline-flex min-w-full gap-1 rounded-2xl border border-line bg-surface p-1.5" role="tablist" aria-label="Report type">
+          {REPORT_TYPES.map((rt) => {
+            const active = reports.activeReport === rt.id
+            return (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={active}
+                key={rt.id}
+                title={rt.description}
+                className={`flex flex-1 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl border-0 px-4 py-2.5 text-[13px] font-extrabold transition ${
+                  active ? 'bg-primary text-white shadow-xs' : 'bg-transparent text-muted hover:bg-white hover:text-primary'
+                }`}
+                onClick={() => {
+                  reports.generateReport(rt.id, {})
+                  form.reset({ start_date: '', end_date: '', status: 'All', patient: '', staff: '', type: 'All' })
+                }}
+              >
+                <Icon name={rt.icon} size={17} />
                 {rt.label}
-              </span>
-              <span className="mt-0.5 block text-[11px] text-muted">{rt.description}</span>
-            </div>
-          </button>
-        ))}
-      </div>
-
-      {/* Filter panel */}
-      <div className={`${PANEL} p-5`}>
-        <form onSubmit={submitForm}>
-          <div className="mb-4 flex flex-wrap items-end gap-4">
-            {needsDateRange && (
-              <>
-                <label className={FORM_LABEL}>
-                  Start Date
-                  <input type="date" className={FORM_FIELD} {...form.register('start_date')} />
-                </label>
-                <label className={FORM_LABEL}>
-                  End Date
-                  <input type="date" className={FORM_FIELD} {...form.register('end_date')} />
-                </label>
-              </>
-            )}
-
-            {needsStatusFilter && (
-              <label className={FORM_LABEL}>
-                Status
-                <select className={FORM_FIELD} {...form.register('status')}>
-                  {statusOptions.map((s) => (
-                    <option key={s} value={s}>{s === 'All' ? 'All Statuses' : s}</option>
-                  ))}
-                </select>
-              </label>
-            )}
-
-            {needsPatientFilter && reports.activeReport !== 'patients' && (
-              <label className={FORM_LABEL}>
-                Patient
-                <input type="text" placeholder="Search patient name or ID..." className={FORM_FIELD} {...form.register('patient')} />
-              </label>
-            )}
-
-            {needsStaffFilter && (
-              <label className={FORM_LABEL}>
-                Staff
-                <input type="text" placeholder="Search staff..." className={FORM_FIELD} {...form.register('staff')} />
-              </label>
-            )}
-
-            {needsTypeFilter && (
-              <label className={FORM_LABEL}>
-                {reports.activeReport === 'patients' ? 'Category' : 'Type'}
-                <select className={FORM_FIELD} {...form.register('type')}>
-                  {typeOptions.map((t) => (
-                    <option key={t} value={t}>{t === 'All' ? `All ${reports.activeReport === 'patients' ? 'Categories' : 'Types'}` : t}</option>
-                  ))}
-                </select>
-              </label>
-            )}
-
-            {reports.activeReport === 'patients' && (
-              <label className={FORM_LABEL}>
-                Patient Status
-                <select className={FORM_FIELD} {...form.register('status')}>
-                  {patientStatusOptions.map((s) => (
-                    <option key={s} value={s}>{s === 'All' ? 'All Statuses' : s}</option>
-                  ))}
-                </select>
-              </label>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="submit" className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`} disabled={busy}>
-              {busy && <InlineSpinner />}
-              Generate Report
-            </button>
-            <button type="button" className={PILL} onClick={resetFilters} disabled={busy}>
-              Reset
-            </button>
-            {reports.activeReport === 'appointments' && (
-              <button type="button" className={BTN_PRIMARY} onClick={handleGenerateStats} disabled={busy}>
-                Clinic Statistics
               </button>
-            )}
-          </div>
-        </form>
+            )
+          })}
+        </div>
       </div>
 
-      {/* Statistics panel */}
+      {/* Statistics panel — stat cards in one row, breakdowns side by side */}
       {showStats && reports.statsData && (
-        <div className={`${PANEL} mt-5 p-5`}>
-          <div className="mb-4 flex items-center justify-between">
+        <div className={`${PANEL} mb-5 p-5`}>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h3 className="m-0 text-[16px] font-bold text-ink">Clinic Statistics</h3>
-            <button type="button" className={PILL} onClick={() => setShowStats(false)}>
-              Hide Statistics
-            </button>
+            <span className="text-[12px] font-bold text-muted">
+              {form.getValues('start_date') || form.getValues('end_date')
+                ? `${form.getValues('start_date') || '…'} – ${form.getValues('end_date') || '…'}`
+                : 'All dates'}
+            </span>
           </div>
-
-          <div className="mb-5 grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
-            {[
-              { label: 'Total Appointments', value: reports.statsData?.appointments?.total ?? 0 },
-              { label: 'Total Consultations', value: reports.statsData?.consultations?.total ?? 0 },
-              { label: 'Completed Consultations', value: reports.statsData?.consultations?.completed ?? 0 },
-              { label: 'Total Patients', value: reports.statsData?.patients?.total ?? 0 },
-              { label: 'Active Patients', value: reports.statsData?.patients?.active ?? 0 },
-              { label: 'Medical Certificates', value: reports.statsData?.medicalCertificates?.total ?? 0 },
-              { label: 'Issued Certificates', value: reports.statsData?.medicalCertificates?.issued ?? 0 },
-              { label: 'Total Prescriptions', value: reports.statsData?.prescriptions?.total ?? 0 },
-            ].map((stat) => (
-              <div key={stat.label} className="rounded-lg border border-line bg-bg p-4 text-center">
-                <p className="m-0 text-[24px] font-extrabold text-primary">{stat.value}</p>
-                <p className="m-0 mt-1 text-[11px] font-bold uppercase text-muted">{stat.label}</p>
+          <div className="grid grid-cols-8 gap-3 max-[1280px]:grid-cols-4 max-[620px]:grid-cols-2">
+            {statCards.map((stat) => (
+              <div key={stat.label} className="rounded-xl border border-line bg-bg p-3 text-center">
+                <p className="m-0 text-[24px] font-extrabold leading-tight text-primary">{stat.value}</p>
+                <p className="m-0 mt-1 text-[10.5px] font-bold uppercase tracking-wide text-muted">{stat.label}</p>
               </div>
             ))}
           </div>
-
-          {/* Appointment status breakdown */}
-          {reports.statsData?.appointments?.byStatus && Object.keys(reports.statsData.appointments.byStatus).length > 0 && (
-            <div className="mb-4">
-              <h4 className="m-0 mb-2 text-[13px] font-bold text-ink">Appointment Status Breakdown</h4>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(reports.statsData.appointments.byStatus).map(([status, count]) => (
-                  <span key={status} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-3 py-1 text-[12px] font-bold text-ink">
-                    {status}: <span className="text-primary">{count}</span>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Appointment type breakdown */}
-          {reports.statsData?.appointments?.byType && Object.keys(reports.statsData.appointments.byType).length > 0 && (
-            <div>
-              <h4 className="m-0 mb-2 text-[13px] font-bold text-ink">Appointment Type Breakdown</h4>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(reports.statsData.appointments.byType).map(([type, count]) => (
-                  <span key={type} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-3 py-1 text-[12px] font-bold text-ink">
-                    {type}: <span className="text-primary">{count}</span>
-                  </span>
-                ))}
-              </div>
+          {breakdowns.length > 0 && (
+            <div className="mt-4 grid grid-cols-2 gap-4 max-[900px]:grid-cols-1">
+              {breakdowns.map((b) => (
+                <div key={b.title} className="rounded-xl border border-line p-4">
+                  <h4 className="m-0 mb-2 text-[13px] font-bold text-ink">{b.title}</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(b.data).map(([label, count]) => (
+                      <span key={label} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-3 py-1 text-[12px] font-bold text-ink">
+                        {label}: <span className="text-primary">{count}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
       )}
+
+      {/* Filter bar — all filters on one horizontal row, actions aligned right */}
+      <div className={`${PANEL} p-5`}>
+        <form onSubmit={submitForm} className="flex flex-wrap items-end gap-3">
+          {needsDateRange && (
+            <>
+              <label className={`${FORM_LABEL} w-[160px] max-[620px]:w-full`}>
+                Start Date
+                <input type="date" className={FORM_FIELD} {...form.register('start_date')} />
+              </label>
+              <label className={`${FORM_LABEL} w-[160px] max-[620px]:w-full`}>
+                End Date
+                <input type="date" className={FORM_FIELD} {...form.register('end_date')} />
+              </label>
+            </>
+          )}
+
+          {needsStatusFilter && (
+            <label className={`${FORM_LABEL} w-[170px] max-[620px]:w-full`}>
+              Status
+              <select className={FORM_FIELD} {...form.register('status')}>
+                {statusOptions.map((s) => (
+                  <option key={s} value={s}>{s === 'All' ? 'All Statuses' : s}</option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {needsPatientFilter && reports.activeReport !== 'patients' && (
+            <label className={`${FORM_LABEL} min-w-[180px] flex-1 max-[620px]:w-full`}>
+              Patient
+              <input type="text" placeholder="Name or ID..." className={FORM_FIELD} {...form.register('patient')} />
+            </label>
+          )}
+
+          {needsStaffFilter && (
+            <label className={`${FORM_LABEL} min-w-[160px] flex-1 max-[620px]:w-full`}>
+              Staff
+              <input type="text" placeholder="Doctor / nurse..." className={FORM_FIELD} {...form.register('staff')} />
+            </label>
+          )}
+
+          {needsTypeFilter && (
+            <label className={`${FORM_LABEL} w-[170px] max-[620px]:w-full`}>
+              {reports.activeReport === 'patients' ? 'Category' : 'Type'}
+              <select className={FORM_FIELD} {...form.register('type')}>
+                {typeOptions.map((t) => (
+                  <option key={t} value={t}>{t === 'All' ? `All ${reports.activeReport === 'patients' ? 'Categories' : 'Types'}` : t}</option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {reports.activeReport === 'patients' && (
+            <label className={`${FORM_LABEL} w-[170px] max-[620px]:w-full`}>
+              Patient Status
+              <select className={FORM_FIELD} {...form.register('status')}>
+                {patientStatusOptions.map((s) => (
+                  <option key={s} value={s}>{s === 'All' ? 'All Statuses' : s}</option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          <div className="ml-auto flex items-center gap-2 max-[620px]:ml-0 max-[620px]:w-full">
+            <button type="button" className={`${PILL} min-h-[42px]`} onClick={resetFilters} disabled={busy}>
+              Reset
+            </button>
+            <button type="submit" className={`${PRIMARY_BTN} min-h-[42px] px-[16px] text-[13px] max-[620px]:flex-1`} disabled={busy}>
+              {busy && <InlineSpinner />}
+              Generate Report
+            </button>
+          </div>
+        </form>
+      </div>
 
       {/* Report table */}
       <div className={`${PANEL} mt-5 p-5`}>

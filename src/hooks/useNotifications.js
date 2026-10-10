@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAppContext } from '../context/AppContext'
 import { notificationsService } from '../services/notificationsService'
 
-export function useNotificationsStore({ onLog } = {}, scope = 'page') {
+export function useNotificationsStore({ onLog, canSend = false } = {}, scope = 'page') {
   const queryClient = useQueryClient()
   const onLogRef = useRef(onLog)
   useEffect(() => {
@@ -20,12 +20,24 @@ export function useNotificationsStore({ onLog } = {}, scope = 'page') {
     queryFn: notificationsService.fetchUnreadCount,
   })
 
+  const recipientsQuery = useQuery({
+    queryKey: ['notification-recipients'],
+    queryFn: notificationsService.fetchRecipients,
+    enabled: canSend,
+  })
+
+  const sentQuery = useQuery({
+    queryKey: ['notifications', 'sent'],
+    queryFn: notificationsService.fetchSentNotifications,
+    enabled: canSend,
+  })
+
   const sendMutation = useMutation({
     mutationFn: notificationsService.sendNotification,
-    onSuccess: () => {
+    onSuccess: (sent) => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
       queryClient.invalidateQueries({ queryKey: ['notifications-unread-count'] })
-      onLogRef.current?.('Sent a notification')
+      onLogRef.current?.(`Sent notification "${sent?.title}" to ${sent?.recipient?.name || 'a user'}`)
     },
   })
 
@@ -84,6 +96,13 @@ export function useNotificationsStore({ onLog } = {}, scope = 'page') {
     error: error?.message ?? null,
     refetch,
     isRefetching,
+    recipients: recipientsQuery.data || [],
+    recipientsLoading: recipientsQuery.isLoading,
+    recipientsError: recipientsQuery.error?.message ?? null,
+    sent: sentQuery.data || [],
+    sentLoading: sentQuery.isLoading,
+    sentError: sentQuery.error?.message ?? null,
+    refetchSent: sentQuery.refetch,
     sendNotification,
     markAsRead,
     markAllAsRead,
@@ -95,7 +114,7 @@ export function useNotificationsStore({ onLog } = {}, scope = 'page') {
   }
 }
 
-export function useNotifications(scope = 'page') {
+export function useNotifications(scope = 'page', { canSend = false } = {}) {
   const { log } = useAppContext()
-  return useNotificationsStore({ onLog: log }, scope)
+  return useNotificationsStore({ onLog: log, canSend }, scope)
 }

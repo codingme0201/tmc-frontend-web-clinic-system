@@ -10,7 +10,7 @@ import { navSections } from '../lib/navigation'
 
 function Sidebar({ collapsed = false, mobileOpen = false, onNavigate, onClose }) {
   const { activePage, navigate } = useAppContext()
-  const { logout, isLoggingOut, can, user } = useAuth()
+  const { logout, isLoggingOut, can, user, userRole } = useAuth()
   const { showToast } = useToast()
   const [logoutOpen, , openLogout, closeLogout] = useToggle(false)
 
@@ -18,7 +18,7 @@ function Sidebar({ collapsed = false, mobileOpen = false, onNavigate, onClose })
   const visibleSections = navSections
     .map((section) => ({
       ...section,
-      items: section.items.filter((item) => !item.permission || can(item.permission)),
+      items: section.items.filter((item) => (!item.permission || can(item.permission)) && (!item.adminOnly || userRole === 'admin')),
     }))
     .filter((section) => section.items.length > 0)
 

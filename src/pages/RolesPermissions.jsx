@@ -30,6 +30,12 @@ function roleLabel(name) {
     .join(' ')
 }
 
+// Admin keeps full access (one admin account) and students only use the
+// mobile app, so their permissions can't be checked/unchecked.
+const LOCKED_ROLES = ['admin', 'student']
+// Only the administrator may view audit logs.
+const ADMIN_ONLY_PERMISSIONS = ['audit_logs.view']
+
 function RolesPermissions({ page }) {
   const { can } = useAuth()
   const roles = useRoles()
@@ -129,6 +135,8 @@ function RolesPermissions({ page }) {
       setPermLoading(false)
     }
   }
+
+  const permLocked = !!permTarget && LOCKED_ROLES.includes(permTarget.name)
 
   const togglePermission = (id) => {
     setSelectedIds((prev) => {
@@ -272,7 +280,7 @@ function RolesPermissions({ page }) {
                           )}
                           {canAssign && (
                             <button type="button" className={BTN_PRIMARY} onClick={() => openPerms(role)}>
-                              Permissions
+                              {LOCKED_ROLES.includes(role.name) ? 'View Permissions' : 'Permissions'}
                             </button>
                           )}
                           {canDelete && !role.is_system && (
@@ -401,6 +409,15 @@ function RolesPermissions({ page }) {
                   <p className="mt-0 text-[12px] text-muted">
                     {totalSelected} of {totalPermissions} permissions selected
                   </p>
+                  {permLocked ? (
+                    <p className="m-0 rounded-lg border border-line bg-bg p-[10px_12px] text-[12.5px] font-bold text-muted">
+                      {permTarget.name === 'admin'
+                        ? 'The administrator account always has full access. Its permissions cannot be changed.'
+                        : 'Student accounts only use the mobile app. Their permissions cannot be changed.'}
+                    </p>
+                  ) : (
+                    <p className="m-0 text-[12px] text-muted">Audit Logs access is reserved for the administrator.</p>
+                  )}
                   {Object.entries(permissionGroups).map(([module, perms]) => (
                     <fieldset className="m-0 rounded-lg border border-line p-[12px_14px]" key={module}>
                       <legend className="flex w-full items-center justify-between gap-[10px] px-2 text-[12px] font-extrabold uppercase tracking-[0.02em] text-ink">
@@ -411,13 +428,13 @@ function RolesPermissions({ page }) {
                       </legend>
                       <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-[7px_14px]">
                         {perms.map((perm) => (
-                          <label className="group flex cursor-pointer items-center gap-2 text-[13px] text-ink" key={perm.id}>
+                          <label className={`group flex items-center gap-2 text-[13px] text-ink ${permLocked || ADMIN_ONLY_PERMISSIONS.includes(perm.name) ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`} key={perm.id}>
                             <input
                               type="checkbox"
                               className="m-0 size-[15px] accent-primary"
                               checked={selectedIds.has(perm.id)}
                               onChange={() => togglePermission(perm.id)}
-                              disabled={busy}
+                              disabled={busy || permLocked || ADMIN_ONLY_PERMISSIONS.includes(perm.name)}
                             />
                             <span className="group-has-checked:font-bold group-has-checked:text-primary">{perm.label}</span>
                           </label>
@@ -441,15 +458,17 @@ function RolesPermissions({ page }) {
                 >
                   Cancel
                 </button>
-                <button
-                  type="button"
-                  className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`}
-                  onClick={handleSavePermissions}
-                  disabled={busy || permLoading}
-                >
-                  {busy && <InlineSpinner />}
-                  {busy ? 'Saving...' : 'Save Permissions'}
-                </button>
+                {!permLocked && (
+                  <button
+                    type="button"
+                    className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`}
+                    onClick={handleSavePermissions}
+                    disabled={busy || permLoading}
+                  >
+                    {busy && <InlineSpinner />}
+                    {busy ? 'Saving...' : 'Save Permissions'}
+                  </button>
+                )}
               </div>
             </div>
           </div>

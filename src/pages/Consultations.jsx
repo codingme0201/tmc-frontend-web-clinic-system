@@ -11,7 +11,7 @@ import { formatDate, timeToMinutes, todayISO } from '../lib/format'
 import { TIME_SLOTS, VISIT_TYPES, VISIT_NEW, VISIT_FOLLOW_UP, currentSlot } from '../lib/clinic'
 import {
   PILL, PRIMARY_BTN, PANEL, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT,
-  BTN_SUCCESS, BTN_INFO, BTN_VIEW, DISPO_TAG, dispoClasses,
+  BTN_SUCCESS, BTN_INFO, BTN_VIEW, BTN_DANGER, BTN_ACTION_DANGER, DISPO_TAG, dispoClasses,
 } from '../lib/ui'
 import StatusBadge from '../components/StatusBadge'
 import VisitTypeBadge from '../components/VisitTypeBadge'
@@ -157,12 +157,15 @@ function Consultations({ page }) {
     saveConsultation,
     completeConsultation,
     scheduleFollowUp,
+    deleteConsultation,
   } = useConsultations()
   const { data: patients = [] } = usePatients()
   const { showToast } = useToast()
   const { userRole, user, can } = useAuth()
   const canRecord = MEDICAL_ROLES.includes(userRole)
   const canScheduleFollowUp = can('consultations.update')
+  const canDelete = can('consultations.delete')
+  const [deleteTarget, setDeleteTarget] = useState(null)
   const [searchParams, setSearchParams] = useSearchParams()
 
   // Search / filter state
@@ -447,7 +450,32 @@ function Consultations({ page }) {
         View
       </button>,
     )
+    if (canDelete) {
+      buttons.push(
+        <button key="delete" type="button" className={BTN_DANGER} onClick={() => setDeleteTarget(cons)} disabled={busy}>
+          Delete
+        </button>,
+      )
+    }
     return buttons
+  }
+
+  const handleDelete = async () => {
+    if (!deleteTarget || busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    try {
+      await deleteConsultation(deleteTarget)
+      showToast(`Consultation ${deleteTarget.reference} deleted.`)
+      if (details?.id === deleteTarget.id) setDetails(null)
+      if (workspace?.id === deleteTarget.id) setWorkspace(null)
+      setDeleteTarget(null)
+    } catch (err) {
+      showToast(err?.message || 'Failed to delete the consultation.', 'error')
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
   }
 
   return (
@@ -1211,6 +1239,43 @@ function Consultations({ page }) {
               <button type="button" className={PILL} onClick={() => setDetails(null)}>
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Consultation Modal */}
+      {deleteTarget && (
+        <div
+          className={MODAL_BACKDROP}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Delete consultation"
+          onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) setDeleteTarget(null) }}
+        >
+          <div className={MODAL_CARD_SM}>
+            <div className={MODAL_HEADER}>
+              <h3 className="m-0 text-[18px] font-bold text-ink">Delete Consultation</h3>
+              <button type="button" className={MODAL_CLOSE} onClick={() => setDeleteTarget(null)} disabled={busy}>
+                ✕
+              </button>
+            </div>
+            <div className={MODAL_BODY}>
+              <p className="m-0 text-[13.5px] text-ink">
+                Delete consultation <strong>{deleteTarget.reference}</strong> for <strong>{deleteTarget.patient}</strong>
+                {deleteTarget.date ? <> on {formatDate(deleteTarget.date)}</> : null}? It will be removed from the
+                consultation list. This cannot be undone.
+              </p>
+            </div>
+            <div className={MODAL_FOOTER}>
+              <div className={MODAL_FOOTER_ACTIONS}>
+                <button type="button" className={PILL} onClick={() => setDeleteTarget(null)} disabled={busy}>
+                  Cancel
+                </button>
+                <button type="button" className={`${BTN_ACTION_DANGER} min-h-10 px-[14px] text-[13px]`} onClick={handleDelete} disabled={busy}>
+                  {busy ? 'Deleting...' : 'Delete Consultation'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

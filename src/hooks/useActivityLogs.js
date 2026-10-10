@@ -20,19 +20,22 @@ export function useActivityLogsStore({ enabled = true } = {}) {
   })
 
   const addMutation = useMutation({
-    mutationFn: activityLogsService.addActivityLog,
+    mutationFn: ({ action, module }) => activityLogsService.addActivityLog(action, module),
     onSuccess: (entry) => {
-      // Optimistic prepend keeps the audit trail feeling instant (the same
-      // behaviour the old useResource store had), then a background
-      // invalidation reconciles with the server.
-      queryClient.setQueryData(['activity-logs'], (prev) => [entry, ...(prev || [])])
-      queryClient.invalidateQueries({ queryKey: ['activity-logs'] })
+      // Prepend keeps the trail feeling instant, then a background
+      // invalidation reconciles both the dashboard feed and the Audit Logs page.
+      if (enabled) {
+        queryClient.setQueryData(['activity-logs'], (prev) => [entry, ...(prev || [])])
+        queryClient.invalidateQueries({ queryKey: ['activity-logs'] })
+        queryClient.invalidateQueries({ queryKey: ['audit-logs'] })
+      }
     },
   })
 
+  const { mutateAsync } = addMutation
   const addActivityLog = useCallback(
-    async (action) => addMutation.mutateAsync(action),
-    [addMutation],
+    async (action, module = null) => mutateAsync({ action, module }),
+    [mutateAsync],
   )
 
   return {

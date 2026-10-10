@@ -25,7 +25,6 @@ const UserManagement = lazy(() => import('./pages/UserManagement'))
 const Login = lazy(() => import('./pages/Login'))
 const StaffSchedule = lazy(() => import('./pages/StaffSchedule'))
 const ClinicStaff = lazy(() => import('./pages/ClinicStaff'))
-const ClinicCalendar = lazy(() => import('./pages/ClinicCalendar'))
 const Notifications = lazy(() => import('./pages/Notifications'))
 const Reports = lazy(() => import('./pages/Reports'))
 const SettingsAudit = lazy(() => import('./pages/SettingsAudit'))
@@ -44,7 +43,6 @@ const pageComponents = {
   patients: Patients,
   staffSchedule: StaffSchedule,
   clinicStaff: ClinicStaff,
-  clinicCalendar: ClinicCalendar,
   notifications: Notifications,
   reports: Reports,
   rolesPermissions: RolesPermissions,
@@ -89,12 +87,12 @@ function LoginRoute() {
 /** Renders the page matching the current route segment (e.g. /#/appointments). */
 function ModulePage() {
   const { pageId } = useParams()
-  const { can } = useAuth()
+  const { can, userRole } = useAuth()
   const page = pageContent[pageId] ?? pageContent.dashboard
   const PageComponent = pageComponents[pageId] ?? PlaceholderPage
   const navItem = navSections.flatMap((section) => section.items).find((item) => item.id === pageId)
 
-  if (navItem?.permission && !can(navItem.permission)) {
+  if ((navItem?.permission && !can(navItem.permission)) || (navItem?.adminOnly && userRole !== 'admin')) {
     return (
       <div className={PANEL}>
         <ErrorState message="You do not have access to this page." />

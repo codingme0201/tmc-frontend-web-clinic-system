@@ -81,6 +81,21 @@ export function useConsultationsStore({ onLog, enabled = true } = {}, scope = 'p
     },
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: (consultation) => consultationsService.deleteConsultation(consultation.id),
+    onSuccess: (_, consultation) => {
+      invalidateLinked()
+      queryClient.invalidateQueries({ queryKey: ['prescriptions'] })
+      queryClient.invalidateQueries({ queryKey: ['medical-certificates'] })
+      onLogRef.current?.(`Deleted consultation ${consultation.reference} for patient ${consultation.patient}`)
+    },
+  })
+
+  const deleteConsultation = useCallback(
+    async (consultation) => deleteMutation.mutateAsync(consultation),
+    [deleteMutation],
+  )
+
   const addConsultation = useCallback(
     async (payload) => createMutation.mutateAsync(payload),
     [createMutation],
@@ -117,6 +132,7 @@ export function useConsultationsStore({ onLog, enabled = true } = {}, scope = 'p
     saveConsultation,
     completeConsultation,
     scheduleFollowUp,
+    deleteConsultation,
   }
 }
 

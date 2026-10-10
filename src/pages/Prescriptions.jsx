@@ -2,7 +2,6 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { usePrescriptions, usePrescriptionDetail } from '../hooks/usePrescriptions'
 import { usePatients } from '../hooks/usePatients'
 import { useConsultations } from '../hooks/useConsultations'
-import { useStaff } from '../hooks/useStaff'
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { useModal } from '../hooks/useModal'
@@ -21,10 +20,9 @@ const PAGE_SIZE = 8
 const emptyMedication = () => ({ medicine_name: '', dosage: '', frequency: '', duration: '', instructions: '' })
 
 function Prescriptions({ page }) {
-  const { user, can } = useAuth()
+  const { user, userRole, can } = useAuth()
   const { data: patients } = usePatients()
   const { data: consultations } = useConsultations()
-  const { data: staff } = useStaff()
   const { showToast } = useToast()
 
   // UI gating mirrors the backend permission catalog; the API remains the
@@ -114,7 +112,8 @@ function Prescriptions({ page }) {
         patient: editing.patient,
         patient_id: editing.patientId || '',
         consultation_id: editing.consultationId ?? '',
-        prescribed_by: editing.prescribedBy || staff[0]?.name || user?.name || '',
+        prescribed_by_id: editing.prescribedById || '',
+        prescribed_by: editing.prescribedBy || '',
         date: editing.date || todayISO(),
         medications: editing.medications?.length
           ? editing.medications.map((med) => ({
@@ -131,11 +130,13 @@ function Prescriptions({ page }) {
       patient: '',
       patient_id: '',
       consultation_id: '',
-      prescribed_by: staff[0]?.name || user?.name || '',
+      // A doctor writing a prescription is preselected as the prescriber.
+      prescribed_by_id: userRole === 'doctor' ? user?.id || '' : '',
+      prescribed_by: userRole === 'doctor' ? user?.name || '' : '',
       date: todayISO(),
       medications: [emptyMedication()],
     }
-  }, [editing, staff, user])
+  }, [editing, user, userRole])
 
   // Remounts the form per open so create/edit start from fresh state.
   const formKey = formModal.isOpen ? (editing ? `edit-${editing.id}` : 'create') : 'closed'
@@ -331,7 +332,6 @@ function Prescriptions({ page }) {
           initialValues={formInitialValues}
           patients={patients}
           consultations={consultations}
-          staff={staff}
           busy={busy}
           submitLabel={editing ? 'Save Changes' : 'Save Prescription'}
           onSubmit={handleFormSubmit}

@@ -66,6 +66,13 @@ const EMPTY_MINI = 'rounded-lg border border-dashed border-[#c2dcd6] p-4 text-ce
 const SECTION_TITLE = 'm-0 mb-3 text-[16px] text-[#143d40]'
 const AUTH_NOTICE = 'mb-[14px] flex items-center gap-2 rounded-lg border border-dashed border-[#f2cfc2] bg-[#fdf1ec] p-[10px_14px] text-[12.5px] font-bold text-[#a33c12]'
 
+/** "20 years" / "20 years old"; '—' when no age has been entered yet. */
+function formatAge(age, suffix = '') {
+  const n = Number(age)
+  if (!Number.isFinite(n) || n <= 0) return 'Age not provided'
+  return `${n} year${n === 1 ? '' : 's'}${suffix ? ` ${suffix}` : ''}`
+}
+
 // Builds the chronological record timeline from the record's clinical
 // sections, its consultations, and its appointments (joined by patient id).
 function buildTimeline(record, consults = [], appointments = []) {
@@ -252,7 +259,6 @@ function MedicalRecords({ page }) {
     addMedication,
     updateMedication,
     removeMedication,
-    addHistory,
     removeHistory,
   } = useMedicalRecords()
   const { data: registeredPatients = [] } = usePatients()
@@ -311,7 +317,6 @@ function MedicalRecords({ page }) {
   const [consultDetails, setConsultDetails] = useState(null)
   const [medDetails, setMedDetails] = useState(null) // { med, patientName }
   const [medicationModal, setMedicationModal] = useState(null) // { record, medication? }
-  const [historyModal, setHistoryModal] = useState(null) // { record }
   const [createOpen, setCreateOpen] = useState(false)
   const [createPatientId, setCreatePatientId] = useState('')
   const [busy, setBusy] = useState(false)
@@ -330,12 +335,8 @@ function MedicalRecords({ page }) {
     name: '', dosage: '', frequency: '', route: '', status: 'Active',
     startDate: todayISO(), endDate: '', instructions: '',
   })
-  const emptyHistoryForm = () => ({ date: todayISO(), condition: '', notes: '' })
   const medicationForm = useForm(emptyMedicationForm(), {
     validate: (values) => (values.name.trim() ? {} : { name: 'Medication name is required.' }),
-  })
-  const historyForm = useForm(emptyHistoryForm(), {
-    validate: (values) => (values.condition.trim() ? {} : { condition: 'History / event is required.' }),
   })
 
   // Registered patients that do not have a medical record yet.
@@ -373,6 +374,10 @@ function MedicalRecords({ page }) {
     () => (selected && Array.isArray(consultations) ? consultations.filter((c) => c.patientId === selected.patientId) : []),
     [selected, consultations],
   )
+  const patientAppointments = useMemo(
+    () => (selected && Array.isArray(appointments) ? appointments.filter((a) => a.patientId === selected.patientId) : []),
+    [selected, appointments],
+  )
   const timeline = useMemo(
     () => (selected ? buildTimeline(selected, patientConsults, appointments) : []),
     [selected, patientConsults, appointments],
@@ -387,7 +392,6 @@ function MedicalRecords({ page }) {
       if (conditionModal) setConditionModal(null)
       else if (allergyModal) setAllergyModal(null)
       else if (medicationModal) setMedicationModal(null)
-      else if (historyModal) setHistoryModal(null)
       else if (createOpen) setCreateOpen(false)
       else if (removeTarget) setRemoveTarget(null)
       else if (archiveTarget) setArchiveTarget(null)
@@ -396,7 +400,7 @@ function MedicalRecords({ page }) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [busy, conditionModal, allergyModal, medicationModal, historyModal, createOpen, removeTarget, archiveTarget, consultDetails, medDetails])
+  }, [busy, conditionModal, allergyModal, medicationModal, createOpen, removeTarget, archiveTarget, consultDetails, medDetails])
 
   const openRecord = (record) => {
     setSelectedId(record.id)
@@ -567,35 +571,6 @@ function MedicalRecords({ page }) {
       setMedicationModal(null)
     } catch (err) {
       showToast(err?.message || 'Failed to save the medication.', 'error')
-    } finally {
-      busyRef.current = false
-      setBusy(false)
-    }
-  }
-
-  // ---------- Medical history handlers ----------
-  const openHistoryModal = (record) => {
-    setHistoryModal({ record })
-    historyForm.reset(emptyHistoryForm())
-  }
-
-  const handleSaveHistory = async () => {
-    if (!historyModal || busy || busyRef.current) return
-    const validationErrors = historyForm.runValidation()
-    if (Object.keys(validationErrors).length > 0) return
-    busyRef.current = true
-    setBusy(true)
-    try {
-      const payload = {
-        date: historyForm.values.date || todayISO(),
-        condition: historyForm.values.condition.trim(),
-        notes: historyForm.values.notes.trim(),
-      }
-      await addHistory(historyModal.record.id, payload)
-      showToast(`History entry "${payload.condition}" added.`)
-      setHistoryModal(null)
-    } catch (err) {
-      showToast(err?.message || 'Failed to save the history entry.', 'error')
     } finally {
       busyRef.current = false
       setBusy(false)
@@ -784,7 +759,7 @@ function MedicalRecords({ page }) {
                           <span>
                             <strong className="font-bold text-ink">{record.name}</strong>
                             <span className="block text-[12px] text-muted">
-                              {record.patientId} · {record.age} · {record.sex}
+                              {record.patientId} · {formatAge(record.age)} · {record.sex}
                             </span>
                           </span>
                         </div>
@@ -881,6 +856,77 @@ function MedicalRecords({ page }) {
     </>
   )
 
+  // Everything the student entered through the mobile app: profile and
+  // health details, plus their own appointment and certificate requests.
+  const renderStudentProvided = () => {
+    const sp = selected.studentProfile
+    const requests = patientAppointments
+      .filter((a) => a.reason || a.type)
+      .sort((a, b) => (a.date < b.date ? 1 : -1))
+      .slice(0, 5)
+    const field = (label, value) => (
+      <div key={label}>
+        <span className={PROFILE_LBL}>{label}</span>
+        <p className={`${PROFILE_VAL} whitespace-pre-line break-words`}>{value || '—'}</p>
+      </div>
+    )
+    return (
+      <div className={`${PANEL} mt-4 p-5`}>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="m-0 text-[16px] text-[#143d40]">Provided by the Student (Mobile App)</h3>
+          {sp && (
+            <span className={`rounded-full px-[10px] py-[3px] text-[11px] font-extrabold ${sp.isProfileComplete ? 'bg-[#dff6dd] text-[#1e5a1b]' : 'bg-[#fff3d6] text-[#8a5a00]'}`}>
+              {sp.isProfileComplete ? 'Profile complete' : 'Profile incomplete'}
+            </span>
+          )}
+        </div>
+        {sp ? (
+          <>
+            <div className={PROFILE_GRID}>
+              {field('First Name', sp.firstName)}
+              {field('Middle Name', sp.middleName)}
+              {field('Last Name', sp.lastName)}
+              {field('Student ID', sp.studentId)}
+              {field('Age', sp.age ? formatAge(sp.age) : '')}
+              {field('Course / Program', sp.courseDept)}
+              {field('Block / Section', sp.block)}
+              {field('Nationality', sp.nationality)}
+              {field('Email', sp.email)}
+              {field('Contact Number', sp.contact)}
+              {field('Emergency Contact', sp.emergencyContactName)}
+              {field('Emergency Contact No.', sp.emergencyContactPhone)}
+            </div>
+            <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4">
+              {field('Home Address', sp.address)}
+              {field('Reported Allergies', sp.allergies && sp.allergies !== 'None' ? sp.allergies : 'None reported')}
+              {field('Reported Medical History', sp.history && sp.history !== 'None' ? sp.history : 'None reported')}
+            </div>
+            {requests.length > 0 && (
+              <div className="mt-4">
+                <span className={PROFILE_LBL}>Recent Appointment Requests</span>
+                <div className="mt-1 grid gap-[6px]">
+                  {requests.map((a) => (
+                    <div key={a.id} className={`${MINI_CARD} flex flex-wrap items-center gap-2 text-[12.5px]`}>
+                      <strong className="text-ink">{formatDate(a.date)}{a.time ? ` · ${a.time}` : ''}</strong>
+                      <span className="text-ink">{a.type}</span>
+                      {a.reason && <span className="text-muted">— {a.reason}</span>}
+                      <span className="ml-auto"><StatusBadge status={a.status} /></span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {sp.updatedAt && (
+              <p className="m-0 mt-3 text-[12px] text-muted">Last updated by the student {formatDate(sp.updatedAt.slice(0, 10))}</p>
+            )}
+          </>
+        ) : (
+          <div className={EMPTY_MINI}>This record is not linked to a student profile yet.</div>
+        )}
+      </div>
+    )
+  }
+
   const renderOverview = () => {
     const latestConsult =
       patientConsults.length > 0
@@ -901,7 +947,7 @@ function MedicalRecords({ page }) {
           </div>
           <div>
             <span className={PROFILE_LBL}>Age</span>
-            <p className={PROFILE_VAL}>{selected.age} years</p>
+            <p className={PROFILE_VAL}>{formatAge(selected.age)}</p>
           </div>
           <div>
             <span className={PROFILE_LBL}>Sex</span>
@@ -933,6 +979,8 @@ function MedicalRecords({ page }) {
           </div>
         </div>
       </div>
+
+      {renderStudentProvided()}
 
       <div className="mt-4 grid grid-cols-2 gap-4 max-[900px]:grid-cols-1">
         <div className={`${PANEL} p-5`}>
@@ -996,11 +1044,6 @@ function MedicalRecords({ page }) {
           <h3 className="m-0 mb-0.5 text-[16px] text-[#143d40]">Medical History</h3>
           <p className="m-0 text-muted">Completed consultations are added here automatically.</p>
         </div>
-        {canEdit && (
-          <button type="button" className={`${PRIMARY_BTN} min-h-[38px] text-[13px]`} onClick={() => openHistoryModal(selected)} disabled={busy}>
-            + Add Entry
-          </button>
-        )}
       </div>
       {selected.medicalHistory.length > 0 ? (
         <div className="overflow-x-auto rounded-lg border border-line">
@@ -1302,7 +1345,7 @@ function MedicalRecords({ page }) {
         <div>
           <h3 className="m-0 mb-0.5 text-[20px] text-ink">{selected.name}</h3>
           <p className="m-0 text-[12.5px] text-muted">{selected.patientId} · {selected.type} · {selected.courseDept}</p>
-          <p className="m-0 text-[12.5px] text-muted">{selected.age} years old · {selected.sex} · {selected.contact}</p>
+          <p className="m-0 text-[12.5px] text-muted">{formatAge(selected.age, 'old')} · {selected.sex} · {selected.contact || 'No contact'}</p>
         </div>
         <div className="ml-auto flex flex-col items-end gap-[6px]">
           <div className="flex items-center gap-2">
@@ -1685,72 +1728,6 @@ function MedicalRecords({ page }) {
         </div>
       )}
 
-      {/* ============ HISTORY ENTRY MODAL ============ */}
-      {historyModal && (
-        <div
-          className={MODAL_BACKDROP}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Medical history form"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !busy) setHistoryModal(null)
-          }}
-        >
-          <div className={MODAL_CARD_SM}>
-            <div className={MODAL_HEADER}>
-              <h3 className="m-0 text-[18px] text-ink">Add History Entry</h3>
-              <button type="button" className={MODAL_CLOSE} onClick={() => { if (!busy) setHistoryModal(null) }}>✕</button>
-            </div>
-            <div className={MODAL_BODY}>
-              <div className={SIDEBAR_FORM}>
-                <div className={FORM_ROW}>
-                  <label className={FORM_LABEL}>
-                    History / event *
-                    <input
-                      type="text"
-                      placeholder="e.g. Appendectomy"
-                      className={FORM_FIELD}
-                      value={historyForm.values.condition}
-                      onChange={(e) => historyForm.setValue('condition', e.target.value)}
-                      disabled={busy}
-                    />
-                  </label>
-                  <label className={FORM_LABEL}>
-                    Date
-                    <input
-                      type="date"
-                      className={FORM_FIELD}
-                      value={historyForm.values.date}
-                      onChange={(e) => historyForm.setValue('date', e.target.value)}
-                      disabled={busy}
-                    />
-                  </label>
-                </div>
-                <label className={FORM_LABEL}>
-                  Notes
-                  <textarea
-                    className={`${FORM_FIELD} min-h-20 resize-y`}
-                    value={historyForm.values.notes}
-                    onChange={(e) => historyForm.setValue('notes', e.target.value)}
-                    disabled={busy}
-                  />
-                </label>
-                {historyForm.errors.condition && <p className="mt-2 text-[12px] font-bold text-danger">{historyForm.errors.condition}</p>}
-              </div>
-            </div>
-            <div className={MODAL_FOOTER}>
-              <div className={MODAL_FOOTER_ACTIONS}>
-                <button type="button" className={PILL} onClick={() => { if (!busy) setHistoryModal(null) }} disabled={busy}>
-                  Cancel
-                </button>
-                <button type="button" className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`} onClick={handleSaveHistory} disabled={busy}>
-                  {busy ? 'Saving...' : 'Save Entry'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ============ CREATE RECORD MODAL ============ */}
       {createOpen && (

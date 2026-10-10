@@ -9,6 +9,24 @@ import { useAuth } from '../hooks/useAuth'
 
 export const AppContext = createContext(undefined)
 
+// Audit log module recorded for actions taken on each page.
+const PAGE_MODULES = {
+  dashboard: 'Appointments',
+  appointments: 'Appointments',
+  consultations: 'Consultations',
+  medicalRecords: 'Medical Records',
+  medicalCertificates: 'Medical Certificates',
+  prescriptions: 'Prescriptions',
+  patients: 'Patients',
+  staffSchedule: 'Schedules',
+  clinicStaff: 'Schedules',
+  notifications: 'Notifications',
+  reports: 'Reports',
+  users: 'Users',
+  settingsAudit: 'System Settings',
+  rolesPermissions: 'Roles & Permissions',
+}
+
 /**
  * Composition root for app-wide page/navigation state.
  *
@@ -32,11 +50,14 @@ export function AppProvider({ children }) {
 
   // Global audit trail (small, app-wide) — also the target of `log`, which
   // every page store calls after a successful mutation.
-  const { can } = useAuth()
-  const activityLogs = useActivityLogsStore({ enabled: can('audit_logs.view') })
+  // Audit logs are admin-only, so only the admin loads the trail; every
+  // staff member still writes to it.
+  const { userRole } = useAuth()
+  const activityLogs = useActivityLogsStore({ enabled: userRole === 'admin' })
+  const { addActivityLog } = activityLogs
   const log = useCallback(
-    (action) => activityLogs.addActivityLog(action).catch(() => {}),
-    [activityLogs],
+    (action, module) => addActivityLog(action, module ?? PAGE_MODULES[activePage] ?? 'System').catch(() => {}),
+    [addActivityLog, activePage],
   )
 
   const value = useMemo(

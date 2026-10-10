@@ -3,7 +3,8 @@
 // is replaced with a real API.
 
 // Each item optionally declares the permission required to see it in the
-// sidebar (module access control). The Laravel backend enforces the same
+// sidebar (module access control); `adminOnly` items are shown to the
+// administrator account only. The Laravel backend enforces the same
 // permissions on the API — hiding items here is UX only.
 export const navSections = [
   {
@@ -27,7 +28,6 @@ export const navSections = [
     items: [
       { id: 'staffSchedule', label: 'Doctor/Nurse Schedule', icon: 'clipboardClock', permission: 'schedules.view' },
       { id: 'clinicStaff', label: 'Medical Staff', icon: 'shieldUser', permission: 'schedules.view' },
-      { id: 'clinicCalendar', label: 'Clinic Calendar', icon: 'calendarDays', permission: 'calendar.view' },
     ],
   },
   {
@@ -40,7 +40,7 @@ export const navSections = [
   {
     label: 'System',
     items: [
-      { id: 'auditLogs', label: 'Audit Logs', icon: 'scrollText', permission: 'audit_logs.view' },
+      { id: 'auditLogs', label: 'Audit Logs', icon: 'scrollText', permission: 'audit_logs.view', adminOnly: true },
       { id: 'settingsAudit', label: 'System Settings', icon: 'settings', permission: 'settings.view' },
       { id: 'rolesPermissions', label: 'Roles & Permissions', icon: 'key', permission: 'roles.view' },
     ],
@@ -93,11 +93,6 @@ export const pageContent = {
     title: 'Medical Staff',
     eyebrow: 'Schedules',
     description: 'View doctors, nurses and front desk staff, their PRC licenses and credential verification.',
-  },
-  clinicCalendar: {
-    title: 'Clinic Calendar',
-    eyebrow: 'Schedules',
-    description: 'Review appointments, events, and clinic availability by date.',
   },
   reports: {
     title: 'Reports',

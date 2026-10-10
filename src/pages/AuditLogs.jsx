@@ -29,7 +29,7 @@ const MODULE_OPTIONS = [
   'System Settings',
   'Notifications',
   'Schedules',
-  'Clinic Calendar',
+  'Reports',
   'System',
 ]
 
@@ -216,6 +216,8 @@ function AuditLogs({ page }) {
         <div className="overflow-x-auto rounded-lg border border-line">
           {auditLogs.error ? (
             <ErrorState message={auditLogs.error} onRetry={auditLogs.refetch} />
+          ) : auditLogs.isLoading ? (
+            <TableSkeleton columns={6} />
           ) : (
             <table className={TABLE}>
               <thead>
@@ -229,9 +231,7 @@ function AuditLogs({ page }) {
                 </tr>
               </thead>
               <tbody>
-                {auditLogs.isLoading ? (
-                  <TableSkeleton columns={6} />
-                ) : pageItems.length === 0 ? (
+                {pageItems.length === 0 ? (
                   <tr>
                     <td colSpan="6">
                       <EmptyState

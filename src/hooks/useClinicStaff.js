@@ -34,14 +34,6 @@ export function useClinicStaffStore({ onLog } = {}, scope = 'page') {
     },
   })
 
-  const updateMutation = useMutation({
-    mutationFn: ({ id, payload }) => clinicStaffService.updateStaffProfile(id, payload),
-    onSuccess: (member) => {
-      invalidate()
-      onLogRef.current?.(`Updated professional profile of ${member.name}`)
-    },
-  })
-
   const verifyMutation = useMutation({
     mutationFn: ({ id, status, notes }) => clinicStaffService.verifyCredentials(id, { status, notes }),
     onSuccess: (member) => {
@@ -57,7 +49,6 @@ export function useClinicStaffStore({ onLog } = {}, scope = 'page') {
     refetch,
     isRefetching,
     updateMyProfile: useCallback(async (payload) => updateMineMutation.mutateAsync(payload), [updateMineMutation]),
-    updateProfile: useCallback(async (id, payload) => updateMutation.mutateAsync({ id, payload }), [updateMutation]),
     verifyCredentials: useCallback(
       async (id, status, notes = '') => verifyMutation.mutateAsync({ id, status, notes }),
       [verifyMutation],

@@ -45,8 +45,14 @@ export async function scheduleFollowUp(id, { date, time, notes = '', staffId = n
   return res.data
 }
 
+/** Deletes a consultation from the list. */
+export async function deleteConsultation(id) {
+  return request(`/consultations/${id}`, { method: 'DELETE' })
+}
+
 export const consultationsService = {
   fetchConsultations,
+  deleteConsultation,
   createConsultation,
   startConsultation,
   updateConsultation,

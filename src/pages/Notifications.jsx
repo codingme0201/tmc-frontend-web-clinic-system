@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useNotifications } from '../hooks/useNotifications'
-import { useUsersStore } from '../hooks/useUsers'
-import { useForm } from 'react-hook-form'
+import { roleLabel } from '../lib/clinic'
+import { useForm, useWatch } from 'react-hook-form'
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { usePagination } from '../hooks/usePagination'
@@ -44,32 +44,41 @@ const TYPE_DOT_COLORS = {
 
 function Notifications({ page }) {
   const { can } = useAuth()
-  const notifications = useNotifications()
-  const users = useUsersStore()
+  const canSend = can('notifications.send')
+  const canManage = can('notifications.manage')
+  const notifications = useNotifications('page', { canSend })
   const { showToast } = useToast()
   const { search, setSearch, debouncedSearch, resetSearch } = useSearch({ debounceMs: 300 })
   const [typeFilter, setTypeFilter] = useState('All')
+  // 'inbox' = notifications I received; 'sent' = notifications I sent.
+  const [view, setView] = useState('inbox')
+  const isSentView = view === 'sent'
+  const source = isSentView ? notifications.sent : notifications.data
 
   const filtered = useMemo(() => {
-    let list = notifications.data
+    let list = source
     if (debouncedSearch) {
       const q = debouncedSearch.toLowerCase()
       list = list.filter(
-        (n) => n.title?.toLowerCase().includes(q) || n.message?.toLowerCase().includes(q),
+        (n) => n.title?.toLowerCase().includes(q)
+          || n.message?.toLowerCase().includes(q)
+          || n.recipient?.name?.toLowerCase().includes(q),
       )
     }
-    if (typeFilter !== 'All') {
+    if (typeFilter === '_unread') {
+      list = list.filter((n) => !n.isRead)
+    } else if (typeFilter !== 'All') {
       list = list.filter((n) => n.type === typeFilter)
     }
     return list
-  }, [notifications.data, debouncedSearch, typeFilter])
+  }, [source, debouncedSearch, typeFilter])
 
   const pagination = usePagination(filtered, { pageSize: 10 })
   const { pageItems, resetPage, currentPage, totalPages, goToPage } = pagination
 
   useEffect(() => {
     resetPage()
-  }, [debouncedSearch, typeFilter, resetPage])
+  }, [debouncedSearch, typeFilter, view, resetPage])
 
   const busyRef = useRef(false)
   const [busy, setBusy] = useState(false)
@@ -86,22 +95,35 @@ function Notifications({ page }) {
   // Delete confirmation modal
   const [deleteTarget, setDeleteTarget] = useState(null)
 
-  const canSend = can('notifications.send')
-  const canManage = can('notifications.manage')
-
-  const userOptions = useMemo(() => users.data || [], [users.data])
+  // Recipient picker: searchable list of active users grouped by role.
+  const [recipientSearch, setRecipientSearch] = useState('')
+  const selectedRecipientId = useWatch({ control: sendForm.control, name: 'userId' })
+  const recipientGroups = useMemo(() => {
+    const q = recipientSearch.trim().toLowerCase()
+    const matches = notifications.recipients.filter((u) => !q
+      || u.name.toLowerCase().includes(q)
+      || (u.email || '').toLowerCase().includes(q)
+      || (u.patientId || '').toLowerCase().includes(q)
+      || String(u.id) === String(selectedRecipientId))
+    const order = ['student', 'doctor', 'nurse', 'front_desk', 'admin']
+    const roles = [...new Set(matches.map((u) => u.role || 'other'))]
+      .sort((a, b) => (order.indexOf(a) === -1 ? 99 : order.indexOf(a)) - (order.indexOf(b) === -1 ? 99 : order.indexOf(b)))
+    return roles.map((role) => ({ role, members: matches.filter((u) => (u.role || 'other') === role) }))
+  }, [notifications.recipients, recipientSearch, selectedRecipientId])
+  const selectedRecipient = notifications.recipients.find((u) => String(u.id) === String(selectedRecipientId)) || null
 
   // Stats
-  const allCount = notifications.data.length
-  const unreadCount = notifications.data.filter((n) => !n.isRead).length
-  const systemCount = notifications.data.filter((n) => n.type === 'system').length
-  const appointmentCount = notifications.data.filter((n) => n.type === 'appointment').length
-  const patientCount = notifications.data.filter((n) => n.type === 'patient').length
+  const allCount = source.length
+  const unreadCount = source.filter((n) => !n.isRead).length
+  const systemCount = source.filter((n) => n.type === 'system').length
+  const appointmentCount = source.filter((n) => n.type === 'appointment').length
+  const patientCount = source.filter((n) => n.type === 'patient').length
 
   // ---------- Send Notification -------------------------------------------------
 
   const openSendModal = () => {
     sendForm.reset({ userId: '', title: '', message: '', type: 'system', category: '', source: '' })
+    setRecipientSearch('')
     setSendModalOpen(true)
   }
 
@@ -114,15 +136,16 @@ function Notifications({ page }) {
     busyRef.current = true
     setBusy(true)
     try {
-      await notifications.sendNotification({
+      const sent = await notifications.sendNotification({
         userId: Number(values.userId),
-        title: values.title,
-        message: values.message,
+        title: values.title.trim(),
+        message: values.message.trim(),
         type: values.type,
         category: values.category,
         source: values.source,
       })
-      showToast('Notification sent successfully.')
+      showToast(`Notification sent to ${sent?.recipient?.name || selectedRecipient?.name || 'the selected user'}.`)
+      setView('sent')
       setSendModalOpen(false)
     } catch (err) {
       showToast(err?.message || 'Failed to send notification.', 'error')
@@ -196,7 +219,7 @@ function Notifications({ page }) {
           <span className="mt-[6px] block text-[13px] text-muted">{page.description}</span>
         </div>
         <div className="flex gap-2">
-          {unreadCount > 0 && (
+          {unreadCount > 0 && !isSentView && (
             <button type="button" className={PILL} onClick={handleMarkAllAsRead} disabled={busy}>
               Mark All Read
             </button>
@@ -208,6 +231,28 @@ function Notifications({ page }) {
           )}
         </div>
       </section>
+
+      {canSend && (
+        <div className="mb-4 inline-flex rounded-xl border border-line bg-surface p-1" role="tablist" aria-label="Notification folders">
+          {[
+            { id: 'inbox', label: 'Received' },
+            { id: 'sent', label: 'Sent' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={view === tab.id}
+              className={`cursor-pointer rounded-lg border-0 px-4 py-2 text-[13px] font-extrabold transition ${
+                view === tab.id ? 'bg-primary text-white shadow-xs' : 'bg-transparent text-muted hover:text-primary'
+              }`}
+              onClick={() => setView(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Status summary chips */}
       <div className="mb-5 grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
@@ -284,14 +329,20 @@ function Notifications({ page }) {
 
         {/* Table */}
         <div className="overflow-x-auto rounded-lg border border-line">
-          {notifications.error ? (
-            <ErrorState message={notifications.error} onRetry={notifications.refetch} />
+          {(isSentView ? notifications.sentError : notifications.error) ? (
+            <ErrorState
+              message={isSentView ? notifications.sentError : notifications.error}
+              onRetry={isSentView ? notifications.refetchSent : notifications.refetch}
+            />
+          ) : (isSentView ? notifications.sentLoading : notifications.isLoading) ? (
+            <TableSkeleton columns={6} />
           ) : (
             <table className={TABLE}>
               <thead>
                 <tr>
                   <th style={{ width: '5%' }}></th>
                   <th>Title</th>
+                  {isSentView && <th>Recipient</th>}
                   <th>Message</th>
                   <th>Type</th>
                   <th>Time</th>
@@ -299,16 +350,14 @@ function Notifications({ page }) {
                 </tr>
               </thead>
               <tbody>
-                {notifications.isLoading ? (
-                  <TableSkeleton columns={6} />
-                ) : pageItems.length === 0 ? (
+                {pageItems.length === 0 ? (
                   <tr>
-                    <td colSpan="6">
+                    <td colSpan={isSentView ? 7 : 6}>
                       <EmptyState
                         message={
                           search || typeFilter !== 'All'
                             ? 'No notifications match the current filters.'
-                            : 'No notifications yet.'
+                            : isSentView ? 'You have not sent any notifications yet.' : 'No notifications yet.'
                         }
                       />
                     </td>
@@ -317,7 +366,7 @@ function Notifications({ page }) {
                   pageItems.map((notification) => (
                     <tr
                       key={notification.id}
-                      className={!notification.isRead ? 'bg-blue-50/40' : ''}
+                      className={!notification.isRead && !isSentView ? 'bg-blue-50/40' : ''}
                     >
                       <td>
                         <span className={`inline-block size-2.5 rounded-full ${TYPE_DOT_COLORS[notification.type] || 'bg-gray-400'}`} />
@@ -327,6 +376,15 @@ function Notifications({ page }) {
                           {notification.title}
                         </strong>
                       </td>
+                      {isSentView && (
+                        <td className="whitespace-nowrap text-[13px]">
+                          <strong className="block text-ink">{notification.recipient?.name || '—'}</strong>
+                          <span className="text-[11.5px] text-muted">
+                            {notification.recipient?.role ? roleLabel(notification.recipient.role) : ''}
+                            {' · '}{notification.isRead ? 'Read' : 'Unread'}
+                          </span>
+                        </td>
+                      )}
                       <td className="max-w-[300px] truncate text-[13px] text-muted">
                         {notification.message}
                       </td>
@@ -349,7 +407,7 @@ function Notifications({ page }) {
                           >
                             View
                           </button>
-                          {!notification.isRead && (
+                          {!notification.isRead && !isSentView && (
                             <button
                               type="button"
                               className={BTN_SUCCESS}
@@ -359,7 +417,7 @@ function Notifications({ page }) {
                               Read
                             </button>
                           )}
-                          {canManage && (
+                          {(isSentView ? canSend : canManage) && (
                             <button
                               type="button"
                               className={BTN_DANGER}
@@ -405,21 +463,49 @@ function Notifications({ page }) {
             </div>
             <div className={MODAL_BODY}>
               <form className={SIDEBAR_FORM} onSubmit={submitSendForm}>
-                <label className={FORM_LABEL}>
+                <div className={FORM_LABEL}>
                   Recipient
+                  <input
+                    type="search"
+                    className={FORM_FIELD}
+                    placeholder="Search by name, email or student ID..."
+                    value={recipientSearch}
+                    onChange={(e) => setRecipientSearch(e.target.value)}
+                    disabled={busy || notifications.recipientsLoading}
+                    aria-label="Search recipients"
+                  />
                   <select
                     className={FORM_FIELD}
-                    {...sendForm.register('userId', { required: 'Recipient is required.' })}
-                    disabled={busy}
+                    size={6}
+                    {...sendForm.register('userId', { required: 'Select the user who should receive this notification.' })}
+                    disabled={busy || notifications.recipientsLoading}
+                    aria-label="Recipient"
                   >
-                    <option value="">Select a user</option>
-                    {userOptions.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name} ({u.role?.name || 'User'})
-                      </option>
+                    {recipientGroups.map((group) => (
+                      <optgroup key={group.role} label={roleLabel(group.role)}>
+                        {group.members.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name}{u.patientId ? ` · ${u.patientId}` : ''}{u.email ? ` · ${u.email}` : ''}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
-                </label>
+                  <span className="text-[12px] font-bold text-muted">
+                    {notifications.recipientsError
+                      ? notifications.recipientsError
+                      : notifications.recipientsLoading
+                        ? 'Loading users…'
+                        : selectedRecipient
+                          ? `Sending to ${selectedRecipient.name} (${roleLabel(selectedRecipient.role)})`
+                          : recipientGroups.length === 0
+                            ? 'No users match your search.'
+                            : 'Select one user from the list.'}
+                  </span>
+                  {sendForm.formState.errors.userId && (
+                    <span className="text-[12px] font-bold text-danger">{sendForm.formState.errors.userId.message}</span>
+                  )}
+                </div>
                 <label className={FORM_LABEL}>
                   Title
                   <input

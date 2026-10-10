@@ -14,6 +14,18 @@ export async function fetchUnreadCount() {
   return data.count
 }
 
+/** Active users the signed-in staff member can send a notification to. */
+export async function fetchRecipients() {
+  const res = await request('/notifications/recipients')
+  return res.data
+}
+
+/** Notifications the signed-in staff member has sent (with recipients). */
+export async function fetchSentNotifications() {
+  const res = await request('/notifications/sent')
+  return res.data
+}
+
 export async function fetchNotification(id) {
   const data = await request(`/notifications/${id}`)
   return data.data
@@ -53,6 +65,8 @@ export const notificationsService = {
   fetchNotifications,
   fetchUnreadCount,
   fetchNotification,
+  fetchRecipients,
+  fetchSentNotifications,
   sendNotification,
   markAsRead,
   markAllAsRead,

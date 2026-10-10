@@ -4,7 +4,6 @@ import { usePatients } from '../hooks/usePatients'
 import { useConsultations } from '../hooks/useConsultations'
 import { useStaff } from '../hooks/useStaff'
 import { useActivityLogs } from '../hooks/useActivityLogs'
-import { useClinicEvents } from '../hooks/useClinicEvents'
 import { useClinicInsights } from '../hooks/useClinicInsights'
 import { useQueue } from '../hooks/useQueue'
 import { useAuth } from '../hooks/useAuth'
@@ -12,7 +11,7 @@ import { useAppContext } from '../context/AppContext'
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { usePagination } from '../hooks/usePagination'
-import { formatDate, todayISO, formatPhone } from '../lib/format'
+import { todayISO, formatPhone } from '../lib/format'
 import { APPOINTMENT_TYPES, TIME_SLOTS, VISIT_TYPES, VISIT_NEW, currentSlot } from '../lib/clinic'
 import { PILL, PRIMARY_BTN, PANEL, PANEL_HEADER, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT, SIDEBAR_FORM, FORM_LABEL, FORM_FIELD, FORM_ROW } from '../lib/ui'
 import Pagination from '../components/Pagination'
@@ -33,10 +32,11 @@ import VisitTypeBadge from '../components/VisitTypeBadge'
 
 function Dashboard() {
   const [activeTab, setActiveTab] = useState('overview') // 'overview', 'appointments', 'consultations', 'patients', 'schedule', 'activity'
-  const { can } = useAuth()
+  const { can, userRole } = useAuth()
   const { navigate } = useAppContext()
   const canViewConsultations = can('consultations.view')
-  const canViewActivity = can('audit_logs.view')
+  // Audit logs are admin-only.
+  const canViewActivity = userRole === 'admin'
 
   // All data flows through shared custom hooks — the page never imports or
   // mutates shared store data directly.
@@ -76,7 +76,6 @@ function Dashboard() {
   const queue = useQueue('dashboard')
 
   const { data: activityLogs, isLoading: logsLoading, error: logsError, refetch: refetchLogs } = useActivityLogs()
-  const { data: events, isLoading: eventsLoading, error: eventsError, refetch: refetchEvents, addEvent } = useClinicEvents()
   const {
     data: clinicInsights,
     isLoading: insightsLoading,
@@ -100,7 +99,6 @@ function Dashboard() {
   const [booking, setBooking] = useState(false)
   const [logging, setLogging] = useState(false)
   const [addingPatient, setAddingPatient] = useState(false)
-  const [addingEvent, setAddingEvent] = useState(false)
   const [statusUpdating, setStatusUpdating] = useState(null) // staff name currently being toggled
 
   // Log Consultation Form State
@@ -123,11 +121,6 @@ function Dashboard() {
   const [patEmergency, setPatEmergency] = useState('')
   const [patAllergies, setPatAllergies] = useState('')
   const [patHistory, setPatHistory] = useState('')
-
-  // Add Event Form State
-  const [evtDate, setEvtDate] = useState('')
-  const [evtTitle, setEvtTitle] = useState('')
-  const [evtDesc, setEvtDesc] = useState('')
 
   // Search/Filters State
   const { search: consSearch, setSearch: setConsSearch, debouncedSearch: debouncedConsSearch } = useSearch()
@@ -262,28 +255,6 @@ function Dashboard() {
       showToast(err?.message || 'Failed to update staff status.', 'error')
     } finally {
       setStatusUpdating(null)
-    }
-  }
-
-  // Event Action
-  const handleAddEvent = async (e) => {
-    e.preventDefault()
-    if (addingEvent || !evtTitle.trim() || !evtDate.trim()) return
-    setAddingEvent(true)
-    try {
-      await addEvent({
-        start_date: evtDate,
-        title: evtTitle,
-        description: evtDesc,
-      })
-      showToast(`Clinic event scheduled: ${evtTitle}`)
-      setEvtDate('')
-      setEvtTitle('')
-      setEvtDesc('')
-    } catch (err) {
-      showToast(err?.message || 'Failed to schedule the event.', 'error')
-    } finally {
-      setAddingEvent(false)
     }
   }
 
@@ -1076,9 +1047,9 @@ function Dashboard() {
           </div>
         )}
 
-        {/* ================= STAFF SHIFTS & EVENTS ================= */}
+        {/* ================= STAFF SHIFTS ================= */}
         {activeTab === 'schedule' && (
-          <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)] gap-5 max-[980px]:grid-cols-1">
+          <div className="grid grid-cols-1 gap-5">
             {/* Left: Medical Staff Schedule Table */}
             <div className={`${PANEL} p-5`}>
               <div className={PANEL_HEADER}>
@@ -1135,91 +1106,6 @@ function Dashboard() {
                 totalPages={staffPagination.totalPages}
                 onPageChange={staffPagination.goToPage}
               />
-
-              {/* Upcoming Clinic Events List */}
-              <div className="mt-6">
-                <div className={PANEL_HEADER}>
-                  <h3 className="m-0 text-[18px] text-[#143d40]">Campus Health Campaigns & Events</h3>
-                  <p className={KICKER}>Calendar events and scheduled immunization campaigns</p>
-                </div>
-                {eventsError ? (
-                  <ErrorState message={eventsError} onRetry={refetchEvents} />
-                ) : eventsLoading ? (
-                  <ListSkeleton rows={3} />
-                ) : (
-                  <div className="mt-3 flex flex-col gap-3">
-                    {events.map((evt) => (
-                      <div className="border-l-[3px] border-primary pl-[14px]" key={evt.id}>
-                        <div className="text-[11px] font-extrabold uppercase text-primary">
-                          {evt.startDate ? formatDate(evt.startDate) : evt.date}
-                          {evt.endDate && evt.endDate !== evt.startDate ? ` – ${formatDate(evt.endDate)}` : ''}
-                          {evt.type ? ` · ${evt.type}` : ''}
-                        </div>
-                        <div>
-                          <h4 className="my-[3px] text-[14px] text-ink">{evt.title}</h4>
-                          <p className="m-0 text-[12.5px] text-muted">{evt.description}</p>
-                        </div>
-                      </div>
-                    ))}
-                    {events.length === 0 && (
-                      <EmptyState message="No campus health events scheduled." />
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Right: Schedule New Campus Event Form */}
-            <div className={`${PANEL} self-start p-5`}>
-              <h3 className="m-0 text-[18px] text-[#143d40]">Schedule Clinic Event</h3>
-              <p className="mt-0.5 text-[12px] text-muted">Broadcast health event details to campus</p>
-
-              <form onSubmit={handleAddEvent} className={SIDEBAR_FORM}>
-                <label className={FORM_LABEL}>
-                  Event Date
-                  <input
-                    type="date"
-                    min={todayISO()}
-                    value={evtDate}
-                    onChange={(e) => setEvtDate(e.target.value)}
-                    required
-                    className={FORM_FIELD}
-                  />
-                </label>
-
-                <label className={FORM_LABEL}>
-                  Event Title
-                  <input
-                    type="text"
-                    placeholder="e.g. Dental Checkup Week"
-                    value={evtTitle}
-                    onChange={(e) => setEvtTitle(e.target.value)}
-                    required
-                    className={FORM_FIELD}
-                  />
-                </label>
-
-                <label className={FORM_LABEL}>
-                  Description
-                  <textarea
-                    placeholder="Details about the campaign, venue, requirements..."
-                    value={evtDesc}
-                    onChange={(e) => setEvtDesc(e.target.value)}
-                    required
-                    className={`${FORM_FIELD} min-h-20 resize-y`}
-                  />
-                </label>
-
-                <button type="submit" className={`${PRIMARY_BTN} w-full`} disabled={addingEvent}>
-                  {addingEvent ? (
-                    <>
-                      <InlineSpinner />Scheduling...
-                    </>
-                  ) : (
-                    'Schedule Event'
-                  )}
-                </button>
-              </form>
             </div>
           </div>
         )}

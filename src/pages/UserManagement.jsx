@@ -31,8 +31,12 @@ const MODAL_BODY = 'flex-1 overflow-y-auto p-5'
 const MODAL_FOOTER = 'flex justify-end border-t border-line bg-[#fafcfb] p-[14px_20px]'
 const MODAL_FOOTER_ACTIONS = 'flex flex-wrap items-center justify-end gap-2'
 
+// Only these accounts can be activated/deactivated — never the admin account.
+const STATUS_TOGGLE_ROLES = ['doctor', 'nurse', 'front_desk']
+
 function UserManagement({ page }) {
-  const { can } = useAuth()
+  const { can, user: authUser } = useAuth()
+  const canToggleStatus = (u) => STATUS_TOGGLE_ROLES.includes(u.role?.name) && u.id !== authUser?.id
   const users = useUsersStore()
   const roles = useRoles()
   const patients = usePatients()
@@ -124,6 +128,8 @@ function UserManagement({ page }) {
   const roleOptions = useMemo(() => {
     return roles.data || []
   }, [roles.data])
+  // There is exactly one admin account — new or re-assigned accounts can't be admins.
+  const assignableRoles = useMemo(() => roleOptions.filter((r) => r.name !== 'admin'), [roleOptions])
 
   const watchedRoleId = useWatch({ control: userForm.control, name: 'role_id' })
   const selectedRole = useMemo(() => {
@@ -489,13 +495,15 @@ function UserManagement({ page }) {
                               <button type="button" className={BTN_INFO} onClick={() => openEdit(user)}>
                                 Edit
                               </button>
-                              <button type="button" className={BTN_PRIMARY} onClick={() => openRoleModal(user)}>
-                                Role
-                              </button>
+                              {user.role?.name !== 'admin' && (
+                                <button type="button" className={BTN_PRIMARY} onClick={() => openRoleModal(user)}>
+                                  Role
+                                </button>
+                              )}
                               <button type="button" className={BTN_SUCCESS} onClick={() => openPasswordModal(user)}>
                                 Password
                               </button>
-                              {user.status === 'active' ? (
+                              {canToggleStatus(user) && (user.status === 'active' ? (
                                 <button type="button" className={BTN_DANGER} onClick={() => setDeactivateTarget(user)}>
                                   Deactivate
                                 </button>
@@ -503,10 +511,10 @@ function UserManagement({ page }) {
                                 <button type="button" className={BTN_SUCCESS} onClick={() => setActivateTarget(user)}>
                                   Activate
                                 </button>
-                              )}
+                              ))}
                             </>
                           )}
-                          {canDelete && (
+                          {canDelete && user.role?.name !== 'admin' && user.id !== authUser?.id && (
                             <button type="button" className={BTN_DANGER} onClick={() => setDeleteTarget(user)}>
                               Delete
                             </button>
@@ -555,10 +563,11 @@ function UserManagement({ page }) {
                   <select
                     className={FORM_FIELD}
                     {...userForm.register('role_id', { required: 'Role is required.' })}
-                    disabled={busy}
+                    disabled={busy || !!editing}
+                    title={editing ? 'Use the Role button to change the role.' : undefined}
                   >
                     <option value="">Select a role</option>
-                    {roleOptions.map((r) => (
+                    {(editing ? roleOptions : assignableRoles).map((r) => (
                       <option key={r.id} value={r.id}>
                         {roleLabel(r.name)}
                       </option>
@@ -854,7 +863,7 @@ function UserManagement({ page }) {
                   disabled={busy}
                 >
                   <option value="">Select a role</option>
-                  {roleOptions.map((r) => (
+                  {assignableRoles.map((r) => (
                     <option key={r.id} value={r.id}>
                       {roleLabel(r.name)}
                       {r.description ? ` — ${r.description}` : ''}

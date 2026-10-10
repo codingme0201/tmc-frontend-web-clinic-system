@@ -4,6 +4,8 @@ import { todayISO } from '../lib/format'
 import { FORM_LABEL, FORM_FIELD, FORM_ROW, PILL, PRIMARY_BTN } from '../lib/ui'
 import InlineSpinner from './Spinner'
 import StudentSelect from './StudentSelect'
+import ClinicianSelect from './ClinicianSelect'
+import { useEligibleStaff } from '../hooks/useStaffSchedules'
 
 const MODAL_CARD = 'flex max-h-[90vh] w-[min(650px,100%)] animate-modal-scale flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgba(8,20,20,0.22)]'
 const MODAL_CARD_WIDE = MODAL_CARD + ' w-[min(860px,100%)]'
@@ -119,7 +121,6 @@ function PrescriptionForm({
   initialValues,
   patients,
   consultations,
-  staff,
   busy,
   submitLabel,
   onSubmit,
@@ -131,6 +132,7 @@ function PrescriptionForm({
       const errors = {}
       if (!values.patient) errors.patient = 'Select a patient'
       if (!values.date) errors.date = 'Prescription date is required'
+      if (!values.prescribed_by_id) errors.prescribed_by_id = 'Select the prescribing doctor'
 
       const medications = values.medications ?? []
       if (medications.length === 0) {
@@ -144,6 +146,9 @@ function PrescriptionForm({
       return errors
     },
   })
+
+  const { data: clinicians = [] } = useEligibleStaff()
+  const doctors = useMemo(() => clinicians.filter((c) => c.role?.name === 'doctor'), [clinicians])
 
   // Consultations the prescription may be written during or after — only
   // visits that have actually started (In Progress / Completed) qualify.
@@ -172,12 +177,14 @@ function PrescriptionForm({
 
   const handleConsultationChange = (consultationId) => {
     const consultation = patientConsults.find((c) => String(c.id) === String(consultationId))
+    const attendingDoctor = doctors.find((d) => d.id === consultation?.staffId)
     form.setValues({
       ...form.values,
       consultation_id: consultation ? consultation.id : '',
-      // Prefill the prescriber from the consultation's attending staff when
+      // Prefill the prescriber from the consultation's attending doctor when
       // none has been chosen yet.
-      prescribed_by: consultation?.staff || form.values.prescribed_by,
+      prescribed_by_id: form.values.prescribed_by_id || attendingDoctor?.id || '',
+      prescribed_by: form.values.prescribed_by_id ? form.values.prescribed_by : attendingDoctor?.name || '',
     })
   }
 
@@ -231,6 +238,7 @@ function PrescriptionForm({
       patient: form.values.patient,
       patient_id: finalPatientId,
       consultation_id: form.values.consultation_id || null,
+      prescribed_by_id: form.values.prescribed_by_id ? Number(form.values.prescribed_by_id) : null,
       prescribed_by: form.values.prescribed_by,
       date: form.values.date || todayISO(),
       medications: form.values.medications.map((med) => ({
@@ -312,20 +320,19 @@ function PrescriptionForm({
 
             <div className={FORM_ROW}>
               <label className={FORM_LABEL}>
-                <span>Prescribed By</span>
-                <select
-                  className={FORM_FIELD}
-                  value={form.values.prescribed_by}
-                  onChange={(e) => form.setValue('prescribed_by', e.target.value)}
+                <span>Prescribed By (Doctor) *</span>
+                <ClinicianSelect
+                  roles={['doctor']}
+                  value={form.values.prescribed_by_id}
+                  onChange={(id, doctor) => form.setValues({
+                    ...form.values,
+                    prescribed_by_id: id || '',
+                    prescribed_by: doctor?.name || '',
+                  })}
+                  unassignedLabel="— Select a doctor —"
                   disabled={busy}
-                >
-                  <option value="">— Select medical personnel —</option>
-                  {staff.map((m) => (
-                    <option key={m.name} value={m.name}>
-                      {m.name} — {m.role}
-                    </option>
-                  ))}
-                </select>
+                />
+                {form.errors.prescribed_by_id && <span className={FIELD_ERROR}>{form.errors.prescribed_by_id}</span>}
               </label>
               <label className={FORM_LABEL}>
                 <span>Prescription Date *</span>

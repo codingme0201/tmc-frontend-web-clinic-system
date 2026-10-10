@@ -34,10 +34,12 @@ const PROFILE_VAL = 'm-0 text-[14px] font-bold text-ink'
 const CARD = 'rounded-lg border border-line p-[14px_16px]'
 
 const CLINIC_ROLES = ['doctor', 'nurse', 'front_desk']
+// Only doctors and nurses edit a profile — and only their own.
+const SELF_EDIT_ROLES = ['doctor', 'nurse']
 const CREDENTIAL_STATUSES = ['Not Submitted', 'Pending Verification', 'Verified', 'Rejected']
 
 const EMPTY_PROFILE = {
-  position: '', specialization: '', contactNumber: '', licenseType: '', licenseNumber: '',
+  position: '', specialization: '', background: '', contactNumber: '', licenseType: '', licenseNumber: '',
   licenseIssuedAt: '', licenseExpiresAt: '', otherCredentials: '',
 }
 
@@ -45,6 +47,7 @@ function profileToForm(member) {
   return {
     position: member.position || '',
     specialization: member.specialization || '',
+    background: member.background || '',
     contactNumber: member.contactNumber || '',
     licenseType: member.credentials.licenseType || '',
     licenseNumber: member.credentials.licenseNumber || '',
@@ -59,7 +62,7 @@ function ClinicStaff({ page }) {
   const staff = useClinicStaff()
   const { showToast } = useToast()
   const canManage = can('users.update')
-  const isClinicStaff = CLINIC_ROLES.includes(userRole)
+  const canEditOwn = SELF_EDIT_ROLES.includes(userRole)
 
   const { search, setSearch, debouncedSearch, resetSearch } = useSearch({ debounceMs: 300 })
   const [roleFilter, setRoleFilter] = useState('All')
@@ -110,6 +113,7 @@ function ClinicStaff({ page }) {
   const myEntry = staff.data.find((m) => m.id === user?.id) || null
 
   const openEdit = (member) => {
+    if (member.id !== user?.id) return
     setEditTarget(member)
     profileForm.reset(profileToForm(member))
   }
@@ -128,9 +132,7 @@ function ClinicStaff({ page }) {
         licenseIssuedAt: values.licenseIssuedAt || null,
         licenseExpiresAt: values.licenseExpiresAt || null,
       }
-      const saved = editTarget.id === user?.id
-        ? await staff.updateMyProfile(payload)
-        : await staff.updateProfile(editTarget.id, payload)
+      const saved = await staff.updateMyProfile(payload)
       showToast(
         saved.credentials.status === 'Pending Verification'
           ? 'Profile saved. The license was sent to the administrator for verification.'
@@ -193,9 +195,9 @@ function ClinicStaff({ page }) {
           <h2 className="m-0 text-[clamp(30px,5vw,48px)] leading-[1.02] text-ink">{page.title}</h2>
           <span className="mt-[6px] block text-[13px] text-muted">{page.description}</span>
         </div>
-        {isClinicStaff && myEntry && (
+        {canEditOwn && myEntry && (
           <button type="button" className={PRIMARY_BTN} onClick={() => openEdit(myEntry)}>
-            My Credentials
+            Edit My Profile
           </button>
         )}
       </section>
@@ -289,7 +291,7 @@ function ClinicStaff({ page }) {
                     <td>
                       <div className="flex flex-wrap gap-[6px]">
                         <button type="button" className={BTN_VIEW} onClick={() => setViewId(m.id)}>View</button>
-                        {(canManage || m.id === user?.id) && (
+                        {canEditOwn && m.id === user?.id && (
                           <button type="button" className={BTN_INFO} onClick={() => openEdit(m)}>Edit</button>
                         )}
                         {canManage && m.role !== 'front_desk' && m.credentials.licenseNumber && m.credentials.status !== 'Verified' && (
@@ -337,6 +339,15 @@ function ClinicStaff({ page }) {
                     <div><span className={PROFILE_LBL}>Contact</span><p className={PROFILE_VAL}>{member.contactNumber || '—'}</p></div>
                     <div><span className={PROFILE_LBL}>Account</span><p className={PROFILE_VAL}><StatusBadge status={member.status} /></p></div>
                   </div>
+
+                  {member.role !== 'front_desk' && (
+                    <section className={CARD}>
+                      <h4 className="m-0 mb-2 text-[12px] uppercase tracking-[0.02em] text-ink">Background</h4>
+                      <p className="m-0 whitespace-pre-line text-[13px] text-ink">
+                        {member.background || <span className="text-muted">No background information provided yet.</span>}
+                      </p>
+                    </section>
+                  )}
 
                   {member.role !== 'front_desk' && (
                     <section className={CARD}>
@@ -411,7 +422,7 @@ function ClinicStaff({ page }) {
             </div>
             <div className={MODAL_FOOTER}>
               <div className={MODAL_FOOTER_ACTIONS}>
-                {member && (canManage || member.id === user?.id) && (
+                {member && canEditOwn && member.id === user?.id && (
                   <button type="button" className={BTN_INFO} onClick={() => { setViewId(null); openEdit(member) }}>Edit</button>
                 )}
                 {member && canManage && member.role !== 'front_desk' && member.credentials.licenseNumber && member.credentials.status !== 'Verified' && (
@@ -431,7 +442,7 @@ function ClinicStaff({ page }) {
           <div className={MODAL_CARD}>
             <div className={MODAL_HEADER}>
               <h3 className="m-0 text-[18px] text-ink">
-                {editTarget.id === user?.id ? 'My Profile & Credentials' : `Profile & Credentials — ${editTarget.name}`}
+                My Profile &amp; Credentials
               </h3>
               <button type="button" className={MODAL_CLOSE} onClick={() => { if (!busy) setEditTarget(null) }}>✕</button>
             </div>
@@ -447,6 +458,16 @@ function ClinicStaff({ page }) {
                     <input type="text" className={FORM_FIELD} placeholder="e.g. Family Medicine" {...profileForm.register('specialization')} disabled={busy} />
                   </label>
                 </div>
+                <label className={FORM_LABEL}>
+                  Background (education, training, experience)
+                  <textarea
+                    className={`${FORM_FIELD} min-h-24 resize-y`}
+                    placeholder="e.g. Doctor of Medicine, UST (2012). 10 years in family and school medicine."
+                    maxLength={3000}
+                    {...profileForm.register('background')}
+                    disabled={busy}
+                  />
+                </label>
                 <label className={FORM_LABEL}>
                   Contact Number
                   <input type="text" className={FORM_FIELD} placeholder="e.g. 0917-123-4567" {...profileForm.register('contactNumber')} disabled={busy} />
