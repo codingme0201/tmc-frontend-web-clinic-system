@@ -3,10 +3,12 @@ import Topbar from '../components/Topbar'
 import MobileBottomNav from '../components/MobileBottomNav'
 import BackendStatusBanner from '../components/BackendStatusBanner'
 import { useToggle } from '../hooks/useToggle'
+import { useLiveSync } from '../hooks/useLiveSync'
 
 function AdminLayout({ children }) {
   const [desktopCollapsed, toggleDesktopCollapsed] = useToggle(false)
   const [mobileOpen, toggleMobile, , closeMobile] = useToggle(false)
+  useLiveSync()
 
   const toggleSidebar = () => {
     if (window.innerWidth <= 980) {

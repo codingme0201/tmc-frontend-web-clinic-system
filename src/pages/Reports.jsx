@@ -27,27 +27,19 @@ const CONSULTATION_STATUSES = ['All', 'Scheduled', 'In Progress', 'Completed']
 const CERTIFICATE_STATUSES = ['All', 'Pending', 'Approved', 'Issued', 'Rejected', 'Void']
 const PATIENT_TYPES = ['All', 'Student']
 const PATIENT_STATUSES = ['All', 'Active', 'Inactive']
+const EMPTY_FILTERS = { start_date: '', end_date: '', status: 'All', patient: '', staff: '', type: 'All' }
+
+const STATUS_PILL = 'inline-block rounded-full px-2 py-0.5 text-[11px] font-bold'
 
 function Reports({ page }) {
   const { can } = useAuth()
   const reports = useReports()
   const { showToast } = useToast()
 
-  const form = useForm({
-    defaultValues: {
-      start_date: '',
-      end_date: '',
-      status: 'All',
-      patient: '',
-      staff: '',
-      type: 'All',
-    },
-  })
+  const form = useForm({ defaultValues: EMPTY_FILTERS })
 
   const busyRef = useRef(false)
   const [busy, setBusy] = useState(false)
-
-  const [showStats, setShowStats] = useState(false)
 
   const pagination = usePagination(reports.reportData, { pageSize: 15 })
   const { pageItems, currentPage, totalPages, goToPage } = pagination
@@ -56,7 +48,7 @@ function Reports({ page }) {
 
   const needsDateRange = ['appointments', 'consultations', 'medical-certificates', 'prescriptions'].includes(reports.activeReport)
   const needsStatusFilter = ['appointments', 'consultations', 'medical-certificates'].includes(reports.activeReport)
-  const needsPatientFilter = ['appointments', 'consultations', 'patients', 'medical-certificates', 'prescriptions'].includes(reports.activeReport)
+  const needsPatientFilter = ['appointments', 'consultations', 'medical-certificates', 'prescriptions'].includes(reports.activeReport)
   const needsStaffFilter = ['appointments', 'consultations', 'medical-certificates', 'prescriptions'].includes(reports.activeReport)
   const needsTypeFilter = reports.activeReport === 'appointments' || reports.activeReport === 'patients'
 
@@ -65,6 +57,7 @@ function Reports({ page }) {
       case 'appointments': return APPOINTMENT_STATUSES
       case 'consultations': return CONSULTATION_STATUSES
       case 'medical-certificates': return CERTIFICATE_STATUSES
+      case 'patients': return PATIENT_STATUSES
       default: return ['All']
     }
   })()
@@ -76,8 +69,6 @@ function Reports({ page }) {
       default: return ['All']
     }
   })()
-
-  const patientStatusOptions = reports.activeReport === 'patients' ? PATIENT_STATUSES : ['All']
 
   const handleGenerate = async (values) => {
     if (busyRef.current) return
@@ -93,25 +84,10 @@ function Reports({ page }) {
       if (values.type && values.type !== 'All') filterState.type = values.type
 
       reports.generateReport(reports.activeReport, filterState)
-    } finally {
-      busyRef.current = false
-      setBusy(false)
-    }
-  }
-
-  const handleGenerateStats = async () => {
-    if (busyRef.current) return
-    busyRef.current = true
-    setBusy(true)
-    try {
-      const values = form.getValues()
-      const filterState = {}
-      if (values.start_date) filterState.start_date = values.start_date
-      if (values.end_date) filterState.end_date = values.end_date
-      reports.generateStats(filterState)
-      setShowStats(true)
-    } catch (err) {
-      showToast(err?.message || 'Failed to load statistics.', 'error')
+      const statsFilters = {}
+      if (filterState.start_date) statsFilters.start_date = filterState.start_date
+      if (filterState.end_date) statsFilters.end_date = filterState.end_date
+      reports.generateStats(statsFilters)
     } finally {
       busyRef.current = false
       setBusy(false)
@@ -138,123 +114,102 @@ function Reports({ page }) {
   }
 
   const resetFilters = () => {
-    form.reset({ start_date: '', end_date: '', status: 'All', patient: '', staff: '', type: 'All' })
+    form.reset(EMPTY_FILTERS)
     reports.generateReport(reports.activeReport, {})
+    reports.generateStats({})
+  }
+
+  const selectReport = (id) => {
+    if (id === reports.activeReport) return
+    form.reset(EMPTY_FILTERS)
+    reports.generateReport(id, {})
+    reports.generateStats({})
   }
 
   const colCount = reports.activeReport === 'prescriptions' ? 5 : 7
 
-  const statCards = [
-    { label: 'Appointments', value: reports.statsData?.appointments?.total ?? 0 },
-    { label: 'Consultations', value: reports.statsData?.consultations?.total ?? 0 },
-    { label: 'Completed Consults', value: reports.statsData?.consultations?.completed ?? 0 },
-    { label: 'Patients', value: reports.statsData?.patients?.total ?? 0 },
-    { label: 'Active Patients', value: reports.statsData?.patients?.active ?? 0 },
-    { label: 'Med. Certificates', value: reports.statsData?.medicalCertificates?.total ?? 0 },
-    { label: 'Issued Certificates', value: reports.statsData?.medicalCertificates?.issued ?? 0 },
-    { label: 'Prescriptions', value: reports.statsData?.prescriptions?.total ?? 0 },
-  ]
-  const breakdowns = [
-    { title: 'Appointment Status Breakdown', data: reports.statsData?.appointments?.byStatus },
-    { title: 'Appointment Type Breakdown', data: reports.statsData?.appointments?.byType },
-  ].filter((b) => b.data && Object.keys(b.data).length > 0)
+  const stats = reports.statsData
+  const cardStats = {
+    appointments: { value: stats?.appointments?.total, sub: `${stats?.appointments?.byStatus?.Completed ?? 0} completed` },
+    consultations: { value: stats?.consultations?.total, sub: `${stats?.consultations?.completed ?? 0} completed` },
+    patients: { value: stats?.patients?.total, sub: `${stats?.patients?.active ?? 0} active` },
+    'medical-certificates': { value: stats?.medicalCertificates?.total, sub: `${stats?.medicalCertificates?.issued ?? 0} issued` },
+    prescriptions: { value: stats?.prescriptions?.total, sub: 'All prescriptions' },
+  }
+
+  const breakdowns = (() => {
+    switch (reports.activeReport) {
+      case 'appointments':
+        return [
+          { title: 'By Status', data: stats?.appointments?.byStatus },
+          { title: 'By Type', data: stats?.appointments?.byType },
+        ]
+      case 'consultations':
+        return [{ title: 'By Status', data: stats?.consultations?.byStatus }]
+      default:
+        return []
+    }
+  })().filter((b) => b.data && Object.keys(b.data).length > 0)
+
+  const rangeLabel = reports.filters.start_date || reports.filters.end_date
+    ? `${reports.filters.start_date || '…'} – ${reports.filters.end_date || '…'}`
+    : 'All dates'
 
   return (
     <div>
-      {/* Page header */}
-      <section className="mb-5 flex flex-wrap items-center justify-between gap-4">
+      <section className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className={KICKER}>{page.eyebrow}</p>
           <h2 className="m-0 text-[clamp(30px,5vw,48px)] leading-[1.02] text-ink">{page.title}</h2>
           <span className="mt-[6px] block text-[13px] text-muted">{page.description}</span>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className={PILL} onClick={showStats ? () => setShowStats(false) : handleGenerateStats} disabled={busy}>
-            <Icon name="barChart" size={15} />
-            {showStats ? 'Hide Statistics' : 'Clinic Statistics'}
+        {can('reports.export') && (
+          <button
+            type="button"
+            className={PRIMARY_BTN}
+            onClick={handleExport}
+            disabled={busy || !reports.reportData.length}
+          >
+            {busy ? <InlineSpinner /> : <Icon name="download" size={16} />}
+            Export {activeReport.label} CSV
           </button>
-          {can('reports.export') && (
-            <button
-              type="button"
-              className={PRIMARY_BTN}
-              onClick={handleExport}
-              disabled={busy || !reports.reportData.length}
-            >
-              {busy ? <InlineSpinner /> : <Icon name="download" size={16} />}
-              Export CSV
-            </button>
-          )}
-        </div>
+        )}
       </section>
 
-      {/* Report type selector — one horizontal row (scrolls on small screens) */}
-      <div className="mb-5 overflow-x-auto">
-        <div className="inline-flex min-w-full gap-1 rounded-2xl border border-line bg-surface p-1.5" role="tablist" aria-label="Report type">
-          {REPORT_TYPES.map((rt) => {
-            const active = reports.activeReport === rt.id
-            return (
-              <button
-                type="button"
-                role="tab"
-                aria-selected={active}
-                key={rt.id}
-                title={rt.description}
-                className={`flex flex-1 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl border-0 px-4 py-2.5 text-[13px] font-extrabold transition ${
-                  active ? 'bg-primary text-white shadow-xs' : 'bg-transparent text-muted hover:bg-white hover:text-primary'
-                }`}
-                onClick={() => {
-                  reports.generateReport(rt.id, {})
-                  form.reset({ start_date: '', end_date: '', status: 'All', patient: '', staff: '', type: 'All' })
-                }}
-              >
-                <Icon name={rt.icon} size={17} />
-                {rt.label}
-              </button>
-            )
-          })}
-        </div>
+      <div className="mb-5 grid grid-cols-5 gap-3 max-[1180px]:grid-cols-3 max-[700px]:grid-cols-2 max-[440px]:grid-cols-1" role="tablist" aria-label="Report type">
+        {REPORT_TYPES.map((rt) => {
+          const active = reports.activeReport === rt.id
+          const card = cardStats[rt.id]
+          return (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={active}
+              key={rt.id}
+              title={rt.description}
+              onClick={() => selectReport(rt.id)}
+              className={`flex cursor-pointer items-center gap-3 rounded-xl border bg-white p-[14px_16px] text-left transition-all duration-200 ${
+                active
+                  ? 'border-primary bg-[#f0faf8] shadow-[inset_0_0_0_1px_var(--color-primary)]'
+                  : 'border-line-strong hover:border-primary'
+              }`}
+            >
+              <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg ${active ? 'bg-primary text-white' : 'bg-[#e8f3f0] text-primary'}`}>
+                <Icon name={rt.icon} size={19} />
+              </span>
+              <span className="min-w-0">
+                <small className="block truncate text-[11px] font-extrabold uppercase tracking-[0.02em] text-muted">{rt.label}</small>
+                <strong className="block text-[24px] leading-tight text-ink">
+                  {reports.statsLoading ? '…' : (card.value ?? 0)}
+                </strong>
+                <span className="block truncate text-[11.5px] font-bold text-muted-soft">{card.sub}</span>
+              </span>
+            </button>
+          )
+        })}
       </div>
 
-      {/* Statistics panel — stat cards in one row, breakdowns side by side */}
-      {showStats && reports.statsData && (
-        <div className={`${PANEL} mb-5 p-5`}>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="m-0 text-[16px] font-bold text-ink">Clinic Statistics</h3>
-            <span className="text-[12px] font-bold text-muted">
-              {form.getValues('start_date') || form.getValues('end_date')
-                ? `${form.getValues('start_date') || '…'} – ${form.getValues('end_date') || '…'}`
-                : 'All dates'}
-            </span>
-          </div>
-          <div className="grid grid-cols-8 gap-3 max-[1280px]:grid-cols-4 max-[620px]:grid-cols-2">
-            {statCards.map((stat) => (
-              <div key={stat.label} className="rounded-xl border border-line bg-bg p-3 text-center">
-                <p className="m-0 text-[24px] font-extrabold leading-tight text-primary">{stat.value}</p>
-                <p className="m-0 mt-1 text-[10.5px] font-bold uppercase tracking-wide text-muted">{stat.label}</p>
-              </div>
-            ))}
-          </div>
-          {breakdowns.length > 0 && (
-            <div className="mt-4 grid grid-cols-2 gap-4 max-[900px]:grid-cols-1">
-              {breakdowns.map((b) => (
-                <div key={b.title} className="rounded-xl border border-line p-4">
-                  <h4 className="m-0 mb-2 text-[13px] font-bold text-ink">{b.title}</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {Object.entries(b.data).map(([label, count]) => (
-                      <span key={label} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-3 py-1 text-[12px] font-bold text-ink">
-                        {label}: <span className="text-primary">{count}</span>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Filter bar — all filters on one horizontal row, actions aligned right */}
-      <div className={`${PANEL} p-5`}>
+      <div className={`${PANEL} p-[16px_20px]`}>
         <form onSubmit={submitForm} className="flex flex-wrap items-end gap-3">
           {needsDateRange && (
             <>
@@ -269,28 +224,14 @@ function Reports({ page }) {
             </>
           )}
 
-          {needsStatusFilter && (
+          {(needsStatusFilter || reports.activeReport === 'patients') && (
             <label className={`${FORM_LABEL} w-[170px] max-[620px]:w-full`}>
-              Status
+              {reports.activeReport === 'patients' ? 'Patient Status' : 'Status'}
               <select className={FORM_FIELD} {...form.register('status')}>
                 {statusOptions.map((s) => (
                   <option key={s} value={s}>{s === 'All' ? 'All Statuses' : s}</option>
                 ))}
               </select>
-            </label>
-          )}
-
-          {needsPatientFilter && reports.activeReport !== 'patients' && (
-            <label className={`${FORM_LABEL} min-w-[180px] flex-1 max-[620px]:w-full`}>
-              Patient
-              <input type="text" placeholder="Name or ID..." className={FORM_FIELD} {...form.register('patient')} />
-            </label>
-          )}
-
-          {needsStaffFilter && (
-            <label className={`${FORM_LABEL} min-w-[160px] flex-1 max-[620px]:w-full`}>
-              Staff
-              <input type="text" placeholder="Doctor / nurse..." className={FORM_FIELD} {...form.register('staff')} />
             </label>
           )}
 
@@ -305,14 +246,17 @@ function Reports({ page }) {
             </label>
           )}
 
-          {reports.activeReport === 'patients' && (
-            <label className={`${FORM_LABEL} w-[170px] max-[620px]:w-full`}>
-              Patient Status
-              <select className={FORM_FIELD} {...form.register('status')}>
-                {patientStatusOptions.map((s) => (
-                  <option key={s} value={s}>{s === 'All' ? 'All Statuses' : s}</option>
-                ))}
-              </select>
+          {needsPatientFilter && (
+            <label className={`${FORM_LABEL} min-w-[180px] flex-1 max-[620px]:w-full`}>
+              Patient
+              <input type="text" placeholder="Name or ID..." className={FORM_FIELD} {...form.register('patient')} />
+            </label>
+          )}
+
+          {needsStaffFilter && (
+            <label className={`${FORM_LABEL} min-w-[160px] flex-1 max-[620px]:w-full`}>
+              Staff
+              <input type="text" placeholder="Doctor / nurse..." className={FORM_FIELD} {...form.register('staff')} />
             </label>
           )}
 
@@ -328,200 +272,227 @@ function Reports({ page }) {
         </form>
       </div>
 
-      {/* Report table */}
-      <div className={`${PANEL} mt-5 p-5`}>
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="m-0 text-[16px] font-bold text-ink">{activeReport.label} Report</h3>
-          <span className="text-[12.5px] font-bold text-muted">
-            {reports.reportData.length} record{reports.reportData.length !== 1 ? 's' : ''}
-          </span>
-        </div>
+      <div className={`mt-5 grid gap-5 ${breakdowns.length > 0 ? 'grid-cols-[minmax(0,1fr)_280px] max-[1180px]:grid-cols-1' : 'grid-cols-1'}`}>
+        <div className={`${PANEL} min-w-0 p-5`}>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="m-0 text-[16px] font-bold text-ink">{activeReport.label} Report</h3>
+              <p className="m-0 text-[12px] text-muted">{activeReport.description} · {rangeLabel}</p>
+            </div>
+            <span className="rounded-full border border-line bg-[#f4faf8] px-3 py-1 text-[12px] font-bold text-muted">
+              {reports.reportData.length} record{reports.reportData.length !== 1 ? 's' : ''}
+            </span>
+          </div>
 
-        <div className="overflow-x-auto rounded-lg border border-line">
-          {reports.reportError ? (
-            <ErrorState message={reports.reportError} onRetry={reports.refetchReport} />
-          ) : reports.reportLoading ? (
-            <TableSkeleton columns={colCount} />
-          ) : pageItems.length === 0 ? (
-            <table className={TABLE}>
-              <tbody>
-                <tr>
-                  <td colSpan={colCount}>
-                    <EmptyState message="No report records found. Try adjusting the filters above." />
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          ) : (
-            <table className={TABLE}>
-              <thead>
-                <tr>
-                  {reports.activeReport === 'appointments' && (
-                    <>
-                      <th>Reference</th>
-                      <th>Patient</th>
-                      <th>Staff</th>
-                      <th>Type</th>
-                      <th>Date</th>
-                      <th>Time</th>
-                      <th>Status</th>
-                    </>
-                  )}
-                  {reports.activeReport === 'consultations' && (
-                    <>
-                      <th>Reference</th>
-                      <th>Patient</th>
-                      <th>Staff</th>
-                      <th>Date</th>
-                      <th>Status</th>
-                      <th>Chief Complaint</th>
-                      <th>Diagnosis</th>
-                    </>
-                  )}
-                  {reports.activeReport === 'patients' && (
-                    <>
-                      <th>Patient ID</th>
-                      <th>Name</th>
-                      <th>Category</th>
-                      <th>Course/Dept</th>
-                      <th>Contact</th>
-                      <th>Status</th>
-                      <th>Visits</th>
-                    </>
-                  )}
-                  {reports.activeReport === 'medical-certificates' && (
-                    <>
-                      <th>Reference</th>
-                      <th>Patient</th>
-                      <th>Purpose</th>
-                      <th>Diagnosis</th>
-                      <th>Issued By</th>
-                      <th>Issue Date</th>
-                      <th>Status</th>
-                    </>
-                  )}
-                  {reports.activeReport === 'prescriptions' && (
-                    <>
-                      <th>Reference</th>
-                      <th>Patient</th>
-                      <th>Prescribed By</th>
-                      <th>Date</th>
-                      <th>Medications</th>
-                    </>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {pageItems.map((row) => (
-                  <tr key={row.id}>
+          <div className="overflow-x-auto rounded-lg border border-line">
+            {reports.reportError ? (
+              <ErrorState message={reports.reportError} onRetry={reports.refetchReport} />
+            ) : reports.reportLoading ? (
+              <TableSkeleton columns={colCount} />
+            ) : pageItems.length === 0 ? (
+              <EmptyState message="No report records found. Try adjusting the filters above." />
+            ) : (
+              <table className={TABLE}>
+                <thead>
+                  <tr>
                     {reports.activeReport === 'appointments' && (
                       <>
-                        <td className="font-bold text-ink">{row.reference}</td>
-                        <td>{row.patient}</td>
-                        <td>{row.staff}</td>
-                        <td>{row.type}</td>
-                        <td>{row.date}</td>
-                        <td>{row.time}</td>
-                        <td>
-                          <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                            row.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' :
-                            row.status === 'Cancelled' || row.status === 'Rejected' ? 'bg-red-100 text-red-700' :
-                            row.status === 'Approved' ? 'bg-blue-100 text-blue-700' :
-                            'bg-amber-100 text-amber-700'
-                          }`}>
-                            {row.status}
-                          </span>
-                        </td>
+                        <th>Reference</th>
+                        <th>Patient</th>
+                        <th>Staff</th>
+                        <th>Type</th>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Status</th>
                       </>
                     )}
                     {reports.activeReport === 'consultations' && (
                       <>
-                        <td className="font-bold text-ink">{row.reference}</td>
-                        <td>{row.patient}</td>
-                        <td>{row.staff}</td>
-                        <td>{row.date}</td>
-                        <td>
-                          <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                            row.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' :
-                            row.status === 'In Progress' ? 'bg-blue-100 text-blue-700' :
-                            'bg-amber-100 text-amber-700'
-                          }`}>
-                            {row.status}
-                          </span>
-                        </td>
-                        <td className="max-w-[200px] truncate">{row.chiefComplaint || '—'}</td>
-                        <td className="max-w-[200px] truncate">{row.diagnosis || '—'}</td>
+                        <th>Reference</th>
+                        <th>Patient</th>
+                        <th>Staff</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Chief Complaint</th>
+                        <th>Diagnosis</th>
                       </>
                     )}
                     {reports.activeReport === 'patients' && (
                       <>
-                        <td className="font-bold text-ink">{row.patientId}</td>
-                        <td>{row.name}</td>
-                        <td>{row.type}</td>
-                        <td>{row.courseDept || '—'}</td>
-                        <td>{row.contact || '—'}</td>
-                        <td>
-                          <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                            row.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'
-                          }`}>
-                            {row.status}
-                          </span>
-                        </td>
-                        <td className="text-center">
-                          <span className="text-[12px] font-bold text-muted">
-                            {row.appointmentsCount + row.consultationsCount}
-                          </span>
-                        </td>
+                        <th>Patient ID</th>
+                        <th>Name</th>
+                        <th>Category</th>
+                        <th>Course/Dept</th>
+                        <th>Contact</th>
+                        <th>Status</th>
+                        <th>Visits</th>
                       </>
                     )}
                     {reports.activeReport === 'medical-certificates' && (
                       <>
-                        <td className="font-bold text-ink">{row.reference}</td>
-                        <td>{row.patient}</td>
-                        <td className="max-w-[150px] truncate">{row.purpose || '—'}</td>
-                        <td className="max-w-[150px] truncate">{row.diagnosis || '—'}</td>
-                        <td>{row.issuedBy || '—'}</td>
-                        <td>{row.issueDate || '—'}</td>
-                        <td>
-                          <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                            row.status === 'Issued' ? 'bg-emerald-100 text-emerald-700' :
-                            row.status === 'Approved' ? 'bg-blue-100 text-blue-700' :
-                            row.status === 'Rejected' || row.status === 'Void' ? 'bg-red-100 text-red-700' :
-                            'bg-amber-100 text-amber-700'
-                          }`}>
-                            {row.status}
-                          </span>
-                        </td>
+                        <th>Reference</th>
+                        <th>Patient</th>
+                        <th>Purpose</th>
+                        <th>Diagnosis</th>
+                        <th>Issued By</th>
+                        <th>Issue Date</th>
+                        <th>Status</th>
                       </>
                     )}
                     {reports.activeReport === 'prescriptions' && (
                       <>
-                        <td className="font-bold text-ink">{row.reference}</td>
-                        <td>{row.patient}</td>
-                        <td>{row.prescribedBy || '—'}</td>
-                        <td>{row.prescriptionDate || '—'}</td>
-                        <td>
-                          <div className="flex flex-col gap-0.5">
-                            {(row.medications || []).map((m, i) => (
-                              <span key={i} className="text-[12px] text-ink">
-                                {m.medicineName} ({m.dosage})
-                              </span>
-                            ))}
-                            {(!row.medications || row.medications.length === 0) && (
-                              <span className="text-[12px] text-muted">—</span>
-                            )}
-                          </div>
-                        </td>
+                        <th>Reference</th>
+                        <th>Patient</th>
+                        <th>Prescribed By</th>
+                        <th>Date</th>
+                        <th>Medications</th>
                       </>
                     )}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                </thead>
+                <tbody>
+                  {pageItems.map((row) => (
+                    <tr key={row.id}>
+                      {reports.activeReport === 'appointments' && (
+                        <>
+                          <td className="font-bold text-ink">{row.reference}</td>
+                          <td>{row.patient}</td>
+                          <td>{row.staff}</td>
+                          <td>{row.type}</td>
+                          <td className="whitespace-nowrap">{row.date}</td>
+                          <td className="whitespace-nowrap">{row.time}</td>
+                          <td>
+                            <span className={`${STATUS_PILL} ${
+                              row.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' :
+                              row.status === 'Cancelled' || row.status === 'Rejected' ? 'bg-red-100 text-red-700' :
+                              row.status === 'Approved' ? 'bg-blue-100 text-blue-700' :
+                              'bg-amber-100 text-amber-700'
+                            }`}>
+                              {row.status}
+                            </span>
+                          </td>
+                        </>
+                      )}
+                      {reports.activeReport === 'consultations' && (
+                        <>
+                          <td className="font-bold text-ink">{row.reference}</td>
+                          <td>{row.patient}</td>
+                          <td>{row.staff}</td>
+                          <td className="whitespace-nowrap">{row.date}</td>
+                          <td>
+                            <span className={`${STATUS_PILL} ${
+                              row.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' :
+                              row.status === 'In Progress' ? 'bg-blue-100 text-blue-700' :
+                              'bg-amber-100 text-amber-700'
+                            }`}>
+                              {row.status}
+                            </span>
+                          </td>
+                          <td className="max-w-[200px] truncate">{row.chiefComplaint || '—'}</td>
+                          <td className="max-w-[200px] truncate">{row.diagnosis || '—'}</td>
+                        </>
+                      )}
+                      {reports.activeReport === 'patients' && (
+                        <>
+                          <td className="font-bold text-ink">{row.patientId}</td>
+                          <td>{row.name}</td>
+                          <td>{row.type}</td>
+                          <td>{row.courseDept || '—'}</td>
+                          <td>{row.contact || '—'}</td>
+                          <td>
+                            <span className={`${STATUS_PILL} ${
+                              row.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              {row.status}
+                            </span>
+                          </td>
+                          <td className="text-center">
+                            <span className="text-[12px] font-bold text-muted">
+                              {(row.appointmentsCount ?? 0) + (row.consultationsCount ?? 0)}
+                            </span>
+                          </td>
+                        </>
+                      )}
+                      {reports.activeReport === 'medical-certificates' && (
+                        <>
+                          <td className="font-bold text-ink">{row.reference}</td>
+                          <td>{row.patient}</td>
+                          <td className="max-w-[150px] truncate">{row.purpose || '—'}</td>
+                          <td className="max-w-[150px] truncate">{row.diagnosis || '—'}</td>
+                          <td>{row.issuedBy || '—'}</td>
+                          <td className="whitespace-nowrap">{row.issueDate || '—'}</td>
+                          <td>
+                            <span className={`${STATUS_PILL} ${
+                              row.status === 'Issued' ? 'bg-emerald-100 text-emerald-700' :
+                              row.status === 'Approved' ? 'bg-blue-100 text-blue-700' :
+                              row.status === 'Rejected' || row.status === 'Void' ? 'bg-red-100 text-red-700' :
+                              'bg-amber-100 text-amber-700'
+                            }`}>
+                              {row.status}
+                            </span>
+                          </td>
+                        </>
+                      )}
+                      {reports.activeReport === 'prescriptions' && (
+                        <>
+                          <td className="font-bold text-ink">{row.reference}</td>
+                          <td>{row.patient}</td>
+                          <td>{row.prescribedBy || '—'}</td>
+                          <td className="whitespace-nowrap">{row.prescriptionDate || '—'}</td>
+                          <td>
+                            <div className="flex flex-col gap-0.5">
+                              {(row.medications || []).map((m, i) => (
+                                <span key={i} className="text-[12px] text-ink">
+                                  {m.medicineName} ({m.dosage})
+                                </span>
+                              ))}
+                              {(!row.medications || row.medications.length === 0) && (
+                                <span className="text-[12px] text-muted">—</span>
+                              )}
+                            </div>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} />
         </div>
 
-        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} />
+        {breakdowns.length > 0 && (
+          <aside className={`${PANEL} h-fit p-5`}>
+            <h3 className="m-0 text-[15px] font-bold text-ink">{activeReport.label} Breakdown</h3>
+            <p className="m-0 mb-4 text-[12px] text-muted">{rangeLabel}</p>
+            <div className="grid gap-5 max-[1180px]:grid-cols-2 max-[620px]:grid-cols-1">
+              {breakdowns.map((b) => {
+                const entries = Object.entries(b.data).sort((x, y) => y[1] - x[1])
+                const max = Math.max(...entries.map(([, n]) => n), 1)
+                return (
+                  <div key={b.title}>
+                    <h4 className="m-0 mb-2 text-[11px] font-extrabold uppercase tracking-[0.02em] text-muted">{b.title}</h4>
+                    <ul className="m-0 grid list-none gap-2 p-0">
+                      {entries.map(([label, count]) => (
+                        <li key={label}>
+                          <div className="mb-1 flex items-center justify-between gap-2 text-[12.5px] font-bold text-ink">
+                            <span className="truncate">{label || '—'}</span>
+                            <span className="text-primary">{count}</span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-[#e8f3f0]">
+                            <div className="h-1.5 rounded-full bg-primary" style={{ width: `${(count / max) * 100}%` }} />
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )
+              })}
+            </div>
+          </aside>
+        )}
       </div>
     </div>
   )

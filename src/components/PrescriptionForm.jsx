@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useForm } from '../hooks/useForm'
 import { todayISO } from '../lib/format'
 import { FORM_LABEL, FORM_FIELD, FORM_ROW, PILL, PRIMARY_BTN } from '../lib/ui'
@@ -147,8 +147,16 @@ function PrescriptionForm({
     },
   })
 
-  const { data: clinicians = [] } = useEligibleStaff()
+  const { data: clinicians = [], isLoading: clinicianLoading } = useEligibleStaff()
   const doctors = useMemo(() => clinicians.filter((c) => c.role?.name === 'doctor'), [clinicians])
+
+  const { prescribed_by_id: prescriberId, prescribed_by: prescriberName } = form.values
+  const { setValue } = form
+  useEffect(() => {
+    if (prescriberId || !prescriberName) return
+    const match = doctors.find((d) => d.name === prescriberName)
+    if (match) setValue('prescribed_by_id', match.id)
+  }, [doctors, prescriberId, prescriberName, setValue])
 
   // Consultations the prescription may be written during or after — only
   // visits that have actually started (In Progress / Completed) qualify.
@@ -332,6 +340,9 @@ function PrescriptionForm({
                   unassignedLabel="— Select a doctor —"
                   disabled={busy}
                 />
+                {!clinicianLoading && doctors.length === 0 && (
+                  <span className={FIELD_ERROR}>No active doctor accounts are available. Add a doctor in User Management first.</span>
+                )}
                 {form.errors.prescribed_by_id && <span className={FIELD_ERROR}>{form.errors.prescribed_by_id}</span>}
               </label>
               <label className={FORM_LABEL}>

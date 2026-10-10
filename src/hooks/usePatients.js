@@ -90,11 +90,13 @@ export function useUpdatePatient() {
 
 export function useUpdatePatientStatus() {
   const queryClient = useQueryClient()
+  const { log } = useAppContext()
 
   const mutation = useMutation({
     mutationFn: ({ id, status }) => patientsService.updatePatientStatus(id, status),
-    onSuccess: () => {
+    onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ['patients'] })
+      log?.(`Set patient ${updated?.name} (${updated?.patientId}) to ${updated?.status}`)
     },
   })
 

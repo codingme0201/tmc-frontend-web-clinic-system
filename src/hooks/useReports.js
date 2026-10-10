@@ -40,7 +40,7 @@ export function useReportsStore({ onLog } = {}, scope = 'page') {
     queryFn: () => fetchReportByType(activeReport, filters),
   })
 
-  const [statsEnabled, setStatsEnabled] = useState(false)
+  const [statsEnabled, setStatsEnabled] = useState(true)
   const [statsFilters, setStatsFilters] = useState({})
 
   const {

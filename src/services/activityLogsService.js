@@ -17,6 +17,7 @@ export async function fetchAuditLogs(params = {}) {
   if (params.from) query.set('from', params.from)
   if (params.to) query.set('to', params.to)
   if (params.clinical) query.set('clinical', '1')
+  query.set('limit', '2000')
   const qs = query.toString()
   const res = await request(`/activity-logs${qs ? '?' + qs : ''}`)
   return res.data
