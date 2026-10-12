@@ -8,7 +8,7 @@ import { useForm, useWatch } from 'react-hook-form'
 import { usePagination } from '../hooks/usePagination'
 import { formatDate, todayISO } from '../lib/format'
 import {
-  APPOINTMENT_TYPES, TIME_SLOTS, VISIT_TYPES, VISIT_NEW, VISIT_FOLLOW_UP, roleLabel,
+  APPOINTMENT_TYPES, TIME_SLOTS, VISIT_TYPES, VISIT_NEW, VISIT_FOLLOW_UP, roleLabel, isSlotClosed,
 } from '../lib/clinic'
 import {
   PILL, PRIMARY_BTN, PANEL, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT, SIDEBAR_FORM,
@@ -98,6 +98,7 @@ function Appointments({ page }) {
   const bookVisitType = useWatch({ control: bookForm.control, name: 'visitType' })
   const bookStaffId = useWatch({ control: bookForm.control, name: 'staffId' })
   const bookPreviousId = useWatch({ control: bookForm.control, name: 'previousConsultationId' })
+  const bookDate = useWatch({ control: bookForm.control, name: 'date' })
   const isFollowUpBooking = bookVisitType === VISIT_FOLLOW_UP
   const { data: followUpOptions, isLoading: followUpOptionsLoading } = useFollowUpOptions(
     bookPatientId,
@@ -108,6 +109,7 @@ function Appointments({ page }) {
   const rescheduleForm = useForm({
     defaultValues: { date: '', time: '', reason: '' },
   })
+  const rescheduleDate = useWatch({ control: rescheduleForm.control, name: 'date' })
 
   // Reject / cancel reason
   const [reasonText, setReasonText] = useState('')
@@ -760,7 +762,7 @@ function Appointments({ page }) {
                   New Time Slot
                   <select className={FORM_FIELD} {...rescheduleForm.register('time', { required: 'A new time slot is required.' })}>
                     {TIME_SLOTS.map((t) => (
-                      <option key={t} value={t}>
+                      <option key={t} value={t} disabled={isSlotClosed(rescheduleDate, t)}>
                         {t}
                       </option>
                     ))}
@@ -992,7 +994,7 @@ function Appointments({ page }) {
                     Time Slot
                     <select className={FORM_FIELD} {...bookForm.register('time')}>
                       {TIME_SLOTS.map((t) => (
-                        <option key={t} value={t}>
+                        <option key={t} value={t} disabled={isSlotClosed(bookDate, t)}>
                           {t}
                         </option>
                       ))}

@@ -12,7 +12,7 @@ import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { usePagination } from '../hooks/usePagination'
 import { todayISO, formatPhone } from '../lib/format'
-import { APPOINTMENT_TYPES, TIME_SLOTS, VISIT_TYPES, VISIT_NEW, currentSlot } from '../lib/clinic'
+import { APPOINTMENT_TYPES, TIME_SLOTS, VISIT_TYPES, VISIT_NEW, currentSlot, isSlotClosed } from '../lib/clinic'
 import { PILL, PRIMARY_BTN, PANEL, PANEL_HEADER, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT, SIDEBAR_FORM, FORM_LABEL, FORM_FIELD, FORM_ROW } from '../lib/ui'
 import Pagination from '../components/Pagination'
 import StatusBadge from '../components/StatusBadge'
@@ -633,7 +633,7 @@ function Dashboard() {
                   Time Slot (today)
                   <select value={appTime} onChange={(e) => setAppTime(e.target.value)} className={FORM_FIELD}>
                     {TIME_SLOTS.map((t) => (
-                      <option key={t} value={t}>{t}</option>
+                      <option key={t} value={t} disabled={isSlotClosed(todayISO(), t)}>{t}</option>
                     ))}
                   </select>
                 </label>

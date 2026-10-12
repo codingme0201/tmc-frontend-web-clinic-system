@@ -11,6 +11,23 @@ export const TIME_SLOTS = [
   '03:00 PM', '03:30 PM', '04:00 PM', '04:30 PM',
 ]
 
+/** Same-day appointment booking closes after this time. */
+export const BOOKING_CUTOFF = '04:30 PM'
+
+/**
+ * Whether an appointment slot can no longer be booked: past dates, every slot
+ * once today's 4:30 PM cutoff has passed, and today's slots that have ended.
+ */
+export function isSlotClosed(date, slot, now = new Date()) {
+  if (!date) return false
+  const pad = (n) => String(n).padStart(2, '0')
+  const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  if (date !== today) return date < today
+  const minutesNow = now.getHours() * 60 + now.getMinutes()
+  const start = timeToMinutesStrict(slot)
+  return minutesNow > timeToMinutesStrict(BOOKING_CUTOFF) || (start !== null && start + 30 <= minutesNow)
+}
+
 /** Start/end options for staff shifts (8:00 AM – 5:00 PM). */
 export const SHIFT_TIMES = [
   '08:00 AM', '08:30 AM', '09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM',

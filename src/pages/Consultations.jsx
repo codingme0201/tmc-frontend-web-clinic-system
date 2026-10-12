@@ -8,7 +8,7 @@ import { useModal } from '../hooks/useModal'
 import { usePagination } from '../hooks/usePagination'
 import { useAuth } from '../hooks/useAuth'
 import { formatDate, timeToMinutes, todayISO } from '../lib/format'
-import { TIME_SLOTS, VISIT_TYPES, VISIT_NEW, VISIT_FOLLOW_UP, currentSlot } from '../lib/clinic'
+import { TIME_SLOTS, VISIT_TYPES, VISIT_NEW, VISIT_FOLLOW_UP, currentSlot, isSlotClosed } from '../lib/clinic'
 import {
   PILL, PRIMARY_BTN, PANEL, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT,
   BTN_SUCCESS, BTN_INFO, BTN_VIEW, BTN_DANGER, BTN_ACTION_DANGER, DISPO_TAG, dispoClasses,
@@ -983,7 +983,7 @@ function Consultations({ page }) {
                             disabled={busy || !draft.followUpDate}
                           >
                             {TIME_SLOTS.map((t) => (
-                              <option key={t} value={t}>
+                              <option key={t} value={t} disabled={isSlotClosed(draft.followUpDate, t)}>
                                 {t}
                               </option>
                             ))}
