@@ -38,6 +38,17 @@ export const SHIFT_TIMES = [
 /** Service categories; the visit type (new vs follow-up) is chosen separately. */
 export const APPOINTMENT_TYPES = ['Check-up', 'Dental concern', 'Fever', 'Vaccination', 'Emergency']
 
+/**
+ * Clinical department of a service type — mirrors backend
+ * App\Support\ClinicDepartments: dental visits go to Dental doctors, every
+ * other service to General Medicine.
+ */
+export const DEPARTMENT_MEDICAL = 'General Medicine'
+export const DEPARTMENT_DENTAL = 'Dental'
+export function departmentForType(type) {
+  return type === 'Dental concern' ? DEPARTMENT_DENTAL : DEPARTMENT_MEDICAL
+}
+
 export const VISIT_NEW = 'New Consultation'
 export const VISIT_FOLLOW_UP = 'Follow-up Consultation'
 export const VISIT_TYPES = [VISIT_NEW, VISIT_FOLLOW_UP]

@@ -7,7 +7,7 @@ import { useForm, useWatch } from 'react-hook-form'
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { usePagination } from '../hooks/usePagination'
-import { formatDate } from '../lib/format'
+import { formatDate, formatPhone, isValidPhone, PHONE_ERROR } from '../lib/format'
 import {
   PILL, PRIMARY_BTN, PANEL, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT,
   SIDEBAR_FORM, FORM_LABEL, FORM_FIELD, FORM_ROW,
@@ -772,10 +772,16 @@ function UserManagement({ page }) {
                       <label className={FORM_LABEL}>
                         Phone Number *
                         <input
-                          type="text"
-                          placeholder="e.g. 09123456789"
+                          type="tel"
+                          inputMode="numeric"
+                          maxLength={13}
+                          placeholder="e.g. 0912-345-6789"
                           className={FORM_FIELD}
-                          {...userForm.register('phone', { required: isPatientRole ? 'Phone number is required.' : false })}
+                          {...userForm.register('phone', {
+                            required: isPatientRole ? 'Phone number is required.' : false,
+                            validate: (v) => isValidPhone(v) || PHONE_ERROR,
+                            onChange: (e) => userForm.setValue('phone', formatPhone(e.target.value)),
+                          })}
                           disabled={busy}
                         />
                       </label>
@@ -806,10 +812,16 @@ function UserManagement({ page }) {
                       <label className={FORM_LABEL}>
                         Emergency Contact Phone *
                         <input
-                          type="text"
-                          placeholder="e.g. 09987654321"
+                          type="tel"
+                          inputMode="numeric"
+                          maxLength={13}
+                          placeholder="e.g. 0998-765-4321"
                           className={FORM_FIELD}
-                          {...userForm.register('emergency_contact_phone', { required: isPatientRole ? 'Guardian contact no. is required.' : false })}
+                          {...userForm.register('emergency_contact_phone', {
+                            required: isPatientRole ? 'Guardian contact no. is required.' : false,
+                            validate: (v) => isValidPhone(v) || PHONE_ERROR,
+                            onChange: (e) => userForm.setValue('emergency_contact_phone', formatPhone(e.target.value)),
+                          })}
                           disabled={busy}
                         />
                       </label>

@@ -24,7 +24,7 @@ const emptyMedication = () => ({ medicine_name: '', dosage: '', frequency: '', d
 /**
  * One medication line of the prescription form.
  */
-function MedicationRow({ index, medication, errors, onChange, onRemove, canRemove, busy }) {
+function MedicationRow({ index, medication, errors, onChange, onRemove, isOnlyRow, busy }) {
   const fieldError = (name) => errors[`medications.${index}.${name}`]
 
   return (
@@ -37,9 +37,10 @@ function MedicationRow({ index, medication, errors, onChange, onRemove, canRemov
           type="button"
           className="cursor-pointer rounded-md bg-[#ffebe0] px-2 py-1 text-[11px] font-extrabold text-[#a33c12] transition-all duration-200 hover:bg-[#f8d7c6] disabled:cursor-not-allowed disabled:opacity-50"
           onClick={onRemove}
-          disabled={!canRemove || busy}
+          disabled={busy}
+          title={isOnlyRow ? 'Clear this medication line' : 'Remove this medication line'}
         >
-          Remove
+          {isOnlyRow ? 'Clear' : 'Remove'}
         </button>
       </div>
 
@@ -207,8 +208,11 @@ function PrescriptionForm({
     form.setValue('medications', [...form.values.medications, emptyMedication()])
   }
 
+  // A prescription keeps at least one medication line, so removing the last
+  // line clears it instead.
   const removeMedication = (index) => {
-    form.setValue('medications', form.values.medications.filter((_, i) => i !== index))
+    const remaining = form.values.medications.filter((_, i) => i !== index)
+    form.setValue('medications', remaining.length > 0 ? remaining : [emptyMedication()])
   }
 
   const selectedPatientDbId = useMemo(() => {
@@ -381,7 +385,7 @@ function PrescriptionForm({
                     errors={form.errors}
                     onChange={(field, value) => setMedication(index, field, value)}
                     onRemove={() => removeMedication(index)}
-                    canRemove={medications.length > 1}
+                    isOnlyRow={medications.length === 1}
                     busy={busy}
                   />
                 ))}

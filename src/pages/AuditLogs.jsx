@@ -217,9 +217,9 @@ function AuditLogs({ page }) {
           {auditLogs.error ? (
             <ErrorState message={auditLogs.error} onRetry={auditLogs.refetch} />
           ) : auditLogs.isLoading ? (
-            <TableSkeleton columns={6} />
+            <TableSkeleton columns={5} />
           ) : (
-            <table className={TABLE}>
+            <table className={`${TABLE} [&_tbody_tr[data-row]]:cursor-pointer [&_tbody_tr[data-row]:hover]:bg-[#f7fbfb]`}>
               <thead>
                 <tr>
                   <th>Timestamp</th>
@@ -227,13 +227,12 @@ function AuditLogs({ page }) {
                   <th>Role</th>
                   <th>Module</th>
                   <th>Action</th>
-                  <th>Details</th>
                 </tr>
               </thead>
               <tbody>
                 {pageItems.length === 0 ? (
                   <tr>
-                    <td colSpan="6">
+                    <td colSpan="5">
                       <EmptyState
                         message={
                           hasActiveFilters
@@ -245,7 +244,19 @@ function AuditLogs({ page }) {
                   </tr>
                 ) : (
                   pageItems.map((log) => (
-                    <tr key={log.id}>
+                    <tr
+                      key={log.id}
+                      data-row
+                      tabIndex={0}
+                      title="Click to view the log details"
+                      onClick={() => setSelectedLog(log)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          setSelectedLog(log)
+                        }
+                      }}
+                    >
                       <td className="whitespace-nowrap text-[12.5px] text-muted">
                         {formatDateTime(log.createdAt)}
                       </td>
@@ -264,17 +275,8 @@ function AuditLogs({ page }) {
                           <span className="text-[12.5px] text-muted">—</span>
                         )}
                       </td>
-                      <td className="max-w-[320px] truncate text-[12.5px] text-muted">
+                      <td className="max-w-[360px] truncate text-[12.5px] text-muted">
                         {log.action}
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          className="cursor-pointer rounded-md border-0 bg-bg px-2 py-1 text-[12px] font-extrabold text-primary transition-all duration-200 hover:bg-[#dbeae5]"
-                          onClick={() => setSelectedLog(log)}
-                        >
-                          View
-                        </button>
                       </td>
                     </tr>
                   ))

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAppointments, useFollowUpOptions } from '../hooks/useAppointments'
+import { usePatients } from '../hooks/usePatients'
 import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
@@ -8,13 +9,13 @@ import { useForm, useWatch } from 'react-hook-form'
 import { usePagination } from '../hooks/usePagination'
 import { formatDate, todayISO } from '../lib/format'
 import {
-  APPOINTMENT_TYPES, TIME_SLOTS, VISIT_TYPES, VISIT_NEW, VISIT_FOLLOW_UP, roleLabel, isSlotClosed,
+  APPOINTMENT_TYPES, TIME_SLOTS, VISIT_TYPES, VISIT_NEW, VISIT_FOLLOW_UP, roleLabel, isSlotClosed, departmentForType,
 } from '../lib/clinic'
 import {
   PILL, PRIMARY_BTN, PANEL, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT, SIDEBAR_FORM,
-  FORM_LABEL, FORM_FIELD, FORM_ROW, BTN_SUCCESS, BTN_DANGER, BTN_INFO, BTN_WARN, BTN_NEUTRAL, BTN_VIEW, BTN_PRIMARY,
-  BTN_ACTION_DANGER,
+  FORM_LABEL, FORM_FIELD, FORM_ROW, BTN_ACTION_SUCCESS, BTN_ACTION_DANGER,
 } from '../lib/ui'
+import Icon from '../components/Icon'
 import Pagination from '../components/Pagination'
 import StatusBadge from '../components/StatusBadge'
 import VisitTypeBadge from '../components/VisitTypeBadge'
@@ -26,6 +27,8 @@ import StudentSelect from '../components/StudentSelect'
 
 const STATUSES = ['Pending', 'Under Review', 'Approved', 'Rescheduled', 'Rejected', 'Cancelled', 'Completed', 'No-Show']
 const ACTIVE_STATUSES = ['Pending', 'Under Review', 'Approved', 'Rescheduled']
+// Statuses from which the appointment state machine allows Approve / Reject.
+const REVIEWABLE_STATUSES = ['Pending', 'Under Review', 'Rescheduled']
 
 const MODAL_CARD = 'flex max-h-[90vh] w-[min(650px,100%)] animate-modal-scale flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgba(8,20,20,0.22)]'
 const MODAL_CARD_SM = MODAL_CARD + ' w-[min(480px,100%)]'
@@ -38,6 +41,8 @@ const MODAL_FOOTER_ACTIONS = 'flex flex-wrap items-center justify-end gap-2'
 const PROFILE_GRID = 'grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4'
 const PROFILE_LBL = 'mb-0.5 block text-[11px] font-extrabold uppercase text-muted'
 const PROFILE_VAL = 'm-0 text-[14px] font-bold text-ink'
+const SECTION = 'rounded-lg border border-line p-[14px_16px]'
+const SECTION_TITLE = 'm-0 mb-[10px] text-[12px] uppercase tracking-[0.02em] text-ink'
 const ALERT_BOX = 'rounded-lg border border-[#f2cfc2] bg-[#fdf1ec] p-[12px_14px]'
 const FOLLOW_UP_BOX = 'rounded-lg border border-[#d9ccf7] bg-[#f7f3ff] p-[12px_14px]'
 
@@ -64,9 +69,9 @@ function Appointments({ page }) {
     isRefetching,
     createAppointment,
     updateStatus,
-    reschedule,
     assignStaff,
   } = useAppointments()
+  const { data: patients } = usePatients()
   const { can } = useAuth()
   const { showToast } = useToast()
 
@@ -74,7 +79,6 @@ function Appointments({ page }) {
   const canUpdate = can('appointments.update')
   const canApprove = can('appointments.approve')
   const canReject = can('appointments.reject')
-  const canReschedule = can('appointments.reschedule')
 
   // Search / filter state
   const { search, setSearch, debouncedSearch, resetSearch } = useSearch({ debounceMs: 300 })
@@ -84,11 +88,11 @@ function Appointments({ page }) {
 
   // Modal state
   const [selectedId, setSelectedId] = useState(null)
-  const [rescheduleTarget, setRescheduleTarget] = useState(null)
-  const [reasonTarget, setReasonTarget] = useState(null)
-  const [assignTarget, setAssignTarget] = useState(null)
-  const [assignStaffId, setAssignStaffId] = useState(null)
+  const [rejectTarget, setRejectTarget] = useState(null)
+  const [reasonText, setReasonText] = useState('')
+  const [assignDraft, setAssignDraft] = useState({ id: null, staffId: null })
   const [busy, setBusy] = useState(false)
+  const busyRef = useRef(false)
   const bookModal = useModal()
 
   // Book appointment form
@@ -96,6 +100,7 @@ function Appointments({ page }) {
   const bookPatientId = useWatch({ control: bookForm.control, name: 'patientId' })
   const bookPatientName = useWatch({ control: bookForm.control, name: 'patient' })
   const bookVisitType = useWatch({ control: bookForm.control, name: 'visitType' })
+  const bookType = useWatch({ control: bookForm.control, name: 'type' })
   const bookStaffId = useWatch({ control: bookForm.control, name: 'staffId' })
   const bookPreviousId = useWatch({ control: bookForm.control, name: 'previousConsultationId' })
   const bookDate = useWatch({ control: bookForm.control, name: 'date' })
@@ -104,15 +109,6 @@ function Appointments({ page }) {
     bookPatientId,
     bookModal.isOpen && isFollowUpBooking,
   )
-
-  // Reschedule form
-  const rescheduleForm = useForm({
-    defaultValues: { date: '', time: '', reason: '' },
-  })
-  const rescheduleDate = useWatch({ control: rescheduleForm.control, name: 'date' })
-
-  // Reject / cancel reason
-  const [reasonText, setReasonText] = useState('')
 
   // Status summary counts
   const counts = useMemo(() => {
@@ -159,72 +155,59 @@ function Appointments({ page }) {
 
   // Keep the detail modal in sync with live store updates
   const selected = selectedId ? appointments.find((a) => a.id === selectedId) || null : null
+  const selectedPatient = selected?.patientId ? patients.find((p) => p.patientId === selected.patientId) || null : null
+  // The doctor picker starts from the current assignment of the open appointment.
+  const assignStaffId = assignDraft.id === selectedId ? assignDraft.staffId : selected?.staffId || null
+  const assignChanged = Boolean(selected) && (assignStaffId || null) !== (selected.staffId || null)
 
-  const setStatus = async (app, newStatus, note = '') => {
+  const runAction = async (action, success, fallback) => {
+    if (busyRef.current) return false
+    busyRef.current = true
+    setBusy(true)
     try {
-      await updateStatus(app.id, newStatus, note)
-      showToast(`${app.reference} marked as ${newStatus}.`)
+      const result = await action()
+      showToast(typeof success === 'function' ? success(result) : success)
       return true
     } catch (err) {
-      showToast(err?.message || 'Failed to update the appointment status.', 'error')
+      showToast(err?.message || fallback, 'error')
       return false
+    } finally {
+      busyRef.current = false
+      setBusy(false)
     }
   }
 
-  const openReasonModal = (app, action) => {
-    setReasonTarget({ app, action })
+  const handleApprove = (app) =>
+    runAction(() => updateStatus(app.id, 'Approved'), `${app.reference} approved.`, 'Failed to approve the appointment.')
+
+  const openReject = (app) => {
+    setRejectTarget(app)
     setReasonText('')
   }
 
-  const confirmReason = async () => {
-    if (!reasonTarget || busy) return
-    setBusy(true)
-    const note = reasonText.trim() ? `${reasonTarget.action} — ${reasonText.trim()}` : ''
-    const ok = await setStatus(reasonTarget.app, reasonTarget.action, note)
-    if (ok) setReasonTarget(null)
-    setBusy(false)
+  const confirmReject = async () => {
+    if (!rejectTarget) return
+    const note = reasonText.trim() ? `Rejected — ${reasonText.trim()}` : ''
+    const ok = await runAction(
+      () => updateStatus(rejectTarget.id, 'Rejected', note),
+      `${rejectTarget.reference} rejected.`,
+      'Failed to reject the appointment.',
+    )
+    if (ok) setRejectTarget(null)
   }
 
-  const openReschedule = (app) => {
-    setRescheduleTarget(app)
-    rescheduleForm.reset({ date: app.date, time: app.time, reason: '' })
+  const saveAssignment = () => {
+    if (!selected) return
+    runAction(
+      () => assignStaff(selected.id, assignStaffId),
+      (updated) => (updated.staffId ? `${updated.staff} assigned to ${updated.reference}.` : `${updated.reference} is now unassigned.`),
+      'Failed to assign the doctor.',
+    )
   }
 
-  const confirmReschedule = async ({ date, time, reason }) => {
-    if (!rescheduleTarget || busy) return
-    setBusy(true)
-    try {
-      await reschedule(rescheduleTarget.id, { date, time, note: (reason || '').trim() })
-      showToast(`${rescheduleTarget.reference} rescheduled to ${formatDate(date)} at ${time}.`)
-      setRescheduleTarget(null)
-    } catch (err) {
-      showToast(err?.message || 'Failed to reschedule the appointment.', 'error')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const openAssign = (app) => {
-    setAssignTarget(app)
-    setAssignStaffId(app.staffId || null)
-  }
-
-  const confirmAssign = async () => {
-    if (!assignTarget || busy) return
-    setBusy(true)
-    try {
-      const updated = await assignStaff(assignTarget.id, assignStaffId)
-      showToast(
-        updated.staffId
-          ? `${updated.staff} assigned to ${updated.reference}.`
-          : `${updated.reference} is now unassigned.`,
-      )
-      setAssignTarget(null)
-    } catch (err) {
-      showToast(err?.message || 'Failed to assign the doctor.', 'error')
-    } finally {
-      setBusy(false)
-    }
+  const openDetails = (app) => {
+    setSelectedId(app.id)
+    setAssignDraft({ id: app.id, staffId: app.staffId || null })
   }
 
   const openBook = () => {
@@ -233,76 +216,27 @@ function Appointments({ page }) {
   }
 
   const handleBook = async ({ patient, patientId, type, visitType, previousConsultationId, reason, date, time, staffId }) => {
-    if (busy) return
     if (visitType === VISIT_FOLLOW_UP && !patientId) {
       showToast('Select a registered student so the follow-up can be linked to their previous visit.', 'error')
       return
     }
-    setBusy(true)
-    try {
-      await createAppointment({
-        patient: patient.trim(),
-        patientId: patientId ? patientId.trim() : '',
-        type,
-        visitType,
-        previousConsultationId: visitType === VISIT_FOLLOW_UP ? previousConsultationId || null : null,
-        reason: reason.trim() || type,
-        date,
-        time,
-        staffId,
-      })
-      showToast('Appointment booked successfully.')
-      bookModal.close()
-    } catch (err) {
-      showToast(err?.message || 'Failed to book the appointment.', 'error')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  // Contextual action buttons per status (hidden when the role lacks the permission)
-  const actionButtons = (app) => {
-    const buttons = []
-    const add = (label, className, onClick, allowed = true) => {
-      if (!allowed) return
-      buttons.push(
-        <button key={label} type="button" className={className} onClick={onClick}>
-          {label}
-        </button>,
-      )
-    }
-    if (ACTIVE_STATUSES.includes(app.status)) {
-      add(app.staffId ? 'Reassign' : 'Assign Doctor', BTN_PRIMARY, () => openAssign(app), canUpdate)
-    }
-    switch (app.status) {
-      case 'Pending':
-        add('Review', BTN_INFO, () => setStatus(app, 'Under Review'), canUpdate)
-        add('Approve', BTN_SUCCESS, () => setStatus(app, 'Approved'), canApprove)
-        add('Reject', BTN_DANGER, () => openReasonModal(app, 'Rejected'), canReject)
-        add('Reschedule', BTN_WARN, () => openReschedule(app), canReschedule)
-        add('Cancel', BTN_NEUTRAL, () => openReasonModal(app, 'Cancelled'), canUpdate)
-        break
-      case 'Under Review':
-        add('Approve', BTN_SUCCESS, () => setStatus(app, 'Approved'), canApprove)
-        add('Reject', BTN_DANGER, () => openReasonModal(app, 'Rejected'), canReject)
-        add('Reschedule', BTN_WARN, () => openReschedule(app), canReschedule)
-        add('Cancel', BTN_NEUTRAL, () => openReasonModal(app, 'Cancelled'), canUpdate)
-        break
-      case 'Approved':
-        add('No-Show', BTN_DANGER, () => setStatus(app, 'No-Show'), canUpdate)
-        add('Reschedule', BTN_WARN, () => openReschedule(app), canReschedule)
-        add('Cancel', BTN_NEUTRAL, () => openReasonModal(app, 'Cancelled'), canUpdate)
-        break
-      case 'Rescheduled':
-        add('Approve', BTN_SUCCESS, () => setStatus(app, 'Approved'), canApprove)
-        add('No-Show', BTN_DANGER, () => setStatus(app, 'No-Show'), canUpdate)
-        add('Reject', BTN_DANGER, () => openReasonModal(app, 'Rejected'), canReject)
-        add('Cancel', BTN_NEUTRAL, () => openReasonModal(app, 'Cancelled'), canUpdate)
-        break
-      default:
-        break
-    }
-    return buttons
+    const ok = await runAction(
+      () =>
+        createAppointment({
+          patient: patient.trim(),
+          patientId: patientId ? patientId.trim() : '',
+          type,
+          visitType,
+          previousConsultationId: visitType === VISIT_FOLLOW_UP ? previousConsultationId || null : null,
+          reason: reason.trim() || type,
+          date,
+          time,
+          staffId,
+        }),
+      'Appointment booked successfully.',
+      'Failed to book the appointment.',
+    )
+    if (ok) bookModal.close()
   }
 
   const clearFilters = () => {
@@ -319,8 +253,11 @@ function Appointments({ page }) {
         <span className="block text-[11.5px] text-muted">{roleLabel(app.staffRole)}</span>
       </>
     ) : (
-      <span className="font-bold text-[#a33c12]">{app.staff === 'Unassigned' ? 'Unassigned' : app.staff}</span>
+      <span className="font-bold text-[#a33c12]">Not yet assigned</span>
     )
+
+  const canReview = selected && REVIEWABLE_STATUSES.includes(selected.status)
+  const canAssign = selected && canUpdate && ACTIVE_STATUSES.includes(selected.status)
 
   return (
     <div>
@@ -382,7 +319,7 @@ function Appointments({ page }) {
         <div className="mb-4 sm:mb-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
             <h3 className="m-0 text-[17px] sm:text-[18px] font-bold text-[#143d40]">Appointment Requests & Records</h3>
-            <p className={KICKER}>Listed first in, first out — earliest schedule and booking first</p>
+            <p className={KICKER}>First in, first out · click an appointment to review it</p>
           </div>
           <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-end gap-2 sm:gap-2.5">
             <input
@@ -447,23 +384,34 @@ function Appointments({ page }) {
           {error ? (
             <ErrorState message={error} onRetry={refetch} />
           ) : isLoading ? (
-            <TableSkeleton columns={7} />
+            <TableSkeleton columns={6} />
           ) : (
-            <table className={TABLE}>
+            <table className={`${TABLE} [&_tbody_tr[data-row]]:cursor-pointer [&_tbody_tr[data-row]:hover]:bg-[#f7fbfb]`}>
               <thead>
                 <tr>
                   <th>Reference</th>
                   <th>Patient</th>
-                  <th>Type / Reason</th>
+                  <th>Type</th>
                   <th>Schedule</th>
-                  <th>Assigned Doctor</th>
+                  <th>Doctor</th>
                   <th>Status</th>
-                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {pageItems.map((app) => (
-                  <tr key={app.id}>
+                  <tr
+                    key={app.id}
+                    data-row
+                    tabIndex={0}
+                    title="Click to view the appointment details"
+                    onClick={() => openDetails(app)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        openDetails(app)
+                      }
+                    }}
+                  >
                     <td className="font-mono font-bold text-primary">{app.reference}</td>
                     <td>
                       <strong className="font-bold text-ink">{app.patient}</strong>
@@ -474,37 +422,20 @@ function Appointments({ page }) {
                         <strong className="text-[12px]">{app.type}</strong>
                         <VisitTypeBadge visitType={app.visitType} compact />
                       </div>
-                      <span className="block text-[12px] text-muted">{app.reason}</span>
-                      {app.isFollowUp && app.previousConsultation ? (
-                        <span className="block text-[11.5px] font-bold text-[#6b46c1]">
-                          Follow-up of {app.previousConsultation.reference}
-                        </span>
-                      ) : null}
                     </td>
                     <td>
                       <span className="font-bold text-ink">{formatDate(app.date)}</span>
                       <span className="block text-[12px] text-muted">{app.time}</span>
-                      {app.queueNumber ? (
-                        <span className="block text-[11.5px] font-bold text-primary">Queue #{app.queueNumber}</span>
-                      ) : null}
                     </td>
                     <td>{doctorCell(app)}</td>
                     <td>
                       <StatusBadge status={app.status} />
                     </td>
-                    <td>
-                      <div className="flex flex-wrap gap-[6px]">
-                        <button type="button" className={BTN_VIEW} onClick={() => setSelectedId(app.id)}>
-                          View
-                        </button>
-                        {actionButtons(app)}
-                      </div>
-                    </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan="7">
+                    <td colSpan="6">
                       <EmptyState message="No appointments matched your search or filters." />
                     </td>
                   </tr>
@@ -517,7 +448,7 @@ function Appointments({ page }) {
         <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} />
       </div>
 
-      {/* ================= VIEW APPOINTMENT DETAIL MODAL ================= */}
+      {/* ================= APPOINTMENT DETAILS MODAL ================= */}
       {selected && (
         <div
           className={MODAL_BACKDROP}
@@ -525,149 +456,194 @@ function Appointments({ page }) {
           aria-modal="true"
           aria-label={`Appointment ${selected.reference} details`}
           onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setSelectedId(null)
+            if (e.target === e.currentTarget && !busy) setSelectedId(null)
           }}
         >
           <div className={MODAL_CARD}>
             <div className={MODAL_HEADER}>
-              <h3 className="m-0 text-[18px] text-ink">Appointment Details — {selected.reference}</h3>
-              <button type="button" className={MODAL_CLOSE} onClick={() => setSelectedId(null)}>
+              <h3 className="m-0 text-[18px] text-ink">Appointment — {selected.reference}</h3>
+              <button type="button" className={MODAL_CLOSE} onClick={() => setSelectedId(null)} disabled={busy}>
                 ✕
               </button>
             </div>
             <div className={MODAL_BODY}>
-              <div className="mb-[18px] flex flex-wrap items-center gap-3 rounded-lg border border-line bg-[#f4faf8] p-[14px]">
-                <StatusBadge status={selected.status} />
+              <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-[#f4faf8] p-[14px]">
                 <div className="min-w-0 flex-1">
-                  <strong className="block text-[15px] text-ink">{selected.patient}</strong>
-                  <span className="block text-[12px] text-muted">
-                    Scheduled for {formatDate(selected.date)} at {selected.time}
-                  </span>
+                  <span className={PROFILE_LBL}>Status</span>
+                  <StatusBadge status={selected.status} />
                 </div>
                 <VisitTypeBadge visitType={selected.visitType} />
               </div>
 
-              <div className={PROFILE_GRID}>
-                <div>
-                  <span className={PROFILE_LBL}>Reference</span>
-                  <p className={PROFILE_VAL}>{selected.reference}</p>
-                </div>
-                <div>
-                  <span className={PROFILE_LBL}>Patient</span>
-                  <p className={PROFILE_VAL}>{selected.patient}</p>
-                </div>
-                {selected.patientId ? (
-                  <div>
-                    <span className={PROFILE_LBL}>Patient ID</span>
-                    <p className={PROFILE_VAL}>{selected.patientId}</p>
+              <div className="grid gap-[14px]">
+                <section className={SECTION}>
+                  <h4 className={SECTION_TITLE}>Patient Information</h4>
+                  <div className={PROFILE_GRID}>
+                    <div>
+                      <span className={PROFILE_LBL}>Patient</span>
+                      <p className={PROFILE_VAL}>{selected.patient}</p>
+                    </div>
+                    <div>
+                      <span className={PROFILE_LBL}>Patient ID</span>
+                      <p className={PROFILE_VAL}>{selected.patientId || 'Walk-in (not registered)'}</p>
+                    </div>
+                    {selectedPatient ? (
+                      <>
+                        <div>
+                          <span className={PROFILE_LBL}>Course / Department</span>
+                          <p className={PROFILE_VAL}>{selectedPatient.courseDept || '—'}</p>
+                        </div>
+                        <div>
+                          <span className={PROFILE_LBL}>Age</span>
+                          <p className={PROFILE_VAL}>{selectedPatient.age || '—'}</p>
+                        </div>
+                        <div>
+                          <span className={PROFILE_LBL}>Contact Number</span>
+                          <p className={PROFILE_VAL}>{selectedPatient.contact || '—'}</p>
+                        </div>
+                        <div>
+                          <span className={PROFILE_LBL}>Emergency Contact</span>
+                          <p className={PROFILE_VAL}>{selectedPatient.emergencyContact || '—'}</p>
+                        </div>
+                      </>
+                    ) : null}
                   </div>
-                ) : null}
-                <div>
-                  <span className={PROFILE_LBL}>Type</span>
-                  <p className={PROFILE_VAL}>{selected.type}</p>
-                </div>
-                <div>
-                  <span className={PROFILE_LBL}>Visit Type</span>
-                  <p className={PROFILE_VAL}>{selected.visitType}</p>
-                </div>
-                <div>
-                  <span className={PROFILE_LBL}>Date</span>
-                  <p className={PROFILE_VAL}>{formatDate(selected.date)}</p>
-                </div>
-                <div>
-                  <span className={PROFILE_LBL}>Time</span>
-                  <p className={PROFILE_VAL}>{selected.time}</p>
-                </div>
-                <div>
-                  <span className={PROFILE_LBL}>Assigned Doctor</span>
-                  <p className={PROFILE_VAL}>
-                    {selected.staff}
-                    {selected.staffId ? <span className="block text-[12px] font-bold text-muted">{roleLabel(selected.staffRole)}</span> : null}
-                  </p>
-                </div>
-                <div>
-                  <span className={PROFILE_LBL}>Requested On</span>
-                  <p className={PROFILE_VAL}>{formatDate(selected.requestedOn)}</p>
-                </div>
-                {selected.queueNumber ? (
-                  <div>
-                    <span className={PROFILE_LBL}>Queue</span>
-                    <p className={PROFILE_VAL}>#{selected.queueNumber} (checked in)</p>
-                  </div>
-                ) : null}
-                {selected.consultation ? (
-                  <div>
-                    <span className={PROFILE_LBL}>Consultation</span>
-                    <p className={PROFILE_VAL}>
-                      {selected.consultation.reference} · {selected.consultation.status}
-                    </p>
-                  </div>
-                ) : null}
-              </div>
+                  {selectedPatient?.allergies && selectedPatient.allergies !== 'None' ? (
+                    <p className="m-0 mt-3 text-[12.5px] font-bold text-danger">⚠ Allergies: {selectedPatient.allergies}</p>
+                  ) : null}
+                </section>
 
-              {selected.isFollowUp && (
-                <div className={`${FOLLOW_UP_BOX} mt-4`}>
-                  <h4 className="mb-1 m-0 text-[13px] font-extrabold text-[#6b46c1]">↺ Follow-up Visit — Reason for Returning</h4>
-                  {selected.previousConsultation ? (
-                    <div className="text-[13px] text-ink">
-                      <p className="m-0">
-                        Continues <strong>{selected.previousConsultation.reference}</strong> on{' '}
-                        {formatDate(selected.previousConsultation.date)}
-                        {selected.previousConsultation.staff ? ` with ${selected.previousConsultation.staff}` : ''}.
+                <section className={SECTION}>
+                  <h4 className={SECTION_TITLE}>Appointment Details</h4>
+                  <div className={PROFILE_GRID}>
+                    <div>
+                      <span className={PROFILE_LBL}>Appointment Type</span>
+                      <p className={PROFILE_VAL}>{selected.type}</p>
+                    </div>
+                    <div>
+                      <span className={PROFILE_LBL}>Department</span>
+                      <p className={PROFILE_VAL}>{departmentForType(selected.type)}</p>
+                    </div>
+                    <div>
+                      <span className={PROFILE_LBL}>Schedule</span>
+                      <p className={PROFILE_VAL}>
+                        {formatDate(selected.date)} · {selected.time}
                       </p>
-                      {selected.previousConsultation.diagnosis ? (
-                        <p className="m-0 mt-1"><strong>Previous diagnosis:</strong> {selected.previousConsultation.diagnosis}</p>
-                      ) : null}
-                      {selected.previousConsultation.treatment ? (
-                        <p className="m-0"><strong>Treatment given:</strong> {selected.previousConsultation.treatment}</p>
-                      ) : null}
-                      {selected.previousConsultation.followUpNotes ? (
-                        <p className="m-0"><strong>Follow-up instructions:</strong> {selected.previousConsultation.followUpNotes}</p>
-                      ) : null}
+                    </div>
+                    <div>
+                      <span className={PROFILE_LBL}>Requested On</span>
+                      <p className={PROFILE_VAL}>{formatDate(selected.requestedOn)}</p>
+                    </div>
+                    {selected.queueNumber ? (
+                      <div>
+                        <span className={PROFILE_LBL}>Queue</span>
+                        <p className={PROFILE_VAL}>#{selected.queueNumber} (checked in)</p>
+                      </div>
+                    ) : null}
+                    {selected.consultation ? (
+                      <div>
+                        <span className={PROFILE_LBL}>Consultation</span>
+                        <p className={PROFILE_VAL}>
+                          {selected.consultation.reference} · {selected.consultation.status}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className={`${ALERT_BOX} mt-3 border-[#cfe5df] bg-[#f4faf8]`}>
+                    <h4 className="mb-1 m-0 text-[13px] text-primary">Reason for Visit</h4>
+                    <p className="m-0 text-[13px]">{selected.reason}</p>
+                  </div>
+
+                  {selected.isFollowUp && (
+                    <div className={`${FOLLOW_UP_BOX} mt-3`}>
+                      <h4 className="mb-1 m-0 text-[13px] font-extrabold text-[#6b46c1]">↺ Follow-up Visit — Reason for Returning</h4>
+                      {selected.previousConsultation ? (
+                        <div className="text-[13px] text-ink">
+                          <p className="m-0">
+                            Continues <strong>{selected.previousConsultation.reference}</strong> on{' '}
+                            {formatDate(selected.previousConsultation.date)}
+                            {selected.previousConsultation.staff ? ` with ${selected.previousConsultation.staff}` : ''}.
+                          </p>
+                          {selected.previousConsultation.diagnosis ? (
+                            <p className="m-0 mt-1"><strong>Previous diagnosis:</strong> {selected.previousConsultation.diagnosis}</p>
+                          ) : null}
+                          {selected.previousConsultation.treatment ? (
+                            <p className="m-0"><strong>Treatment given:</strong> {selected.previousConsultation.treatment}</p>
+                          ) : null}
+                          {selected.previousConsultation.followUpNotes ? (
+                            <p className="m-0"><strong>Follow-up instructions:</strong> {selected.previousConsultation.followUpNotes}</p>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <p className="m-0 text-[13px] text-muted">No previous consultation was linked to this follow-up.</p>
+                      )}
+                    </div>
+                  )}
+
+                  {selected.notes ? (
+                    <div className={`${ALERT_BOX} mt-3`}>
+                      <h4 className="mb-1 m-0 text-[13px] font-bold text-danger">Notes / History</h4>
+                      <p className="m-0 whitespace-pre-line text-[13px]">{selected.notes}</p>
+                    </div>
+                  ) : null}
+                </section>
+
+                <section className={SECTION}>
+                  <h4 className={SECTION_TITLE}>{canAssign ? 'Assign Doctor' : 'Doctor'}</h4>
+                  {canAssign ? (
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <ClinicianSelect
+                        roles={['doctor']}
+                        department={departmentForType(selected.type)}
+                        value={assignStaffId}
+                        onChange={(id) => setAssignDraft({ id: selected.id, staffId: id })}
+                        unassignedLabel={`Select a ${departmentForType(selected.type)} doctor`}
+                        disabled={busy}
+                        aria-label="Assign doctor"
+                      />
+                      <button
+                        type="button"
+                        className={`${PRIMARY_BTN} min-h-10 shrink-0 px-[14px] text-[13px]`}
+                        onClick={saveAssignment}
+                        disabled={busy || !assignChanged}
+                      >
+                        {busy ? 'Saving...' : 'Save Doctor'}
+                      </button>
                     </div>
                   ) : (
-                    <p className="m-0 text-[13px] text-muted">No previous consultation was linked to this follow-up.</p>
+                    <p className={PROFILE_VAL}>
+                      {selected.staffId ? selected.staff : 'Not yet assigned'}
+                      {selected.staffId ? <span className="block text-[12px] font-bold text-muted">{roleLabel(selected.staffRole)}</span> : null}
+                    </p>
                   )}
-                </div>
-              )}
-
-              <div className={`${ALERT_BOX} mt-3 border-[#cfe5df] bg-[#f4faf8]`}>
-                <h4 className="mb-1 m-0 text-[13px] text-primary">Reason for Visit</h4>
-                <p className="m-0 text-[13px]">{selected.reason}</p>
+                  {canAssign && (
+                    <p className="m-0 mt-2 text-[12px] text-muted">
+                      Only {departmentForType(selected.type)} doctors are listed. The system checks the doctor&apos;s
+                      schedule and existing bookings for {selected.time}.
+                    </p>
+                  )}
+                </section>
               </div>
-
-              {selected.notes ? (
-                <div className={`${ALERT_BOX} mt-3`}>
-                  <h4 className="mb-1 m-0 text-[13px] font-bold text-danger">Notes / History</h4>
-                  <p className="m-0 whitespace-pre-line text-[13px]">{selected.notes}</p>
-                </div>
-              ) : null}
-
-              {/* Status management */}
-              {canUpdate && (
-                <div className="mt-[18px] flex flex-wrap items-center gap-[10px] border-t border-line pt-4">
-                  <label htmlFor="appointment-status-select" className="text-[12.5px] font-extrabold text-ink">
-                    Appointment Status
-                  </label>
-                  <select
-                    id="appointment-status-select"
-                    className={SELECT_INPUT}
-                    value={selected.status}
-                    onChange={(e) => setStatus(selected, e.target.value)}
-                  >
-                    {STATUSES.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
             </div>
             <div className={MODAL_FOOTER}>
               <div className={MODAL_FOOTER_ACTIONS}>
-                {actionButtons(selected)}
-                <button type="button" className={PILL} onClick={() => setSelectedId(null)}>
+                {canReview && canReject && (
+                  <button type="button" className={BTN_ACTION_DANGER} onClick={() => openReject(selected)} disabled={busy}>
+                    <Icon name="x" size={16} />
+                    Reject
+                  </button>
+                )}
+                {canReview && canApprove && (
+                  <button type="button" className={BTN_ACTION_SUCCESS} onClick={() => handleApprove(selected)} disabled={busy}>
+                    <Icon name="check" size={16} />
+                    {busy ? 'Saving...' : 'Approve'}
+                  </button>
+                )}
+                {!canReview && (
+                  <span className="text-[12px] font-bold text-muted">This appointment is {selected.status} — no review needed.</span>
+                )}
+                <button type="button" className={PILL} onClick={() => setSelectedId(null)} disabled={busy}>
                   Close
                 </button>
               </div>
@@ -676,150 +652,31 @@ function Appointments({ page }) {
         </div>
       )}
 
-      {/* ================= ASSIGN DOCTOR MODAL ================= */}
-      {assignTarget && (
+      {/* ================= REJECT REASON MODAL ================= */}
+      {rejectTarget && (
         <div
           className={MODAL_BACKDROP}
           role="dialog"
           aria-modal="true"
-          aria-label="Assign doctor"
+          aria-label="Reject appointment"
           onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !busy) setAssignTarget(null)
+            if (e.target === e.currentTarget && !busy) setRejectTarget(null)
           }}
         >
           <div className={MODAL_CARD_SM}>
             <div className={MODAL_HEADER}>
-              <h3 className="m-0 text-[18px] text-ink">Assign Doctor</h3>
-              <button type="button" className={MODAL_CLOSE} onClick={() => setAssignTarget(null)}>
+              <h3 className="m-0 text-[18px] text-ink">Reject Appointment</h3>
+              <button type="button" className={MODAL_CLOSE} onClick={() => setRejectTarget(null)} disabled={busy}>
                 ✕
               </button>
             </div>
             <div className={MODAL_BODY}>
               <div className="mb-[18px] flex items-center gap-3 rounded-lg border border-line bg-[#f4faf8] p-[14px]">
-                <StatusBadge status={assignTarget.status} />
+                <StatusBadge status={rejectTarget.status} />
                 <div>
-                  <strong className="block text-[15px] text-ink">{assignTarget.patient}</strong>
+                  <strong className="block text-[15px] text-ink">{rejectTarget.patient}</strong>
                   <span className="block text-[12px] text-muted">
-                    {assignTarget.reference} · {formatDate(assignTarget.date)} at {assignTarget.time}
-                  </span>
-                </div>
-              </div>
-              <label className={FORM_LABEL}>
-                Doctor / Clinician
-                <ClinicianSelect value={assignStaffId} onChange={(id) => setAssignStaffId(id)} disabled={busy} />
-              </label>
-              <p className="mt-2 text-[12px] text-muted">
-                The system checks the doctor&apos;s schedule and existing bookings for {assignTarget.time}. The assigned
-                doctor is shown in the queue, the consultation and the doctor&apos;s schedule.
-              </p>
-              <div className={`${MODAL_FOOTER_ACTIONS} mt-4`}>
-                <button type="button" className={PILL} onClick={() => setAssignTarget(null)} disabled={busy}>
-                  Cancel
-                </button>
-                <button type="button" className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`} onClick={confirmAssign} disabled={busy}>
-                  {busy ? 'Saving...' : assignStaffId ? 'Assign Doctor' : 'Save as Unassigned'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= RESCHEDULE MODAL ================= */}
-      {rescheduleTarget && (
-        <div
-          className={MODAL_BACKDROP}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Reschedule appointment"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setRescheduleTarget(null)
-          }}
-        >
-          <div className={MODAL_CARD_SM}>
-            <div className={MODAL_HEADER}>
-              <h3 className="m-0 text-[18px] text-ink">Reschedule Appointment</h3>
-              <button type="button" className={MODAL_CLOSE} onClick={() => setRescheduleTarget(null)}>
-                ✕
-              </button>
-            </div>
-            <div className={MODAL_BODY}>
-              <div className="mb-[18px] flex items-center gap-3 rounded-lg border border-line bg-[#f4faf8] p-[14px]">
-                <StatusBadge status={rescheduleTarget.status} />
-                <div>
-                  <strong className="block text-[15px] text-ink">{rescheduleTarget.patient}</strong>
-                  <span className="block text-[12px] text-muted">
-                    Currently {formatDate(rescheduleTarget.date)} at {rescheduleTarget.time}
-                  </span>
-                </div>
-              </div>
-              <form className={SIDEBAR_FORM} onSubmit={rescheduleForm.handleSubmit(confirmReschedule)}>
-                <label className={FORM_LABEL}>
-                  New Date
-                  <input type="date" className={FORM_FIELD} {...rescheduleForm.register('date', { required: 'A new date is required.' })} />
-                </label>
-                <label className={FORM_LABEL}>
-                  New Time Slot
-                  <select className={FORM_FIELD} {...rescheduleForm.register('time', { required: 'A new time slot is required.' })}>
-                    {TIME_SLOTS.map((t) => (
-                      <option key={t} value={t} disabled={isSlotClosed(rescheduleDate, t)}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className={FORM_LABEL}>
-                  Reason for Rescheduling (optional)
-                  <textarea
-                    placeholder="e.g. Patient requested a later slot due to class conflict"
-                    className={`${FORM_FIELD} min-h-20 resize-y`}
-                    {...rescheduleForm.register('reason')}
-                  />
-                </label>
-                <div className={MODAL_FOOTER_ACTIONS}>
-                  <button
-                    type="button"
-                    className={PILL}
-                    onClick={() => setRescheduleTarget(null)}
-                    disabled={busy}
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`} disabled={busy}>
-                    {busy ? 'Saving...' : 'Confirm Reschedule'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= REJECT / CANCEL REASON MODAL ================= */}
-      {reasonTarget && (
-        <div
-          className={MODAL_BACKDROP}
-          role="dialog"
-          aria-modal="true"
-          aria-label={`${reasonTarget.action} appointment`}
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setReasonTarget(null)
-          }}
-        >
-          <div className={MODAL_CARD_SM}>
-            <div className={MODAL_HEADER}>
-              <h3 className="m-0 text-[18px] text-ink">{reasonTarget.action} Appointment</h3>
-              <button type="button" className={MODAL_CLOSE} onClick={() => setReasonTarget(null)}>
-                ✕
-              </button>
-            </div>
-            <div className={MODAL_BODY}>
-              <div className="mb-[18px] flex items-center gap-3 rounded-lg border border-line bg-[#f4faf8] p-[14px]">
-                <StatusBadge status={reasonTarget.app.status} />
-                <div>
-                  <strong className="block text-[15px] text-ink">{reasonTarget.app.patient}</strong>
-                  <span className="block text-[12px] text-muted">
-                    {reasonTarget.app.reference} · {formatDate(reasonTarget.app.date)} at {reasonTarget.app.time}
+                    {rejectTarget.reference} · {formatDate(rejectTarget.date)} at {rejectTarget.time}
                   </span>
                 </div>
               </div>
@@ -827,13 +684,13 @@ function Appointments({ page }) {
                 className={SIDEBAR_FORM}
                 onSubmit={(e) => {
                   e.preventDefault()
-                  confirmReason()
+                  confirmReject()
                 }}
               >
                 <label className={FORM_LABEL}>
-                  Reason for {reasonTarget.action} (optional but recommended)
+                  Reason for rejecting (shared with the student)
                   <textarea
-                    placeholder={`Explain why this appointment is being ${reasonTarget.action.toLowerCase()}...`}
+                    placeholder="Explain why this appointment is being rejected..."
                     className={`${FORM_FIELD} min-h-20 resize-y`}
                     value={reasonText}
                     onChange={(e) => setReasonText(e.target.value)}
@@ -841,16 +698,12 @@ function Appointments({ page }) {
                   />
                 </label>
                 <div className={MODAL_FOOTER_ACTIONS}>
-                  <button
-                    type="button"
-                    className={PILL}
-                    onClick={() => setReasonTarget(null)}
-                    disabled={busy}
-                  >
+                  <button type="button" className={PILL} onClick={() => setRejectTarget(null)} disabled={busy}>
                     Keep Appointment
                   </button>
                   <button type="submit" className={`${BTN_ACTION_DANGER} min-h-10 px-[14px] text-[13px]`} disabled={busy}>
-                    {busy ? 'Saving...' : `Confirm ${reasonTarget.action}`}
+                    <Icon name="x" size={16} />
+                    {busy ? 'Saving...' : 'Confirm Reject'}
                   </button>
                 </div>
               </form>
@@ -867,7 +720,7 @@ function Appointments({ page }) {
           aria-modal="true"
           aria-label="Book a new appointment"
           onMouseDown={(e) => {
-            if (e.target === e.currentTarget) bookModal.close()
+            if (e.target === e.currentTarget && !busy) bookModal.close()
           }}
         >
           <div className={MODAL_CARD}>
@@ -922,7 +775,12 @@ function Appointments({ page }) {
                   </label>
                   <label className={FORM_LABEL}>
                     Appointment Type
-                    <select className={FORM_FIELD} {...bookForm.register('type')}>
+                    <select
+                      className={FORM_FIELD}
+                      {...bookForm.register('type', {
+                        onChange: () => bookForm.setValue('staffId', null),
+                      })}
+                    >
                       {APPOINTMENT_TYPES.map((t) => (
                         <option key={t} value={t}>
                           {t}
@@ -970,8 +828,10 @@ function Appointments({ page }) {
                   </div>
                 )}
                 <label className={FORM_LABEL}>
-                  Assigned Doctor
+                  Assign Doctor
                   <ClinicianSelect
+                    roles={['doctor']}
+                    department={departmentForType(bookType)}
                     value={bookStaffId}
                     onChange={(id) => bookForm.setValue('staffId', id)}
                     unassignedLabel="Assign later"
@@ -991,7 +851,7 @@ function Appointments({ page }) {
                     <input type="date" min={todayISO()} className={FORM_FIELD} {...bookForm.register('date', { required: 'A date is required.' })} />
                   </label>
                   <label className={FORM_LABEL}>
-                    Time Slot
+                    Time Slot (8:00 AM – 5:00 PM)
                     <select className={FORM_FIELD} {...bookForm.register('time')}>
                       {TIME_SLOTS.map((t) => (
                         <option key={t} value={t} disabled={isSlotClosed(bookDate, t)}>
@@ -1014,7 +874,6 @@ function Appointments({ page }) {
           </div>
         </div>
       )}
-
     </div>
   )
 }

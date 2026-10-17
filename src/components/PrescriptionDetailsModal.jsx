@@ -1,5 +1,5 @@
 import { formatDate } from '../lib/format'
-import { KICKER, PILL, TABLE, BTN_INFO } from '../lib/ui'
+import { KICKER, PILL, TABLE, BTN_INFO, BTN_DANGER } from '../lib/ui'
 
 const MODAL_CARD = 'flex max-h-[90vh] w-[min(650px,100%)] animate-modal-scale flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgba(8,20,20,0.22)]'
 const MODAL_CARD_WIDE = MODAL_CARD + ' w-[min(860px,100%)]'
@@ -19,7 +19,7 @@ const REASON_BOX = 'rounded-lg border border-[#cfe5df] bg-[#f4faf8] p-[12px_14px
  * related consultation (when available), and every medication line with its
  * documented 6.2 fields.
  */
-function PrescriptionDetailsModal({ prescription, canUpdate, onEdit, onClose }) {
+function PrescriptionDetailsModal({ prescription, canUpdate, canDelete = false, onEdit, onDelete, onClose }) {
   const { medications = [], consultation = null } = prescription
 
   return (
@@ -123,6 +123,11 @@ function PrescriptionDetailsModal({ prescription, canUpdate, onEdit, onClose }) 
 
         <div className={MODAL_FOOTER}>
           <div className={MODAL_FOOTER_ACTIONS}>
+            {canDelete && (
+              <button type="button" className={BTN_DANGER} onClick={onDelete}>
+                Remove Prescription
+              </button>
+            )}
             {canUpdate && (
               <button type="button" className={BTN_INFO} onClick={onEdit}>
                 Edit Prescription

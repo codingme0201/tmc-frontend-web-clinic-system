@@ -11,8 +11,8 @@ import { useAppContext } from '../context/AppContext'
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { usePagination } from '../hooks/usePagination'
-import { todayISO, formatPhone } from '../lib/format'
-import { APPOINTMENT_TYPES, TIME_SLOTS, VISIT_TYPES, VISIT_NEW, currentSlot, isSlotClosed } from '../lib/clinic'
+import { todayISO, formatPhone, isValidPhone, PHONE_ERROR } from '../lib/format'
+import { APPOINTMENT_TYPES, TIME_SLOTS, VISIT_TYPES, VISIT_NEW, currentSlot, isSlotClosed, departmentForType, DEPARTMENT_MEDICAL } from '../lib/clinic'
 import { PILL, PRIMARY_BTN, PANEL, PANEL_HEADER, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT, SIDEBAR_FORM, FORM_LABEL, FORM_FIELD, FORM_ROW } from '../lib/ui'
 import Pagination from '../components/Pagination'
 import StatusBadge from '../components/StatusBadge'
@@ -35,8 +35,9 @@ function Dashboard() {
   const { can, userRole } = useAuth()
   const { navigate } = useAppContext()
   const canViewConsultations = can('consultations.view')
-  // Audit logs are admin-only.
-  const canViewActivity = userRole === 'admin'
+  // Audit logs are admin-only; clinic activity and peak hours are shown to
+  // every dashboard user.
+  const canViewAuditLog = userRole === 'admin'
 
   // All data flows through shared custom hooks — the page never imports or
   // mutates shared store data directly.
@@ -216,6 +217,10 @@ function Dashboard() {
   const handleAddPatient = async (e) => {
     e.preventDefault()
     if (addingPatient || !patId.trim() || !patName.trim()) return
+    if (!isValidPhone(patContact)) {
+      showToast(PHONE_ERROR, 'error')
+      return
+    }
     setAddingPatient(true)
     try {
       await addPatient({
@@ -245,12 +250,12 @@ function Dashboard() {
   }
 
   // Staff coverage action
-  const handleUpdateStaffStatus = async (name, newStatus) => {
+  const handleUpdateStaffStatus = async (member, newStatus) => {
     if (statusUpdating) return
-    setStatusUpdating(name)
+    setStatusUpdating(member.userId)
     try {
-      await updateStaffStatus(name, newStatus)
-      showToast(`Status of ${name} updated to ${newStatus}.`)
+      await updateStaffStatus(member.name, newStatus, member.userId)
+      showToast(`Status of ${member.name} updated to ${newStatus} for today.`)
     } catch (err) {
       showToast(err?.message || 'Failed to update staff status.', 'error')
     } finally {
@@ -262,11 +267,12 @@ function Dashboard() {
   const activeStats = useMemo(() => {
     const todayAppts = appointments.filter((a) => a.date === todayISO() && a.status !== 'Cancelled' && a.status !== 'Rejected').length
     const activeCons = staff.filter((s) => s.status === 'On duty').length
+    const scheduledToday = staff.filter((s) => s.scheduledToday).length
     const totalPats = patients.length
     const totalConsults = consultations.length
     return [
       { label: 'Today Appointments', value: todayAppts, trend: `${appointments.filter((a) => a.status === 'Pending').length} pending review` },
-      { label: 'On-Duty Staff', value: activeCons, trend: `${staff.filter((s) => s.status === 'Break').length} on break` },
+      { label: 'On-Duty Staff', value: activeCons, trend: `${scheduledToday} scheduled today · ${staff.filter((s) => s.status === 'Break').length} on break` },
       { label: 'Registered Patients', value: totalPats, trend: 'Unified clinic health list' },
       canViewConsultations
         ? { label: 'Total Consultations', value: totalConsults, trend: 'Clinic visit records logged' }
@@ -286,13 +292,14 @@ function Dashboard() {
 
   // Filtered Patients
   const filteredPatients = useMemo(() => {
-    return patients.filter((pat) => {
-      const matchSearch =
-        pat.name.toLowerCase().includes(debouncedPatSearch.toLowerCase()) ||
-        pat.id.includes(debouncedPatSearch)
-      const matchFilter = patFilter === 'All' || pat.type === patFilter
-      return matchSearch && matchFilter
-    })
+    const q = debouncedPatSearch.toLowerCase()
+    return patients
+      .filter((pat) => {
+        const matchSearch = pat.name.toLowerCase().includes(q) || (pat.patientId || '').toLowerCase().includes(q)
+        const matchFilter = patFilter === 'All' || pat.type === patFilter
+        return matchSearch && matchFilter
+      })
+      .sort((a, b) => (a.patientId || '').localeCompare(b.patientId || '', undefined, { numeric: true }))
   }, [patients, debouncedPatSearch, patFilter])
 
   // Client-side pagination per list — swap for API-driven pages later without
@@ -319,11 +326,9 @@ function Dashboard() {
     return consultations.filter((c) => c.patient === selectedPatient.name)
   }, [selectedPatient, consultations])
 
-  // FIFO queue snapshot for the overview widget: who is being seen, then the waiting line.
-  const queuePreview = useMemo(
-    () => queue.entries.filter((e) => e.queueStatus === 'In Consultation' || e.queueStatus === 'Waiting').slice(0, 4),
-    [queue.entries],
-  )
+  // Every patient with an appointment today, in queue order: being seen,
+  // waiting (FIFO), expected, awaiting approval, then served.
+  const queuePreview = queue.entries
 
   // Overview load state — each widget loads independently, so a slow API
   // never blocks the whole dashboard. These booleans drive the stat cards
@@ -402,15 +407,13 @@ function Dashboard() {
           >
             Staff Shifts
           </button>
-          {canViewActivity && (
-            <button
-              type="button"
-              className={`cursor-pointer whitespace-nowrap rounded-xl border-0 px-3.5 py-2 text-[12.5px] sm:text-[13px] font-extrabold transition-all duration-150 ${activeTab === 'activity' ? 'bg-primary text-white shadow-xs' : 'text-muted-soft hover:bg-white/60 hover:text-primary'}`}
-              onClick={() => setActiveTab('activity')}
-            >
-              Clinic Activity
-            </button>
-          )}
+          <button
+            type="button"
+            className={`cursor-pointer whitespace-nowrap rounded-xl border-0 px-3.5 py-2 text-[12.5px] sm:text-[13px] font-extrabold transition-all duration-150 ${activeTab === 'activity' ? 'bg-primary text-white shadow-xs' : 'text-muted-soft hover:bg-white/60 hover:text-primary'}`}
+            onClick={() => setActiveTab('activity')}
+          >
+            Clinic Activity
+          </button>
         </nav>
       </section>
 
@@ -468,12 +471,12 @@ function Dashboard() {
                     ) : queue.isLoading ? (
                       <ListSkeleton rows={3} />
                     ) : (
-                    <div className="grid gap-2.5">
+                    <div className="grid max-h-[520px] gap-2.5 overflow-y-auto pr-1">
                       {queuePreview.map((entry) => (
                         <div className="flex flex-col sm:grid sm:grid-cols-[92px_minmax(0,1fr)_auto] items-start sm:items-center gap-2.5 sm:gap-3 rounded-xl border border-line-strong/80 bg-white/70 p-3 sm:p-3.5 shadow-2xs transition-all duration-150 hover:border-primary/40 hover:bg-white" key={entry.appointmentId}>
                           <div className="flex w-full items-center justify-between sm:w-auto sm:flex-col sm:items-start">
                             <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-0.5 text-[12px] font-extrabold text-primary">
-                              {entry.queueStatus === 'Waiting' ? `#${entry.position}` : 'Now'} · {entry.time}
+                              {entry.queueStatus === 'Waiting' ? `#${entry.position} · ` : entry.queueStatus === 'In Consultation' ? 'Now · ' : ''}{entry.time}
                             </span>
                           </div>
                           <div className="min-w-0">
@@ -481,13 +484,18 @@ function Dashboard() {
                               <strong className="block truncate font-bold text-ink text-[13.5px]">{entry.patient}</strong>
                               <VisitTypeBadge visitType={entry.visitType} compact />
                             </div>
-                            <span className="block text-[12px] text-muted">{entry.type} · {entry.staff}</span>
+                            <span className="block text-[12px] text-muted">
+                              {entry.reference} · {entry.type} · {entry.staffId ? entry.staff : 'Doctor not yet assigned'}
+                            </span>
                           </div>
-                          <StatusBadge status={entry.queueStatus} />
+                          <div className="flex flex-col items-start gap-1 sm:items-end">
+                            <StatusBadge status={entry.queueStatus} />
+                            {entry.queueStatus === 'Awaiting Approval' && <span className="text-[11px] font-bold text-muted">Appointment: {entry.appointmentStatus}</span>}
+                          </div>
                         </div>
                       ))}
                       {queuePreview.length === 0 && (
-                        <EmptyState message={`No patients waiting. ${queue.meta?.expected ?? 0} expected and ${queue.meta?.awaitingApproval ?? 0} awaiting approval today.`} />
+                        <EmptyState message="No patients have an appointment today. Pending, approved and checked-in appointments for today appear here." />
                       )}
                     </div>
                     )}
@@ -511,12 +519,16 @@ function Dashboard() {
                       <ListSkeleton rows={4} avatar />
                     ) : (
                     <div className="grid gap-[10px]">
+                      {staff.length === 0 && (
+                        <EmptyState message="No active doctors or nurses yet. Add them in User Management and plan their shifts in the Doctor/Nurse Schedule." />
+                      )}
                       {staff.map((member) => (
-                        <div className="grid grid-cols-[42px_minmax(0,1fr)] items-center gap-3 rounded-lg border border-line p-3" key={member.name}>
+                        <div className="grid grid-cols-[42px_minmax(0,1fr)] items-center gap-3 rounded-lg border border-line p-3" key={member.userId}>
                           <div className="grid size-[42px] place-items-center rounded-full bg-accent text-[13px] font-extrabold text-[#fffaf3]">{member.name.slice(0, 2).toUpperCase()}</div>
                           <div>
                             <strong className="block text-ink">{member.name}</strong>
-                            <span className="block text-[12px] text-muted">{member.role}</span>
+                            <span className="block text-[12px] text-muted">{member.role} · {member.department}</span>
+                            <span className="block text-[11.5px] font-bold text-primary">{member.shift}</span>
                           </div>
                           <div className="col-start-2">
                             <StatusBadge status={member.status} />
@@ -531,7 +543,7 @@ function Dashboard() {
                   <article className={PANEL}>
                     <div className={PANEL_HEADER}>
                       <div>
-                        <p className={KICKER}>Records</p>
+                        <p className={KICKER}>Records · last 30 days</p>
                         <h3 className="m-0 text-[18px] text-[#143d40]">Clinic Activity</h3>
                       </div>
                       <div className="flex items-center gap-2">
@@ -545,9 +557,15 @@ function Dashboard() {
                       <CardSkeleton rows={4} />
                     ) : (
                     <div className="grid gap-4">
+                      {activity.every((item) => !item.count) && (
+                        <EmptyState message="No appointments, consultations, prescriptions or certificates were recorded in the last 30 days." />
+                      )}
                       {activity.map((item) => (
                         <div className="grid gap-[7px]" style={{ '--bar-size': `${item.percent}%` }} key={item.label}>
-                          <span className="text-[13px] font-extrabold text-ink">{item.label}</span>
+                          <span className="flex justify-between text-[13px] font-extrabold text-ink">
+                            {item.label}
+                            <span className="text-muted">{item.count}</span>
+                          </span>
                           <b className="block h-[10px] w-full rounded-full bg-[linear-gradient(90deg,var(--color-primary)_var(--bar-size),#e5efec_var(--bar-size))]" />
                         </div>
                       ))}
@@ -616,7 +634,14 @@ function Dashboard() {
                   </label>
                   <label className={FORM_LABEL}>
                     Appointment Type
-                    <select value={appType} onChange={(e) => setAppType(e.target.value)} className={FORM_FIELD}>
+                    <select
+                      value={appType}
+                      onChange={(e) => {
+                        setAppType(e.target.value)
+                        setAppStaffId(null)
+                      }}
+                      className={FORM_FIELD}
+                    >
                       {APPOINTMENT_TYPES.map((t) => (
                         <option key={t} value={t}>{t}</option>
                       ))}
@@ -625,12 +650,18 @@ function Dashboard() {
                 </div>
 
                 <label className={FORM_LABEL}>
-                  Assigned Doctor
-                  <ClinicianSelect value={appStaffId} onChange={(id) => setAppStaffId(id)} unassignedLabel="Assign later" />
+                  Assign Doctor
+                  <ClinicianSelect
+                    roles={['doctor']}
+                    department={departmentForType(appType)}
+                    value={appStaffId}
+                    onChange={(id) => setAppStaffId(id)}
+                    unassignedLabel="Assign later"
+                  />
                 </label>
 
                 <label className={FORM_LABEL}>
-                  Time Slot (today)
+                  Time Slot (today, 8:00 AM – 5:00 PM)
                   <select value={appTime} onChange={(e) => setAppTime(e.target.value)} className={FORM_FIELD}>
                     {TIME_SLOTS.map((t) => (
                       <option key={t} value={t} disabled={isSlotClosed(todayISO(), t)}>{t}</option>
@@ -763,7 +794,12 @@ function Dashboard() {
 
                 <label className={FORM_LABEL}>
                   Attending Doctor / Nurse
-                  <ClinicianSelect value={consStaffId} onChange={(id) => setConsStaffId(id)} unassignedLabel="Select doctor / nurse" />
+                  <ClinicianSelect
+                    department={DEPARTMENT_MEDICAL}
+                    value={consStaffId}
+                    onChange={(id) => setConsStaffId(id)}
+                    unassignedLabel="Select doctor / nurse"
+                  />
                 </label>
 
                 <label className={FORM_LABEL}>
@@ -913,7 +949,7 @@ function Dashboard() {
                           className="hover:[&_td]:text-primary"
                           title="Click to view full health record profile"
                         >
-                          <td className="font-bold text-primary">{pat.id}</td>
+                          <td className="font-bold text-primary">{pat.patientId}</td>
                           <td className="font-bold text-ink">{pat.name}</td>
                           <td>{pat.type}</td>
                           <td>{pat.courseDept}</td>
@@ -1054,7 +1090,7 @@ function Dashboard() {
             <div className={`${PANEL} p-5`}>
               <div className={PANEL_HEADER}>
                 <h3 className="m-0 text-[18px] text-[#143d40]">Medical Staff Shift Coverage</h3>
-                <p className={KICKER}>Track doctor/nurse shifts and set active duty status</p>
+                <p className={KICKER}>Today&apos;s shifts from the Doctor/Nurse Schedule · On duty while a shift covers the current time</p>
               </div>
 
               <div className="overflow-x-auto rounded-lg border border-line">
@@ -1067,27 +1103,40 @@ function Dashboard() {
                     <thead>
                       <tr>
                         <th>Staff Member</th>
-                        <th>Specialty Role</th>
-                        <th>Shift Timings</th>
+                        <th>Role / Department</th>
+                        <th>Today&apos;s Shift</th>
                         <th>Duty Status</th>
-                        <th>Action Dropdown</th>
+                        <th>Set Status (today)</th>
                       </tr>
                     </thead>
                     <tbody>
+                      {staff.length === 0 && (
+                        <tr>
+                          <td colSpan="5">
+                            <EmptyState message="No active doctors or nurses yet. Add them in User Management, then plan their shifts in the Doctor/Nurse Schedule." />
+                          </td>
+                        </tr>
+                      )}
                       {staffPagination.pageItems.map((member) => (
-                        <tr key={member.name}>
+                        <tr key={member.userId}>
                           <td className="font-bold text-ink">{member.name}</td>
-                          <td>{member.role}</td>
+                          <td>
+                            {member.role}
+                            <span className="block text-[12px] text-muted">{member.department}</span>
+                          </td>
                           <td className="font-mono text-primary">{member.shift}</td>
                           <td>
                             <StatusBadge status={member.status} />
+                            <span className="block text-[11px] text-muted">
+                              {member.statusSource === 'manual' ? 'Set manually today' : 'From schedule'}
+                            </span>
                           </td>
                           <td>
                             <select
                               value={member.status}
-                              onChange={(e) => handleUpdateStaffStatus(member.name, e.target.value)}
+                              onChange={(e) => handleUpdateStaffStatus(member, e.target.value)}
                               className={SELECT_INPUT}
-                              disabled={statusUpdating === member.name}
+                              disabled={statusUpdating === member.userId}
                             >
                               <option value="On duty">On duty</option>
                               <option value="Break">Break</option>
@@ -1111,15 +1160,15 @@ function Dashboard() {
         )}
 
         {/* ================= CLINIC ACTIVITY ================= */}
-        {activeTab === 'activity' && canViewActivity && (
-          <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)] gap-5 max-[980px]:grid-cols-1">
+        {activeTab === 'activity' && (
+          <div className={`grid gap-5 ${canViewAuditLog ? 'grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)] max-[980px]:grid-cols-1' : 'grid-cols-1'}`}>
             {/* Left: Peak Hours and Activity */}
             <div className={`${PANEL} p-5`}>
               {/* Peak Hours Chart */}
               <div>
                 <div className={PANEL_HEADER}>
                   <h3 className="m-0 text-[18px] text-[#143d40]">Clinic Peak Activity Hours</h3>
-                  <p className={KICKER}>Distribution load of patients visit by hour slot</p>
+                  <p className={KICKER}>Patient visits per time of day · last 30 days (appointments and walk-in consultations)</p>
                 </div>
                 {insightsError ? (
                   <ErrorState message={insightsError} onRetry={refetchInsights} />
@@ -1127,6 +1176,9 @@ function Dashboard() {
                   <CardSkeleton rows={4} />
                 ) : (
                   <div className="mt-[14px] grid gap-3">
+                    {peakHours.every((hour) => !hour.count) && (
+                      <EmptyState message="No patient visits were recorded in the last 30 days." />
+                    )}
                     {peakHours.map((hour) => (
                       <div className="grid grid-cols-[150px_1fr_80px] items-center gap-3 max-[580px]:grid-cols-1" key={hour.label}>
                         <span className="text-[12.5px] font-bold text-ink">{hour.label}</span>
@@ -1142,9 +1194,34 @@ function Dashboard() {
                   </div>
                 )}
               </div>
+
+              <div className="mt-6">
+                <div className={PANEL_HEADER}>
+                  <h3 className="m-0 text-[18px] text-[#143d40]">Clinic Activity</h3>
+                  <p className={KICKER}>Records created in the last 30 days</p>
+                </div>
+                {insightsError ? (
+                  <ErrorState message={insightsError} onRetry={refetchInsights} />
+                ) : insightsLoading ? (
+                  <CardSkeleton rows={4} />
+                ) : (
+                  <div className="mt-[14px] grid gap-3">
+                    {activity.map((item) => (
+                      <div className="grid grid-cols-[150px_1fr_80px] items-center gap-3 max-[580px]:grid-cols-1" key={item.label}>
+                        <span className="text-[12.5px] font-bold text-ink">{item.label}</span>
+                        <div className="h-[10px] w-full rounded-full bg-[#e5efec]">
+                          <div className="h-full rounded-full bg-primary transition-[width] duration-300" style={{ width: `${item.percent}%` }} />
+                        </div>
+                        <span className="text-right text-[12.5px] font-bold text-ink">{item.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Right: Live System Audit Log */}
+            {/* Right: Live System Audit Log (administrator only) */}
+            {canViewAuditLog && (
             <div className={`${PANEL} self-start p-5`}>
               <h3 className="m-0 text-[18px] text-[#143d40]">Live Activity Audit Log</h3>
               <p className="mt-0.5 text-[12px] text-muted">Audit trail of administrator actions in real-time</p>
@@ -1173,6 +1250,7 @@ function Dashboard() {
                 onPageChange={logsPagination.goToPage}
               />
             </div>
+            )}
           </div>
         )}
       </div>
@@ -1196,7 +1274,7 @@ function Dashboard() {
               <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
                 <div>
                   <label className="mb-0.5 block text-[11px] font-extrabold uppercase text-muted">Patient ID</label>
-                  <p className="m-0 text-[14px] font-bold text-ink">{selectedPatient.id}</p>
+                  <p className="m-0 text-[14px] font-bold text-ink">{selectedPatient.patientId}</p>
                 </div>
                 <div>
                   <label className="mb-0.5 block text-[11px] font-extrabold uppercase text-muted">Full Name</label>

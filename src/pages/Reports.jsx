@@ -126,7 +126,7 @@ function Reports({ page }) {
     reports.generateStats({})
   }
 
-  const colCount = reports.activeReport === 'prescriptions' ? 5 : 7
+  const colCount = reports.activeReport === 'prescriptions' ? 5 : reports.activeReport === 'patients' ? 8 : 7
 
   const stats = reports.statsData
   const cardStats = {
@@ -171,7 +171,7 @@ function Reports({ page }) {
             disabled={busy || !reports.reportData.length}
           >
             {busy ? <InlineSpinner /> : <Icon name="download" size={16} />}
-            Export {activeReport.label} CSV
+            Export {activeReport.label} to Excel (CSV)
           </button>
         )}
       </section>
@@ -325,6 +325,7 @@ function Reports({ page }) {
                         <th>Course/Dept</th>
                         <th>Contact</th>
                         <th>Status</th>
+                        <th>Registered On</th>
                         <th>Visits</th>
                       </>
                     )}
@@ -406,6 +407,7 @@ function Reports({ page }) {
                               {row.status}
                             </span>
                           </td>
+                          <td className="whitespace-nowrap">{row.registeredOn || '—'}</td>
                           <td className="text-center">
                             <span className="text-[12px] font-bold text-muted">
                               {(row.appointmentsCount ?? 0) + (row.consultationsCount ?? 0)}

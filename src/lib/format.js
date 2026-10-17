@@ -23,6 +23,15 @@ export function initials(name = '') {
   return name.slice(0, 2).toUpperCase()
 }
 
+export const PHONE_DIGITS = 11
+export const PHONE_ERROR = `Phone number must be exactly ${PHONE_DIGITS} digits (e.g. 0917-123-4567).`
+
+/** Empty, or exactly 11 digits once separators are ignored (mirrors the API rule). */
+export function isValidPhone(phone = '') {
+  const digits = String(phone ?? '').replace(/\D/g, '')
+  return digits.length === 0 || digits.length === PHONE_DIGITS
+}
+
 /** Formats a phone number into readable format (e.g. "0917-123-4567"). */
 export function formatPhone(phone = '') {
   if (!phone) return ''

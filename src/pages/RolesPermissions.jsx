@@ -33,8 +33,22 @@ function roleLabel(name) {
 // Admin keeps full access (one admin account) and students only use the
 // mobile app, so their permissions can't be checked/unchecked.
 const LOCKED_ROLES = ['admin', 'student']
-// Only the administrator may view audit logs.
-const ADMIN_ONLY_PERMISSIONS = ['audit_logs.view']
+// Administrative permissions belong to the single Administrator role; the
+// API rejects them for every other role (mirrors RolePermissions::ADMIN_LEVEL_PERMISSIONS).
+const ADMIN_ONLY_PERMISSIONS = [
+  'audit_logs.view',
+  'roles.view', 'roles.create', 'roles.update', 'roles.delete', 'roles.assign_permissions',
+  'users.view', 'users.create', 'users.update', 'users.delete',
+  'settings.view', 'settings.update',
+]
+
+const ADMIN_NAME_ERROR = 'The Administrator role is predefined and unique. You cannot create another administrator role.'
+
+/** True when a role name impersonates the administrator (admin, Super-Admin, root...). */
+function isAdminLikeName(name) {
+  const normalized = String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+  return normalized.includes('admin') || ['root', 'superuser', 'system', 'owner', 'sysad'].includes(normalized)
+}
 
 function RolesPermissions({ page }) {
   const { can } = useAuth()
@@ -90,7 +104,7 @@ function RolesPermissions({ page }) {
   // RHF blocks submission when the name is empty; the onInvalid handler
   // preserves the previous inline error toast for that case.
   const submitRoleForm = (event) => {
-    roleForm.handleSubmit(handleSaveRole, () => showToast('Role name is required.', 'error'))(event)
+    roleForm.handleSubmit(handleSaveRole, (errors) => showToast(errors.name?.message || 'Role name is required.', 'error'))(event)
   }
 
   const handleSaveRole = async ({ name, description }) => {
@@ -104,7 +118,7 @@ function RolesPermissions({ page }) {
     }
     try {
       if (editing) {
-        await roles.updateRole(editing.id, payload)
+        await roles.updateRole(editing.id, editing.is_system ? { ...payload, name: editing.name } : payload)
         showToast(`Role "${roleLabel(editing.name)}" updated.`)
       } else {
         await roles.createRole(payload)
@@ -152,7 +166,10 @@ function RolesPermissions({ page }) {
     busyRef.current = true
     setBusy(true)
     try {
-      await roles.assignPermissions(permTarget.id, [...selectedIds])
+      const adminOnlyIds = new Set(
+        (permissions.data || []).filter((perm) => ADMIN_ONLY_PERMISSIONS.includes(perm.name)).map((perm) => perm.id),
+      )
+      await roles.assignPermissions(permTarget.id, [...selectedIds].filter((id) => !adminOnlyIds.has(id)))
       showToast(`Permissions updated for "${roleLabel(permTarget.name)}".`)
       setPermTarget(null)
     } catch (err) {
@@ -207,7 +224,10 @@ function RolesPermissions({ page }) {
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="m-0 text-[18px] text-[#143d40]">System Roles</h3>
-            <p className={KICKER}>Roles control which modules and actions each user can access</p>
+            <p className={KICKER}>
+              Predefined roles (Administrator, Doctor, Nurse, Front Desk, Student) cannot be renamed or deleted. Custom
+              roles can be deleted when no user is assigned to them.
+            </p>
           </div>
           {!roles.isLoading && !roles.error && (
             <span className="ml-auto whitespace-nowrap text-[12.5px] font-bold text-muted">{roles.data.length} roles</span>
@@ -288,6 +308,17 @@ function RolesPermissions({ page }) {
                               Delete
                             </button>
                           )}
+                          {canDelete && role.is_system ? (
+                            <button
+                              type="button"
+                              className={`${BTN_DANGER} cursor-not-allowed opacity-50`}
+                              disabled
+                              title="Predefined roles cannot be deleted."
+                              aria-label={`${roleLabel(role.name)} is a predefined role and cannot be deleted`}
+                            >
+                              Delete
+                            </button>
+                          ) : null}
                         </div>
                       </td>
                     </tr>
@@ -329,11 +360,17 @@ function RolesPermissions({ page }) {
                   Role Name
                   <input
                     type="text"
-                    placeholder="e.g. front-desk"
+                    placeholder="e.g. pharmacist"
                     className={FORM_FIELD}
-                    {...roleForm.register('name', { required: 'Role name is required.' })}
-                    disabled={busy}
+                    {...roleForm.register('name', {
+                      required: 'Role name is required.',
+                      validate: (value) => editing?.is_system || !isAdminLikeName(value) || ADMIN_NAME_ERROR,
+                    })}
+                    disabled={busy || Boolean(editing?.is_system)}
                   />
+                  {editing?.is_system ? (
+                    <span className="text-[12px] font-normal text-muted">Predefined roles cannot be renamed; only the description can change.</span>
+                  ) : null}
                 </label>
                 <label className={FORM_LABEL}>
                   Description
@@ -345,7 +382,13 @@ function RolesPermissions({ page }) {
                     disabled={busy}
                   />
                 </label>
-                <p className="mt-0.5 text-[12px] text-muted">Permissions can be assigned after creating the role.</p>
+                {!editing && (
+                  <p className="mt-0.5 text-[12px] text-muted">
+                    Use the predefined roles whenever possible. A custom role cannot be another administrator role,
+                    duplicate an existing role, or receive administrative permissions (users, roles, settings, audit
+                    logs). Permissions can be assigned after creating the role.
+                  </p>
+                )}
                 <div className={MODAL_FOOTER_ACTIONS}>
                   <button
                     type="button"
@@ -416,7 +459,10 @@ function RolesPermissions({ page }) {
                         : 'Student accounts only use the mobile app. Their permissions cannot be changed.'}
                     </p>
                   ) : (
-                    <p className="m-0 text-[12px] text-muted">Audit Logs access is reserved for the administrator.</p>
+                    <p className="m-0 text-[12px] text-muted">
+                      Administrative permissions — Users, Roles &amp; Permissions, System Settings and Audit Logs — are
+                      reserved for the Administrator and cannot be given to other roles.
+                    </p>
                   )}
                   {Object.entries(permissionGroups).map(([module, perms]) => (
                     <fieldset className="m-0 rounded-lg border border-line p-[12px_14px]" key={module}>

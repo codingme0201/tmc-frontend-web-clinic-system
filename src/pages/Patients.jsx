@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { usePagination } from '../hooks/usePagination'
-import { formatDate, formatPhone } from '../lib/format'
+import { formatDate, formatPhone, isValidPhone, PHONE_ERROR } from '../lib/format'
 import {
   PILL, PRIMARY_BTN, PANEL, KICKER, TABLE, SEARCH_INPUT,
   BTN_INFO, BTN_SUCCESS, BTN_DANGER, BTN_VIEW,
@@ -81,7 +81,7 @@ function Patients({ page }) {
         const matchStatus = statusFilter === 'All' || p.status === statusFilter
         return matchQuery && matchStatus
       })
-      .sort((a, b) => a.name.localeCompare(b.name))
+      .sort((a, b) => (a.patientId || '').localeCompare(b.patientId || '', undefined, { numeric: true }))
   }, [patients, debouncedSearch, statusFilter])
 
   const pagination = usePagination(filtered, { pageSize: 8 })
@@ -146,6 +146,10 @@ function Patients({ page }) {
   const handleUpdatePatient = async (e) => {
     e.preventDefault()
     if (!editTarget || !editForm.name.trim() || busyRef.current) return
+    if (!isValidPhone(editForm.contact) || !isValidPhone(editForm.emergencyContactPhone)) {
+      showToast(PHONE_ERROR, 'error')
+      return
+    }
     busyRef.current = true
     setBusy(true)
     try {

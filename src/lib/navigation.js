@@ -33,7 +33,8 @@ export const navSections = [
   {
     items: [
       { id: 'reports', label: 'Reports', icon: 'barChart', permission: 'reports.view' },
-      { id: 'notifications', label: 'Notifications', icon: 'bell', permission: 'notifications.view' },
+      // Opened from the bell in the top bar, not listed in the sidebar.
+      { id: 'notifications', label: 'Notifications', icon: 'bell', permission: 'notifications.view', hideInSidebar: true },
       { id: 'users', label: 'User Management', icon: 'shieldUser', permission: 'users.view' },
     ],
   },

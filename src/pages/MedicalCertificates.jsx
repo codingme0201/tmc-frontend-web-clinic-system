@@ -26,13 +26,24 @@ const MEDICAL_ROLES = ['admin', 'doctor', 'nurse']
 // Certificate lifecycle — a request moves through review, then issue.
 const STATUSES = ['Pending', 'Approved', 'Issued', 'Rejected', 'Void']
 
+// Common reasons a certificate is requested (what it will be used for).
 const PURPOSES = [
-  'Medical Excuse — Clinic Visit',
-  'Fit to Return to Class',
-  'Medical Clearance',
-  'School Requirement — Medical Certificate',
-  'Fitness for Work',
+  'Excuse for missed classes or exams (clinic visit)',
+  'Clearance to return to class after illness',
+  'Medical clearance for school activities, sports or OJT',
+  'School enrollment or document requirement',
+  'Fitness for work',
 ]
+
+// Who asked for the certificate. The patient is the default requester.
+const REQUESTER_PATIENT = 'Patient'
+const REQUESTER_TYPES = [REQUESTER_PATIENT, 'Parent / Guardian', 'Faculty / School Office', 'Other']
+
+function requestedByLabel(values) {
+  if (values.requesterType === REQUESTER_PATIENT) return values.patient
+  const name = values.requesterName.trim()
+  return name ? `${name} (${values.requesterType})` : ''
+}
 
 const MODAL_CARD = 'flex max-h-[90vh] w-[min(650px,100%)] animate-modal-scale flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgba(8,20,20,0.22)]'
 const MODAL_CARD_WIDE = MODAL_CARD + ' w-[min(820px,100%)]'
@@ -93,7 +104,7 @@ function CertificateSheet({ certificate }) {
           <strong>{certificate.diagnosis || '—'}</strong>.
         </p>
         <p className="m-0">
-          <span className="font-extrabold">Purpose:</span> {certificate.purpose}
+          <span className="font-extrabold">This certificate is issued for:</span> {certificate.purpose}
         </p>
         {certificate.recommendation && (
           <p className="m-0">
@@ -174,13 +185,18 @@ function MedicalCertificates({ page }) {
       issueDate: todayISO(),
       validUntil: '',
       issuedBy: '',
+      requesterType: REQUESTER_PATIENT,
+      requesterName: '',
     },
     {
       validate: (values) => {
         const errors = {}
         if (!values.patient) errors.patient = 'Select a patient'
         if (!values.consultationId) errors.consultationId = 'A completed consultation is required'
-        if (!values.purpose.trim()) errors.purpose = 'Purpose is required'
+        if (!values.purpose.trim()) errors.purpose = 'State what the certificate will be used for'
+        if (values.requesterType !== REQUESTER_PATIENT && !values.requesterName.trim()) {
+          errors.requesterName = 'Enter the name of the person requesting the certificate'
+        }
         if (values.validUntil && values.issueDate && values.validUntil < values.issueDate) {
           errors.validUntil = 'Must be on or after the issue date'
         }
@@ -269,7 +285,9 @@ function MedicalCertificates({ page }) {
       recommendation: '',
       issueDate: todayISO(),
       validUntil: '',
-      issuedBy: staff[0]?.name || '',
+      issuedBy: '',
+      requesterType: REQUESTER_PATIENT,
+      requesterName: '',
     })
     requestModal.open()
   }
@@ -331,8 +349,8 @@ function MedicalCertificates({ page }) {
         patientId: patientIdVal,
         consultation_id: form.values.consultationId || null,
         consultationId: form.values.consultationId || null,
-        issued_by: form.values.issuedBy,
-        issuedBy: form.values.issuedBy,
+        requested_by: requestedByLabel(form.values),
+        requestedBy: requestedByLabel(form.values),
         purpose: form.values.purpose.trim(),
         diagnosis: form.values.diagnosis.trim(),
         recommendation: form.values.recommendation.trim(),
@@ -569,7 +587,7 @@ function MedicalCertificates({ page }) {
                   <th>Reference</th>
                   <th>Patient</th>
                   <th>Issue Date</th>
-                  <th>Purpose</th>
+                  <th>Reason for Certificate</th>
                   <th>Diagnosis</th>
                   <th>Issued By</th>
                   <th>Status</th>
@@ -698,12 +716,12 @@ function MedicalCertificates({ page }) {
                 )}
 
                 <label className={FORM_LABEL}>
-                  <span>Purpose *</span>
+                  <span>Reason for the Certificate (what it will be used for) *</span>
                   <input
                     type="text"
                     list="certificate-purposes"
                     className={FORM_FIELD}
-                    placeholder="e.g. Medical Excuse — Clinic Visit"
+                    placeholder="e.g. Excuse for missed classes or exams (clinic visit)"
                     value={form.values.purpose}
                     onChange={(e) => form.setValue('purpose', e.target.value)}
                     disabled={busy}
@@ -763,21 +781,37 @@ function MedicalCertificates({ page }) {
                   </label>
                 </div>
 
-                <label className={FORM_LABEL}>
-                  <span>Requested By</span>
-                  <select
-                    className={FORM_FIELD}
-                    value={form.values.issuedBy}
-                    onChange={(e) => form.setValue('issuedBy', e.target.value)}
-                    disabled={busy}
-                  >
-                    {staff.map((m) => (
-                      <option key={m.name} value={m.name}>
-                        {m.name} — {m.role}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <div className={FORM_ROW}>
+                  <label className={FORM_LABEL}>
+                    <span>Requested By</span>
+                    <select
+                      className={FORM_FIELD}
+                      value={form.values.requesterType}
+                      onChange={(e) => form.setValue('requesterType', e.target.value)}
+                      disabled={busy}
+                    >
+                      {REQUESTER_TYPES.map((type) => (
+                        <option key={type} value={type}>
+                          {type === REQUESTER_PATIENT ? `The patient${form.values.patient ? ` — ${form.values.patient}` : ''}` : type}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {form.values.requesterType !== REQUESTER_PATIENT && (
+                    <label className={FORM_LABEL}>
+                      <span>Requester&apos;s Name *</span>
+                      <input
+                        type="text"
+                        className={FORM_FIELD}
+                        placeholder="e.g. Maria Dela Cruz"
+                        value={form.values.requesterName}
+                        onChange={(e) => form.setValue('requesterName', e.target.value)}
+                        disabled={busy}
+                      />
+                      {form.errors.requesterName && <span className={FIELD_ERROR}>{form.errors.requesterName}</span>}
+                    </label>
+                  )}
+                </div>
               </div>
             </div>
             <div className={MODAL_FOOTER}>

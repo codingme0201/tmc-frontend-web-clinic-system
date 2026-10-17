@@ -28,7 +28,7 @@ export function useStaffStore({ onLog } = {}, scope = 'page') {
   })
 
   const statusMutation = useMutation({
-    mutationFn: ({ name, status }) => staffService.updateStaffStatus(name, status),
+    mutationFn: ({ name, status, userId }) => staffService.updateStaffStatus(name, status, userId),
     onSuccess: (updated, { name, status }) => {
       queryClient.invalidateQueries({ queryKey: ['staff'] })
       onLogRef.current?.(`Updated status of ${name} to: ${status}`)
@@ -36,7 +36,7 @@ export function useStaffStore({ onLog } = {}, scope = 'page') {
   })
 
   const updateStaffStatus = useCallback(
-    async (name, newStatus) => statusMutation.mutateAsync({ name, status: newStatus }),
+    async (name, newStatus, userId = null) => statusMutation.mutateAsync({ name, status: newStatus, userId }),
     [statusMutation],
   )
 

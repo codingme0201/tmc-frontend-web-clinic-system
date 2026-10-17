@@ -57,9 +57,15 @@ export async function updatePrescription(id, patch) {
   return res.data
 }
 
+/** Remove a prescription and its medication lines. */
+export async function deletePrescription(id) {
+  return request(`/prescriptions/${id}`, { method: 'DELETE' })
+}
+
 export const prescriptionsService = {
   fetchPrescriptions,
   fetchPrescription,
   createPrescription,
   updatePrescription,
+  deletePrescription,
 }

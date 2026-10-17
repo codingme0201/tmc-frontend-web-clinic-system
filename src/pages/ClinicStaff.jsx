@@ -5,7 +5,7 @@ import { useClinicStaff, useClinicStaffMember } from '../hooks/useClinicStaff'
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { usePagination } from '../hooks/usePagination'
-import { formatDate, todayISO } from '../lib/format'
+import { formatDate, formatPhone, isValidPhone, PHONE_ERROR, todayISO } from '../lib/format'
 import { LICENSE_TYPES, LICENSE_TYPES_BY_ROLE, roleLabel } from '../lib/clinic'
 import {
   PILL, PRIMARY_BTN, PANEL, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT,
@@ -447,7 +447,7 @@ function ClinicStaff({ page }) {
               <button type="button" className={MODAL_CLOSE} onClick={() => { if (!busy) setEditTarget(null) }}>✕</button>
             </div>
             <div className={MODAL_BODY}>
-              <form className={SIDEBAR_FORM} onSubmit={(e) => profileForm.handleSubmit(handleSaveProfile, () => showToast('Please check the highlighted fields.', 'error'))(e)}>
+              <form className={SIDEBAR_FORM} onSubmit={(e) => profileForm.handleSubmit(handleSaveProfile, (errors) => showToast(Object.values(errors)[0]?.message || 'Please check the highlighted fields.', 'error'))(e)}>
                 <div className={FORM_ROW}>
                   <label className={FORM_LABEL}>
                     Position
@@ -470,7 +470,18 @@ function ClinicStaff({ page }) {
                 </label>
                 <label className={FORM_LABEL}>
                   Contact Number
-                  <input type="text" className={FORM_FIELD} placeholder="e.g. 0917-123-4567" {...profileForm.register('contactNumber')} disabled={busy} />
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={13}
+                    className={FORM_FIELD}
+                    placeholder="e.g. 0917-123-4567"
+                    {...profileForm.register('contactNumber', {
+                      validate: (v) => isValidPhone(v) || PHONE_ERROR,
+                      onChange: (e) => profileForm.setValue('contactNumber', formatPhone(e.target.value)),
+                    })}
+                    disabled={busy}
+                  />
                 </label>
 
                 {editTarget.role !== 'front_desk' && (

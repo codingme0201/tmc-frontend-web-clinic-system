@@ -7,7 +7,9 @@ import { useSearch } from '../hooks/useSearch'
 import { useModal } from '../hooks/useModal'
 import { useAuth } from '../hooks/useAuth'
 import { formatDate, todayISO } from '../lib/format'
-import { KICKER, PANEL, TABLE, SEARCH_INPUT, SELECT_INPUT, PILL, PRIMARY_BTN, BTN_VIEW, BTN_INFO } from '../lib/ui'
+import {
+  KICKER, PANEL, TABLE, SEARCH_INPUT, SELECT_INPUT, PILL, PRIMARY_BTN, BTN_INFO, BTN_DANGER, BTN_ACTION_DANGER,
+} from '../lib/ui'
 import Pagination from '../components/Pagination'
 import RefreshingBadge from '../components/RefreshingBadge'
 import TableSkeleton from '../components/skeletons/TableSkeleton'
@@ -16,6 +18,14 @@ import PrescriptionForm from '../components/PrescriptionForm'
 import PrescriptionDetailsModal from '../components/PrescriptionDetailsModal'
 
 const PAGE_SIZE = 8
+
+const MODAL_CARD = 'flex max-h-[90vh] w-[min(480px,100%)] animate-modal-scale flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgba(8,20,20,0.22)]'
+const MODAL_BACKDROP = 'fixed inset-0 z-[100] grid place-items-center bg-[rgba(8,20,20,0.45)] p-5 backdrop-blur-[4px]'
+const MODAL_HEADER = 'flex items-center justify-between border-b border-line p-[16px_20px]'
+const MODAL_CLOSE = 'cursor-pointer border-0 bg-transparent p-1 text-[16px] text-muted-soft'
+const MODAL_BODY = 'flex-1 overflow-y-auto p-5'
+const MODAL_FOOTER = 'flex justify-end border-t border-line bg-[#fafcfb] p-[14px_20px]'
+const MODAL_FOOTER_ACTIONS = 'flex flex-wrap items-center justify-end gap-2'
 
 const emptyMedication = () => ({ medicine_name: '', dosage: '', frequency: '', duration: '', instructions: '' })
 
@@ -29,6 +39,7 @@ function Prescriptions({ page }) {
   // security boundary.
   const canCreate = can('prescriptions.create')
   const canUpdate = can('prescriptions.update')
+  const canDelete = can('prescriptions.delete')
 
   // ---------- Server-side search / filters / pagination -------------------
 
@@ -72,6 +83,7 @@ function Prescriptions({ page }) {
     isFetching,
     addPrescription,
     updatePrescription,
+    deletePrescription,
   } = usePrescriptions('page', query)
 
   // Total pages comes from the server's pagination metadata.
@@ -84,6 +96,7 @@ function Prescriptions({ page }) {
   const [details, setDetails] = useState(null) // prescription being viewed
   const { data: detailData } = usePrescriptionDetail(details?.id, Boolean(details))
   const detailPrescription = detailData ?? details
+  const [removeTarget, setRemoveTarget] = useState(null) // prescription pending removal
   const [busy, setBusy] = useState(false)
   const busyRef = useRef(false)
 
@@ -165,6 +178,25 @@ function Prescriptions({ page }) {
     }
   }
 
+  const handleRemove = async () => {
+    if (!removeTarget || busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    try {
+      await deletePrescription(removeTarget)
+      showToast(`Prescription ${removeTarget.reference} removed.`)
+      if (details?.id === removeTarget.id) setDetails(null)
+      setRemoveTarget(null)
+      // Step back a page when the last row of the current page was removed.
+      if (prescriptions.length === 1 && currentPage > 1) goToPage(currentPage - 1)
+    } catch (err) {
+      showToast(err?.message || 'Failed to remove the prescription.', 'error')
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }
+
   const medicationSummary = (rx) => {
     const first = rx.medications?.[0]
     if (!first) return '—'
@@ -205,7 +237,7 @@ function Prescriptions({ page }) {
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="m-0 text-[18px] text-[#143d40]">Prescription Records</h3>
-            <p className={KICKER}>Record and review prescribed medicines, dosages, and instructions</p>
+            <p className={KICKER}>Click a prescription to view its details</p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-[10px]">
             <input
@@ -263,7 +295,7 @@ function Prescriptions({ page }) {
           ) : isLoading ? (
             <TableSkeleton columns={7} />
           ) : (
-            <table className={TABLE}>
+            <table className={`${TABLE} [&_tbody_tr[data-row]]:cursor-pointer [&_tbody_tr[data-row]:hover]:bg-[#f7fbfb]`}>
               <thead>
                 <tr>
                   <th>Reference</th>
@@ -272,12 +304,24 @@ function Prescriptions({ page }) {
                   <th>Medications</th>
                   <th>Prescribed By</th>
                   <th>Consultation</th>
-                  <th>Actions</th>
+                  {(canUpdate || canDelete) && <th>Actions</th>}
                 </tr>
               </thead>
               <tbody>
                 {prescriptions.map((rx) => (
-                  <tr key={rx.id}>
+                  <tr
+                    key={rx.id}
+                    data-row
+                    tabIndex={0}
+                    title="Click to view the prescription details"
+                    onClick={() => setDetails(rx)}
+                    onKeyDown={(e) => {
+                      if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                        e.preventDefault()
+                        setDetails(rx)
+                      }
+                    }}
+                  >
                     <td className="whitespace-nowrap font-mono font-bold text-primary">{rx.reference}</td>
                     <td>
                       <strong className="font-bold text-ink">{rx.patient}</strong>
@@ -289,23 +333,27 @@ function Prescriptions({ page }) {
                     <td className="whitespace-nowrap font-mono text-[12.5px] font-bold text-[#0d47a1]">
                       {rx.consultation?.reference || '—'}
                     </td>
-                    <td>
-                      <div className="flex flex-wrap gap-[6px]">
-                        <button type="button" className={BTN_VIEW} onClick={() => setDetails(rx)}>
-                          View
-                        </button>
-                        {canUpdate && (
-                          <button type="button" className={BTN_INFO} onClick={() => openEdit(rx)}>
-                            Edit
-                          </button>
-                        )}
-                      </div>
-                    </td>
+                    {(canUpdate || canDelete) && (
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <div className="flex flex-wrap gap-[6px]">
+                          {canUpdate && (
+                            <button type="button" className={BTN_INFO} onClick={() => openEdit(rx)} disabled={busy}>
+                              Edit
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button type="button" className={BTN_DANGER} onClick={() => setRemoveTarget(rx)} disabled={busy}>
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
                 {prescriptions.length === 0 && (
                   <tr>
-                    <td colSpan="7">
+                    <td colSpan={canUpdate || canDelete ? 7 : 6}>
                       <EmptyState
                         message={
                           hasFilters
@@ -347,9 +395,50 @@ function Prescriptions({ page }) {
         <PrescriptionDetailsModal
           prescription={detailPrescription}
           canUpdate={canUpdate}
+          canDelete={canDelete}
           onEdit={() => openEdit(details)}
+          onDelete={() => setRemoveTarget(details)}
           onClose={() => setDetails(null)}
         />
+      )}
+
+      {/* ============ REMOVE PRESCRIPTION CONFIRMATION ============ */}
+      {removeTarget && (
+        <div
+          className={MODAL_BACKDROP}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Remove prescription"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !busy) setRemoveTarget(null)
+          }}
+        >
+          <div className={MODAL_CARD}>
+            <div className={MODAL_HEADER}>
+              <h3 className="m-0 text-[18px] font-bold text-ink">Remove Prescription</h3>
+              <button type="button" className={MODAL_CLOSE} onClick={() => setRemoveTarget(null)} disabled={busy}>
+                ✕
+              </button>
+            </div>
+            <div className={MODAL_BODY}>
+              <p className="m-0 text-[13.5px] text-ink">
+                Remove prescription <strong>{removeTarget.reference}</strong> for <strong>{removeTarget.patient}</strong>{' '}
+                dated {formatDate(removeTarget.date)}? Its {removeTarget.medications?.length || 0} medication line(s) are
+                removed too. This cannot be undone.
+              </p>
+            </div>
+            <div className={MODAL_FOOTER}>
+              <div className={MODAL_FOOTER_ACTIONS}>
+                <button type="button" className={PILL} onClick={() => setRemoveTarget(null)} disabled={busy}>
+                  Cancel
+                </button>
+                <button type="button" className={`${BTN_ACTION_DANGER} min-h-10 px-[14px] text-[13px]`} onClick={handleRemove} disabled={busy}>
+                  {busy ? 'Removing...' : 'Remove Prescription'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

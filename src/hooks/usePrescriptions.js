@@ -46,6 +46,15 @@ export function usePrescriptionsStore({ onLog } = {}, scope = 'page', query = {}
     },
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: (prescription) => prescriptionsService.deletePrescription(prescription.id),
+    onSuccess: (_, prescription) => {
+      queryClient.removeQueries({ queryKey: ['prescriptions', 'detail', prescription.id] })
+      queryClient.invalidateQueries({ queryKey: ['prescriptions'] })
+      onLogRef.current?.(`Removed prescription ${prescription.reference} of patient ${prescription.patient}`)
+    },
+  })
+
   const addPrescription = useCallback(
     async (payload) => createMutation.mutateAsync(payload),
     [createMutation],
@@ -54,6 +63,11 @@ export function usePrescriptionsStore({ onLog } = {}, scope = 'page', query = {}
   const updatePrescription = useCallback(
     async (id, patch) => updateMutation.mutateAsync({ id, patch }),
     [updateMutation],
+  )
+
+  const deletePrescription = useCallback(
+    async (prescription) => deleteMutation.mutateAsync(prescription),
+    [deleteMutation],
   )
 
   return {
@@ -67,13 +81,15 @@ export function usePrescriptionsStore({ onLog } = {}, scope = 'page', query = {}
     isRefetching,
     addPrescription,
     updatePrescription,
+    deletePrescription,
   }
 }
 
 /**
  * Public hook — pages call this on mount with their query params (search,
  * filters, page). Returns { data, meta, total, isLoading, error, refetch,
- * isFetching, isRefetching, addPrescription, updatePrescription }.
+ * isFetching, isRefetching, addPrescription, updatePrescription,
+ * deletePrescription }.
  */
 export function usePrescriptions(scope = 'page', query = {}) {
   const { log } = useAppContext()

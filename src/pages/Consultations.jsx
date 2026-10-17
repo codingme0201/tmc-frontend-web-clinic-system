@@ -8,10 +8,12 @@ import { useModal } from '../hooks/useModal'
 import { usePagination } from '../hooks/usePagination'
 import { useAuth } from '../hooks/useAuth'
 import { formatDate, timeToMinutes, todayISO } from '../lib/format'
-import { TIME_SLOTS, VISIT_TYPES, VISIT_NEW, VISIT_FOLLOW_UP, currentSlot, isSlotClosed } from '../lib/clinic'
+import {
+  APPOINTMENT_TYPES, TIME_SLOTS, VISIT_TYPES, VISIT_NEW, VISIT_FOLLOW_UP, currentSlot, isSlotClosed, departmentForType,
+} from '../lib/clinic'
 import {
   PILL, PRIMARY_BTN, PANEL, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT,
-  BTN_SUCCESS, BTN_INFO, BTN_VIEW, BTN_DANGER, BTN_ACTION_DANGER, DISPO_TAG, dispoClasses,
+  BTN_SUCCESS, BTN_INFO, BTN_DANGER, BTN_ACTION_DANGER, DISPO_TAG, dispoClasses,
 } from '../lib/ui'
 import StatusBadge from '../components/StatusBadge'
 import VisitTypeBadge from '../components/VisitTypeBadge'
@@ -184,6 +186,7 @@ function Consultations({ page }) {
   const [newDate, setNewDate] = useState(() => todayISO())
   const [newTime, setNewTime] = useState(() => currentSlot())
   const [newVisitType, setNewVisitType] = useState(VISIT_NEW)
+  const [newType, setNewType] = useState('Check-up')
   const [newPreviousId, setNewPreviousId] = useState('')
   const [followUpTarget, setFollowUpTarget] = useState(null)
   const [followUpForm, setFollowUpForm] = useState({ date: '', time: '09:00 AM', notes: '' })
@@ -370,6 +373,7 @@ function Consultations({ page }) {
         date: newDate,
         time: newTime,
         visit_type: newVisitType,
+        type: newType,
         previous_consultation_id: newVisitType === VISIT_FOLLOW_UP ? newPreviousId || null : null,
         status: startImmediately ? 'In Progress' : 'Scheduled',
       })
@@ -378,6 +382,7 @@ function Consultations({ page }) {
       setSelectedPatientId('')
       setNewComplaint('')
       setNewVisitType(VISIT_NEW)
+      setNewType('Check-up')
       setNewPreviousId('')
       if (startImmediately) {
         openWorkspace(created)
@@ -419,7 +424,7 @@ function Consultations({ page }) {
     setVisitFilter('All')
   }
 
-  // Action buttons per status
+  // Action buttons per status (clicking the row itself opens the details)
   const listActions = (cons) => {
     const buttons = []
     if (cons.status === 'Scheduled' && canRecord) {
@@ -445,11 +450,6 @@ function Consultations({ page }) {
         </button>,
       )
     }
-    buttons.push(
-      <button key="view" type="button" className={BTN_VIEW} onClick={() => setDetails(cons)}>
-        View
-      </button>,
-    )
     if (canDelete) {
       buttons.push(
         <button key="delete" type="button" className={BTN_DANGER} onClick={() => setDeleteTarget(cons)} disabled={busy}>
@@ -502,6 +502,7 @@ function Consultations({ page }) {
                 setNewTime(currentSlot())
                 setNewDate(todayISO())
                 setNewVisitType(VISIT_NEW)
+                setNewType('Check-up')
                 setNewPreviousId('')
                 setNewConsultModalOpen(true)
               }}
@@ -552,7 +553,7 @@ function Consultations({ page }) {
         <div className="mb-4 sm:mb-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
             <h3 className="m-0 text-[17px] sm:text-[18px] font-bold text-[#143d40]">Consultation Records</h3>
-            <p className={KICKER}>Review scheduled and completed patient consultations</p>
+            <p className={KICKER}>Click a consultation to open its details</p>
           </div>
           <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-end gap-2 sm:gap-2.5">
             <input
@@ -614,13 +615,14 @@ function Consultations({ page }) {
           {error ? (
             <ErrorState message={error} onRetry={refetch} />
           ) : isLoading ? (
-            <TableSkeleton columns={6} />
+            <TableSkeleton columns={7} />
           ) : (
-            <table className={TABLE}>
+            <table className={`${TABLE} [&_tbody_tr[data-row]]:cursor-pointer [&_tbody_tr[data-row]:hover]:bg-[#f7fbfb]`}>
               <thead>
                 <tr>
                   <th>Reference</th>
                   <th>Patient</th>
+                  <th>Type</th>
                   <th>Schedule</th>
                   <th>Attending Doctor / Nurse</th>
                   <th>Status</th>
@@ -629,7 +631,19 @@ function Consultations({ page }) {
               </thead>
               <tbody>
                 {pageItems.map((cons) => (
-                  <tr key={cons.id}>
+                  <tr
+                    key={cons.id}
+                    data-row
+                    tabIndex={0}
+                    title="Click to view the consultation details"
+                    onClick={() => setDetails(cons)}
+                    onKeyDown={(e) => {
+                      if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                        e.preventDefault()
+                        setDetails(cons)
+                      }
+                    }}
+                  >
                     <td className="font-mono font-bold text-primary">{cons.reference}</td>
                     <td>
                       <strong className="font-bold text-ink">{cons.patient}</strong>
@@ -640,6 +654,10 @@ function Consultations({ page }) {
                           <span className="text-[11px] font-bold text-[#6b46c1]">of {cons.previousConsultation.reference}</span>
                         ) : null}
                       </div>
+                    </td>
+                    <td>
+                      <strong className="block text-[12px] text-ink">{cons.type}</strong>
+                      <span className="block text-[11.5px] text-muted">{cons.department}</span>
                     </td>
                     <td>
                       <span className="font-bold text-ink">{formatDate(cons.date)}</span>
@@ -654,14 +672,14 @@ function Consultations({ page }) {
                         </span>
                       ) : null}
                     </td>
-                    <td>
+                    <td onClick={(e) => e.stopPropagation()}>
                       <div className="flex flex-wrap gap-[6px]">{listActions(cons)}</div>
                     </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan="6">
+                    <td colSpan="7">
                       <EmptyState message="No consultations matched your search or filters." />
                     </td>
                   </tr>
@@ -772,10 +790,17 @@ function Consultations({ page }) {
                         {formatDate(workspace.date)} · {workspace.time}
                       </p>
                     </div>
+                    <div>
+                      <span className={PROFILE_LBL}>Consultation Type</span>
+                      <p className={PROFILE_VAL}>
+                        {workspace.type} · {workspace.department}
+                      </p>
+                    </div>
                     <label className={CONSULT_FIELD}>
-                      <span>Attending Doctor / Nurse</span>
+                      <span>Attending Doctor / Nurse ({workspace.department})</span>
                       <ClinicianSelect
                         className={CONSULT_INPUT}
+                        department={workspace.department}
                         value={draft.staffId}
                         onChange={(id) => updateDraft('staffId', id)}
                         unassignedLabel={workspace.staff ? `${workspace.staff} (current)` : 'Select doctor / nurse'}
@@ -1154,8 +1179,14 @@ function Consultations({ page }) {
                   <p className={PROFILE_VAL}>{details.reference}</p>
                 </div>
                 <div>
+                  <span className={PROFILE_LBL}>Consultation Type</span>
+                  <p className={PROFILE_VAL}>
+                    {details.type} · {details.department}
+                  </p>
+                </div>
+                <div>
                   <span className={PROFILE_LBL}>Attending Doctor / Nurse</span>
-                  <p className={PROFILE_VAL}>{details.staff}</p>
+                  <p className={PROFILE_VAL}>{details.staff || 'Unassigned'}</p>
                 </div>
                 <div>
                   <span className={PROFILE_LBL}>Started</span>
@@ -1390,13 +1421,35 @@ function Consultations({ page }) {
                 </label>
 
                 <label className={CONSULT_FIELD}>
-                  <span>Attending Doctor / Nurse</span>
+                  <span>Consultation Type</span>
+                  <select
+                    className={CONSULT_INPUT}
+                    value={newType}
+                    onChange={(e) => {
+                      setNewType(e.target.value)
+                      setSelectedStaffId(null)
+                    }}
+                  >
+                    {APPOINTMENT_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t} ({departmentForType(t)})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className={CONSULT_FIELD}>
+                  <span>Attending Doctor / Nurse — {departmentForType(newType)}</span>
                   <ClinicianSelect
                     className={CONSULT_INPUT}
+                    department={departmentForType(newType)}
                     value={selectedStaffId}
                     onChange={(id) => setSelectedStaffId(id)}
-                    unassignedLabel="-- Select Doctor or Nurse --"
+                    unassignedLabel={`-- Select a ${departmentForType(newType)} doctor or nurse --`}
                   />
+                  <span className="text-[11.5px] font-normal text-muted">
+                    Only clinicians from the {departmentForType(newType)} department are listed for this consultation type.
+                  </span>
                 </label>
 
                 <div className="grid grid-cols-2 gap-3">
