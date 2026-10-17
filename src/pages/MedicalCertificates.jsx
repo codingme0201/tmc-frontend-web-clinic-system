@@ -410,7 +410,8 @@ function MedicalCertificates({ page }) {
 
   const openIssue = (cert) => {
     issueForm.reset({
-      issuedBy: user?.name || cert.issuedBy || staff[0]?.name || '',
+      // Only active doctors/nurses can issue: prefer the signed-in clinician.
+      issuedBy: staff.find((m) => m.name === user?.name)?.name || staff.find((m) => m.name === cert.issuedBy)?.name || staff[0]?.name || '',
       issueDate: cert.issueDate || todayISO(),
     })
     setIssueTarget(cert)
@@ -1175,8 +1176,9 @@ function MedicalCertificates({ page }) {
                     onChange={(e) => issueForm.setValue('issuedBy', e.target.value)}
                     disabled={busy}
                   >
+                    {staff.length === 0 && <option value="">No active doctors or nurses available</option>}
                     {staff.map((m) => (
-                      <option key={m.name} value={m.name}>
+                      <option key={m.userId} value={m.name}>
                         {m.name} — {m.role}
                       </option>
                     ))}

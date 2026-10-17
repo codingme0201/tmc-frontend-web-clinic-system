@@ -543,7 +543,7 @@ function Dashboard() {
                   <article className={PANEL}>
                     <div className={PANEL_HEADER}>
                       <div>
-                        <p className={KICKER}>Records · last 30 days</p>
+                        <p className={KICKER}>All clinic records</p>
                         <h3 className="m-0 text-[18px] text-[#143d40]">Clinic Activity</h3>
                       </div>
                       <div className="flex items-center gap-2">
@@ -558,13 +558,13 @@ function Dashboard() {
                     ) : (
                     <div className="grid gap-4">
                       {activity.every((item) => !item.count) && (
-                        <EmptyState message="No appointments, consultations, prescriptions or certificates were recorded in the last 30 days." />
+                        <EmptyState message="No appointments, consultations, prescriptions or certificates have been recorded yet." />
                       )}
                       {activity.map((item) => (
                         <div className="grid gap-[7px]" style={{ '--bar-size': `${item.percent}%` }} key={item.label}>
                           <span className="flex justify-between text-[13px] font-extrabold text-ink">
                             {item.label}
-                            <span className="text-muted">{item.count}</span>
+                            <span className="text-muted">{item.count} <span className="font-bold text-[11px]">({item.recentCount ?? 0} in last 30 days)</span></span>
                           </span>
                           <b className="block h-[10px] w-full rounded-full bg-[linear-gradient(90deg,var(--color-primary)_var(--bar-size),#e5efec_var(--bar-size))]" />
                         </div>
@@ -1168,7 +1168,7 @@ function Dashboard() {
               <div>
                 <div className={PANEL_HEADER}>
                   <h3 className="m-0 text-[18px] text-[#143d40]">Clinic Peak Activity Hours</h3>
-                  <p className={KICKER}>Patient visits per time of day · last 30 days (appointments and walk-in consultations)</p>
+                  <p className={KICKER}>Patient visits per time of day · all appointments and walk-in consultations</p>
                 </div>
                 {insightsError ? (
                   <ErrorState message={insightsError} onRetry={refetchInsights} />
@@ -1177,10 +1177,10 @@ function Dashboard() {
                 ) : (
                   <div className="mt-[14px] grid gap-3">
                     {peakHours.every((hour) => !hour.count) && (
-                      <EmptyState message="No patient visits were recorded in the last 30 days." />
+                      <EmptyState message="No patient visits have been recorded yet." />
                     )}
                     {peakHours.map((hour) => (
-                      <div className="grid grid-cols-[150px_1fr_80px] items-center gap-3 max-[580px]:grid-cols-1" key={hour.label}>
+                      <div className="grid grid-cols-[150px_1fr_120px] items-center gap-3 max-[580px]:grid-cols-1" key={hour.label}>
                         <span className="text-[12.5px] font-bold text-ink">{hour.label}</span>
                         <div className="h-[10px] w-full rounded-full bg-[#e5efec]">
                           <div
@@ -1188,7 +1188,7 @@ function Dashboard() {
                             style={{ width: `${hour.percent}%` }}
                           />
                         </div>
-                        <span className="text-right text-[12.5px] font-bold text-ink">{hour.count} visits</span>
+                        <span className="text-right text-[12.5px] font-bold text-ink">{hour.count} visits<span className="block text-[11px] font-normal text-muted">{hour.recentCount ?? 0} in last 30 days</span></span>
                       </div>
                     ))}
                   </div>
@@ -1198,7 +1198,7 @@ function Dashboard() {
               <div className="mt-6">
                 <div className={PANEL_HEADER}>
                   <h3 className="m-0 text-[18px] text-[#143d40]">Clinic Activity</h3>
-                  <p className={KICKER}>Records created in the last 30 days</p>
+                  <p className={KICKER}>All records (last 30 days in brackets)</p>
                 </div>
                 {insightsError ? (
                   <ErrorState message={insightsError} onRetry={refetchInsights} />
@@ -1207,12 +1207,12 @@ function Dashboard() {
                 ) : (
                   <div className="mt-[14px] grid gap-3">
                     {activity.map((item) => (
-                      <div className="grid grid-cols-[150px_1fr_80px] items-center gap-3 max-[580px]:grid-cols-1" key={item.label}>
+                      <div className="grid grid-cols-[150px_1fr_120px] items-center gap-3 max-[580px]:grid-cols-1" key={item.label}>
                         <span className="text-[12.5px] font-bold text-ink">{item.label}</span>
                         <div className="h-[10px] w-full rounded-full bg-[#e5efec]">
                           <div className="h-full rounded-full bg-primary transition-[width] duration-300" style={{ width: `${item.percent}%` }} />
                         </div>
-                        <span className="text-right text-[12.5px] font-bold text-ink">{item.count}</span>
+                        <span className="text-right text-[12.5px] font-bold text-ink">{item.count} <span className="font-normal text-muted">({item.recentCount ?? 0})</span></span>
                       </div>
                     ))}
                   </div>

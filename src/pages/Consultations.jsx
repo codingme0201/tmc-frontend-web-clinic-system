@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useConsultations } from '../hooks/useConsultations'
 import { usePatients } from '../hooks/usePatients'
+import { useEligibleStaff } from '../hooks/useStaffSchedules'
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { useModal } from '../hooks/useModal'
@@ -165,6 +166,11 @@ function Consultations({ page }) {
   const { showToast } = useToast()
   const { userRole, user, can } = useAuth()
   const canRecord = MEDICAL_ROLES.includes(userRole)
+  // The signed-in doctor/nurse's own department (null for other roles), so a
+  // new consultation starts with a type they can attend.
+  const { data: clinicians = [] } = useEligibleStaff()
+  const me = clinicians.find((c) => c.id === user?.id) || null
+  const myDepartment = me ? me.staffProfile?.department || 'General Medicine' : null
   const canScheduleFollowUp = can('consultations.update')
   const canDelete = can('consultations.delete')
   const [deleteTarget, setDeleteTarget] = useState(null)
@@ -368,7 +374,7 @@ function Consultations({ page }) {
       const created = await addConsultation({
         patient: pat.name,
         patient_id: pat.patientId,
-        staff_id: selectedStaffId || (MEDICAL_ROLES.slice(1).includes(userRole) ? user?.id : null) || null,
+        staff_id: selectedStaffId || (me && myDepartment === departmentForType(newType) ? me.id : null),
         chiefComplaint: newComplaint.trim(),
         date: newDate,
         time: newTime,
@@ -498,11 +504,11 @@ function Consultations({ page }) {
               className={`${PRIMARY_BTN} w-full sm:w-auto`}
               onClick={() => {
                 setSelectedPatientId(patients[0]?.patientId || '')
-                setSelectedStaffId(userRole === 'doctor' ? user?.id ?? null : null)
+                setSelectedStaffId(me && userRole === 'doctor' ? me.id : null)
                 setNewTime(currentSlot())
                 setNewDate(todayISO())
                 setNewVisitType(VISIT_NEW)
-                setNewType('Check-up')
+                setNewType(myDepartment === 'Dental' ? 'Dental concern' : 'Check-up')
                 setNewPreviousId('')
                 setNewConsultModalOpen(true)
               }}

@@ -61,7 +61,7 @@ export default function QueueBoard({
 
   const doctorLine = (e) => (
     <span className="block text-[12px] text-muted">
-      {e.staffId ? `${e.staff} · ${roleLabel(e.staffRole)}` : <span className="font-bold text-[#a33c12]">Unassigned doctor</span>}
+      {e.staffId ? `${e.staff} · ${roleLabel(e.staffRole)}` : <span className="font-bold text-[#a33c12]">Doctor not yet assigned</span>}
     </span>
   )
 
