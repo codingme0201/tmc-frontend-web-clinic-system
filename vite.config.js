@@ -11,12 +11,16 @@ export default defineConfig({
     babel({ presets: [reactCompilerPreset()] })
   ],
   server: {
+    host: true,
+    allowedHosts: true,
+    cors: true,
     // Forward API calls to the Laravel backend during development so the
     // frontend can use same-origin '/api' paths (no CORS needed in dev).
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
+        secure: false,
       },
     },
   },

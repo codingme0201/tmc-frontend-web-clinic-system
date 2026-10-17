@@ -28,7 +28,10 @@ export class ApiError extends Error {
  */
 export const http = axios.create({
   baseURL: API_BASE,
-  headers: { Accept: 'application/json' },
+  headers: {
+    Accept: 'application/json',
+    'ngrok-skip-browser-warning': 'true',
+  },
 })
 
 // Attach the persisted Sanctum bearer token to every outgoing request.
