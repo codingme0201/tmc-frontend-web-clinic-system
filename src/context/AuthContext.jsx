@@ -33,6 +33,7 @@ export function AuthProvider({ children }) {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   // Refs guard against concurrent calls regardless of render timing.
   const logoutInFlightRef = useRef(false)
+  const pictureRevisionRef = useRef(0)
 
   // Validate any persisted token against the backend on mount. When there is
   // no token, `authLoading` already initializes to false, so nothing to do.
@@ -92,6 +93,20 @@ export function AuthProvider({ children }) {
     return authenticatedUser
   }, [navigate])
 
+  const setProfilePicture = useCallback((profilePictureUrl, ownerId) => {
+    pictureRevisionRef.current += 1
+    setUser((current) => current?.id === ownerId && current.profilePictureUrl !== profilePictureUrl ? { ...current, profilePictureUrl } : current)
+  }, [])
+
+  const refreshProfilePicture = useCallback(async () => {
+    const revision = pictureRevisionRef.current
+    try {
+      const { user: current } = await authService.fetchCurrentUser()
+      // A request started before a local upload/removal must not restore the old avatar.
+      if (revision === pictureRevisionRef.current) setProfilePicture(current.profilePictureUrl, current.id)
+    } catch { /* The next user change or page load will retry. */ }
+  }, [setProfilePicture])
+
   // Frontend convenience for UI gating (hiding buttons/menu items). The
   // Laravel backend remains the actual security boundary.
   const can = useCallback((permission) => user?.permissions?.includes(permission) ?? false, [user])
@@ -127,8 +142,10 @@ export function AuthProvider({ children }) {
       can,
       login,
       logout,
+      setProfilePicture,
+      refreshProfilePicture,
     }),
-    [isAuthenticated, user, userRole, authLoading, isLoggingOut, can, login, logout],
+    [isAuthenticated, user, userRole, authLoading, isLoggingOut, can, login, logout, setProfilePicture, refreshProfilePicture],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

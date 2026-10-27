@@ -25,6 +25,8 @@ export function useStaffStore({ onLog } = {}, scope = 'page') {
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ['staff', scope],
     queryFn: staffService.fetchStaff,
+    // Duty coverage also changes as the clock enters/leaves a saved shift.
+    refetchInterval: 30000,
   })
 
   const statusMutation = useMutation({

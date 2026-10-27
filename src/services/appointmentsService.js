@@ -12,7 +12,7 @@ export async function fetchAppointments() {
   return data.data
 }
 
-/** Book a new appointment (assigned doctor by user ID, visit type, follow-up source). */
+/** Book a new appointment (assigned doctor/nurse by user ID, visit type, follow-up source). */
 export async function createAppointment({
   patient,
   type,

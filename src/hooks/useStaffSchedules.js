@@ -1,31 +1,42 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useAuth } from './useAuth'
 import { useAppContext } from '../context/AppContext'
 import { staffSchedulesService } from '../services/staffSchedulesService'
 
 /**
  * Staff schedules store — backed by TanStack Query.
  *
- * - `useQuery(['staff-schedules'])` loads schedules from the Laravel API.
+ * - The directory query loads one row per scheduled staff member.
+ * - Detail queries load that staff member's shifts and patients for a school week.
  * - Each mutation (create / update / delete / availability) calls the API,
  *   logs the action, and invalidates the list so the UI refreshes.
  */
 export function useStaffSchedulesStore({ onLog } = {}, scope = 'page') {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
   const onLogRef = useRef(onLog)
   useEffect(() => {
     onLogRef.current = onLog
   }, [onLog])
 
+  const invalidateSchedules = useCallback(() => {
+    for (const key of ['staff-schedules', 'weekly-staff-schedules', 'appointment-calendar', 'staff', 'clinic-staff', 'clinic-staff-member', 'eligible-staff']) {
+      queryClient.invalidateQueries({ queryKey: [key] })
+    }
+  }, [queryClient])
+
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
-    queryKey: ['staff-schedules', scope],
-    queryFn: staffSchedulesService.fetchStaffSchedules,
+    queryKey: ['staff-schedules', 'directory', scope, user?.id],
+    enabled: Boolean(user?.id),
+    queryFn: staffSchedulesService.fetchScheduledStaff,
+    refetchInterval: 15_000,
   })
 
   const createMutation = useMutation({
     mutationFn: staffSchedulesService.createStaffSchedule,
     onSuccess: (created) => {
-      queryClient.invalidateQueries({ queryKey: ['staff-schedules'] })
+      invalidateSchedules()
       onLogRef.current?.(`Created schedule for ${created.user?.name ?? 'staff'} on ${created.date}`)
     },
   })
@@ -33,7 +44,7 @@ export function useStaffSchedulesStore({ onLog } = {}, scope = 'page') {
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }) => staffSchedulesService.updateStaffSchedule(id, payload),
     onSuccess: (updated) => {
-      queryClient.invalidateQueries({ queryKey: ['staff-schedules'] })
+      invalidateSchedules()
       onLogRef.current?.(`Updated schedule for ${updated.user?.name ?? 'staff'} on ${updated.date}`)
     },
   })
@@ -41,7 +52,7 @@ export function useStaffSchedulesStore({ onLog } = {}, scope = 'page') {
   const deleteMutation = useMutation({
     mutationFn: staffSchedulesService.deleteStaffSchedule,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['staff-schedules'] })
+      invalidateSchedules()
       onLogRef.current?.('Deleted staff schedule')
     },
   })
@@ -49,7 +60,7 @@ export function useStaffSchedulesStore({ onLog } = {}, scope = 'page') {
   const availabilityMutation = useMutation({
     mutationFn: ({ id, status }) => staffSchedulesService.updateStaffAvailability(id, status),
     onSuccess: (updated) => {
-      queryClient.invalidateQueries({ queryKey: ['staff-schedules'] })
+      invalidateSchedules()
       onLogRef.current?.(`Updated availability of ${updated.user?.name ?? 'staff'} to: ${updated.status}`)
     },
   })
@@ -58,6 +69,15 @@ export function useStaffSchedulesStore({ onLog } = {}, scope = 'page') {
     async (payload) => createMutation.mutateAsync(payload),
     [createMutation],
   )
+
+  const weeklyMutation = useMutation({
+    mutationFn: staffSchedulesService.saveWeeklyStaffSchedule,
+    onSuccess: () => {
+      invalidateSchedules()
+      onLogRef.current?.('Updated regular weekly staff schedule')
+    },
+  })
+  const saveWeeklySchedule = useCallback((payload) => weeklyMutation.mutateAsync(payload), [weeklyMutation])
 
   const updateSchedule = useCallback(
     async (id, payload) => updateMutation.mutateAsync({ id, payload }),
@@ -81,6 +101,7 @@ export function useStaffSchedulesStore({ onLog } = {}, scope = 'page') {
     refetch,
     isRefetching,
     createSchedule,
+    saveWeeklySchedule,
     updateSchedule,
     deleteSchedule,
     updateAvailability,
@@ -95,6 +116,16 @@ export function useStaffSchedulesStore({ onLog } = {}, scope = 'page') {
 export function useStaffSchedules(scope = 'page') {
   const { log } = useAppContext()
   return useStaffSchedulesStore({ onLog: log }, scope)
+}
+
+export function useStaffScheduleDetails(staffId, date) {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['staff-schedules', 'details', user?.id, staffId, date],
+    queryFn: () => staffSchedulesService.fetchStaffScheduleDetails(staffId, date),
+    enabled: Boolean(user?.id && staffId),
+    refetchOnMount: 'always',
+  })
 }
 
 /**

@@ -31,7 +31,9 @@ export function useConsultationsStore({ onLog, enabled = true } = {}, scope = 'p
   // Consultation changes also move the queue and the linked appointments.
   const invalidateLinked = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['consultations'] })
+    queryClient.invalidateQueries({ queryKey: ['clinic-insights'] })
     queryClient.invalidateQueries({ queryKey: ['appointments'] })
+    queryClient.invalidateQueries({ queryKey: ['appointment-calendar'] })
     queryClient.invalidateQueries({ queryKey: ['queue'] })
   }, [queryClient])
 

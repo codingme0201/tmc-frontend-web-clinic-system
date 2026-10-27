@@ -17,6 +17,7 @@ import { FORM_FIELD } from '../lib/ui'
  * @param {boolean} [props.required=false]
  * @param {boolean} [props.allowClear=true]
  * @param {boolean} [props.allowCustomInput=false] - If true, allows free-form text input
+ * @param {boolean} [props.clearSelectionOnSearch=false] - Require a fresh selection after editing the search
  * @param {string} [props.className='']
  * @param {string} [props.id]
  * @param {string} [props.name]
@@ -31,6 +32,7 @@ export default function StudentSelect({
   required = false,
   allowClear = true,
   allowCustomInput = false,
+  clearSelectionOnSearch = false,
   className = '',
   id,
   name,
@@ -109,6 +111,8 @@ export default function StudentSelect({
 
     if (allowCustomInput) {
       onChange?.(text, null)
+    } else if (clearSelectionOnSearch && value) {
+      onChange?.(valueKey === 'object' ? null : '', null)
     }
   }
 

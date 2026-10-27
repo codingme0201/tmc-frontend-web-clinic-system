@@ -7,7 +7,7 @@ import { usePagination } from '../hooks/usePagination'
 import { formatDate, formatPhone, isValidPhone, PHONE_ERROR } from '../lib/format'
 import {
   PILL, PRIMARY_BTN, PANEL, KICKER, TABLE, SEARCH_INPUT,
-  BTN_INFO, BTN_SUCCESS, BTN_DANGER, BTN_VIEW,
+  BTN_INFO, BTN_SUCCESS, BTN_DANGER,
   FORM_LABEL, FORM_FIELD, FORM_ROW,
 } from '../lib/ui'
 import InlineSpinner from '../components/Spinner'
@@ -17,6 +17,7 @@ import RefreshingBadge from '../components/RefreshingBadge'
 import TableSkeleton from '../components/skeletons/TableSkeleton'
 import { EmptyState, ErrorState } from '../components/AsyncState'
 import CourseSelect from '../components/CourseSelect'
+import AddPatientModal from '../components/AddPatientModal'
 
 const MODAL_CARD = 'flex max-h-[90vh] w-[min(700px,100%)] animate-modal-scale flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgba(8,20,20,0.22)]'
 const MODAL_CARD_SM = 'flex max-h-[90vh] w-[min(440px,100%)] animate-modal-scale flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgba(8,20,20,0.22)]'
@@ -57,6 +58,7 @@ function Patients({ page }) {
   const { showToast } = useToast()
   const [editTarget, setEditTarget] = useState(null)
   const [editForm, setEditForm] = useState(null)
+  const [showAddPatient, setShowAddPatient] = useState(false)
 
   const { search, setSearch, debouncedSearch, resetSearch } = useSearch({ debounceMs: 300 })
   const [statusFilter, setStatusFilter] = useState('All')
@@ -76,8 +78,7 @@ function Patients({ page }) {
           !q ||
           (p.patientId && p.patientId.toLowerCase().includes(q)) ||
           p.name.toLowerCase().includes(q) ||
-          (p.courseDept && p.courseDept.toLowerCase().includes(q)) ||
-          (p.type && p.type.toLowerCase().includes(q))
+          (p.courseDept && p.courseDept.toLowerCase().includes(q))
         const matchStatus = statusFilter === 'All' || p.status === statusFilter
         return matchQuery && matchStatus
       })
@@ -132,6 +133,7 @@ function Patients({ page }) {
     setEditForm({
       name: patient.name || '',
       age: patient.age ?? '',
+      sex: patient.sex || '',
       courseDept: patient.courseDept || '',
       block: patient.block || '',
       address: patient.address || '',
@@ -156,6 +158,7 @@ function Patients({ page }) {
       await updatePatient(editTarget.id, {
         name: editForm.name.trim(),
         age: editForm.age === '' ? null : Number(editForm.age),
+        sex: editForm.sex || null,
         courseDept: editForm.courseDept.trim(),
         block: editForm.block.trim(),
         address: editForm.address.trim(),
@@ -187,6 +190,13 @@ function Patients({ page }) {
           </h2>
           <span className="mt-1 block text-[12.5px] sm:text-[13px] text-muted">{page.description}</span>
         </div>
+        {can('patients.create') && (
+          <div className="w-full sm:w-auto">
+            <button type="button" className={`${PRIMARY_BTN} w-full sm:w-auto`} onClick={() => setShowAddPatient(true)}>
+              + Add Patient
+            </button>
+          </div>
+        )}
       </section>
 
       <div className="mb-5 grid grid-cols-3 gap-2.5 sm:gap-3">
@@ -195,26 +205,30 @@ function Patients({ page }) {
           { label: 'Active', count: activeCount, value: 'Active', dot: 'bg-success' },
           { label: 'Inactive', count: inactiveCount, value: 'Inactive', dot: 'bg-muted' },
         ].map((chip) => (
-          <button
-            type="button"
+          <div
             key={chip.value}
-            className={`group flex cursor-pointer flex-col justify-between gap-1.5 rounded-2xl border bg-white p-3 sm:p-4 text-left shadow-[0_4px_20px_rgba(18,57,59,0.05)] transition-all duration-150 hover:border-primary/50 hover:shadow-xs active:scale-[0.98] ${
+            className={`flex rounded-2xl border bg-white shadow-[0_4px_20px_rgba(18,57,59,0.05)] transition-all duration-150 hover:border-primary/50 hover:shadow-xs ${
               statusFilter === chip.value
                 ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
                 : 'border-line-strong/80'
             }`}
-            onClick={() => setStatusFilter(chip.value)}
           >
-            <div className="flex items-center justify-between gap-1">
-              <small className="text-[10.5px] sm:text-[11px] font-extrabold uppercase tracking-wider text-muted truncate">
-                {chip.label}
-              </small>
-              <span className={`size-2 rounded-full ${chip.dot}`} />
-            </div>
-            <strong className="text-[22px] sm:text-[26px] font-extrabold leading-none text-ink tracking-tight">
-              {chip.count}
-            </strong>
-          </button>
+            <button
+              type="button"
+              className="group flex w-full cursor-pointer flex-col justify-between gap-1.5 rounded-2xl border-0 bg-transparent p-3 text-left sm:p-4"
+              onClick={() => setStatusFilter(chip.value)}
+            >
+              <div className="flex items-center justify-between gap-1">
+                <small className="text-[10.5px] sm:text-[11px] font-extrabold uppercase tracking-wider text-muted truncate">
+                  {chip.label}
+                </small>
+                <span className={`size-2 rounded-full ${chip.dot}`} />
+              </div>
+              <strong className="text-[22px] sm:text-[26px] font-extrabold leading-none text-ink tracking-tight">
+                {chip.count}
+              </strong>
+            </button>
+          </div>
         ))}
       </div>
 
@@ -227,7 +241,7 @@ function Patients({ page }) {
           <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-end gap-2 sm:gap-2.5">
             <input
               type="text"
-              placeholder="Search by ID, name, type, or course..."
+              placeholder="Search by ID, name, or course..."
               className={`${SEARCH_INPUT} w-full sm:w-auto sm:min-w-[200px] sm:flex-[1_1_220px]`}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -252,65 +266,48 @@ function Patients({ page }) {
           {error ? (
             <ErrorState message={error} onRetry={refetch} />
           ) : isLoading ? (
-            <TableSkeleton columns={7} />
+            <TableSkeleton columns={5} />
           ) : (
-            <table className={TABLE}>
+            <table className={`${TABLE} [&_tbody_tr[data-row]]:cursor-pointer [&_tbody_tr[data-row]:hover]:bg-[#f7fbfb]`}>
               <thead>
                 <tr>
                   <th>Patient ID</th>
                   <th>Name</th>
-                  <th>Type</th>
                   <th>Course / Department</th>
                   <th>Contact</th>
                   <th>Status</th>
-                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {pageItems.map((patient) => (
-                  <tr key={patient.id}>
+                  <tr
+                    key={patient.id}
+                    data-row
+                    tabIndex={0}
+                    title={`View ${patient.name}'s details`}
+                    onClick={() => { setSelectedId(patient.id); setActiveTab('profile') }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        setSelectedId(patient.id)
+                        setActiveTab('profile')
+                      }
+                    }}
+                  >
                     <td className="font-mono font-bold text-primary">{patient.patientId}</td>
                     <td>
                       <strong className="font-bold text-ink">{patient.name}</strong>
                     </td>
-                    <td>{patient.type}</td>
                     <td className="text-[12.5px] text-muted">{patient.courseDept || '—'}</td>
                     <td className="text-[12.5px] text-muted">{patient.contact || '—'}</td>
                     <td>
                       <StatusBadge status={patient.status} />
                     </td>
-                    <td>
-                      <div className="flex flex-wrap gap-[6px]">
-                        <a
-                          href={`/#/consultations?patientId=${patient.patientId}`}
-                          className={BTN_INFO}
-                        >
-                          Consult
-                        </a>
-                        <button type="button" className={BTN_VIEW} onClick={() => { setSelectedId(patient.id); setActiveTab('profile') }}>
-                          View
-                        </button>
-                        {canUpdate && (
-                          <button type="button" className={BTN_INFO} onClick={() => openEdit(patient)}>
-                            Edit
-                          </button>
-                        )}
-                        {patient.status === 'Active' ? (
-                          <button type="button" className={BTN_DANGER} onClick={() => setDeactivateTarget(patient)}>
-                            Deactivate
-                          </button>
-                        ) : (
-                          <button type="button" className={BTN_SUCCESS} onClick={() => setActivateTarget(patient)}>
-                            Activate
-                          </button>
-                        )}
-                      </div>
-                    </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan="7">
+                    <td colSpan="5">
                       <EmptyState
                         message={
                           search || statusFilter !== 'All'
@@ -329,12 +326,25 @@ function Patients({ page }) {
         <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} />
       </div>
 
+      {showAddPatient && (
+        <AddPatientModal
+          onClose={() => setShowAddPatient(false)}
+          onCreated={(created) => {
+            setSearch(created.patientId)
+            setStatusFilter('All')
+            resetPage()
+          }}
+        />
+      )}
+
       {selectedId && (
         <PatientProfileModal
           patientId={selectedId}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           onClose={() => setSelectedId(null)}
+          canUpdate={canUpdate}
+          onEdit={openEdit}
           onDeactivate={(p) => setDeactivateTarget(p)}
           onActivate={(p) => setActivateTarget(p)}
         />
@@ -460,6 +470,15 @@ function Patients({ page }) {
                     />
                   </label>
                   <label className={FORM_LABEL}>
+                    <span>Sex</span>
+                    <select className={FORM_FIELD} value={editForm.sex} onChange={(e) => setEditForm({ ...editForm, sex: e.target.value })}>
+                      <option value="">Select sex</option>
+                      <option value="Female">Female</option>
+                      <option value="Male">Male</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </label>
+                  <label className={FORM_LABEL}>
                     <span>Block</span>
                     <input
                       type="text"
@@ -551,7 +570,7 @@ function Patients({ page }) {
   )
 }
 
-function PatientProfileModal({ patientId, activeTab, setActiveTab, onClose, onDeactivate, onActivate }) {
+function PatientProfileModal({ patientId, activeTab, setActiveTab, onClose, canUpdate, onEdit, onDeactivate, onActivate }) {
   const { data: patient, isLoading: profileLoading, error: profileError } = usePatientProfile(patientId)
   const { data: medicalInfo, isLoading: medicalLoading } = usePatientMedicalInfo(patientId)
   const { data: history, isLoading: historyLoading } = usePatientRecordHistory(patientId)
@@ -609,6 +628,11 @@ function PatientProfileModal({ patientId, activeTab, setActiveTab, onClose, onDe
 
         <div className={MODAL_FOOTER}>
           <div className={MODAL_FOOTER_ACTIONS}>
+            {patient && canUpdate && (
+              <button type="button" className={BTN_INFO} onClick={() => { onEdit(patient); onClose() }}>
+                Edit
+              </button>
+            )}
             {patient && patient.status === 'Active' ? (
               <button type="button" className={BTN_DANGER} onClick={() => { onDeactivate(patient); onClose() }}>
                 Deactivate
@@ -642,7 +666,7 @@ function ProfileTab({ patient }) {
         <StatusBadge status={patient.status} />
         <div>
           <strong className="block text-[15px] text-ink">{patient.name}</strong>
-          <span className="block text-[12px] text-muted">{patient.patientId} · {patient.type}</span>
+          <span className="block text-[12px] text-muted">{patient.patientId}</span>
         </div>
       </div>
 
@@ -657,8 +681,12 @@ function ProfileTab({ patient }) {
           <p className={PROFILE_VAL}>{patient.name}</p>
         </div>
         <div>
-          <span className={PROFILE_LBL}>Type</span>
-          <p className={PROFILE_VAL}>{patient.type}</p>
+          <span className={PROFILE_LBL}>Age</span>
+          <p className={PROFILE_VAL}>{patient.age ?? '—'}</p>
+        </div>
+        <div>
+          <span className={PROFILE_LBL}>Sex</span>
+          <p className={PROFILE_VAL}>{patient.sex || '—'}</p>
         </div>
         <div>
           <span className={PROFILE_LBL}>Course / Department</span>

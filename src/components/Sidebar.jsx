@@ -1,4 +1,6 @@
 import Icon from './Icon'
+import UserAvatar from './UserAvatar'
+import { roleLabel } from '../lib/clinic'
 import InlineSpinner from './Spinner'
 import ConfirmLogoutModal from './ConfirmLogoutModal'
 import ClinicLogo from './ClinicLogo'
@@ -61,17 +63,17 @@ function Sidebar({ collapsed = false, mobileOpen = false, onNavigate, onClose })
 
       {/* Mobile User Profile Card */}
       <div className="rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm desktop:hidden">
-        <div className="flex items-center gap-2.5">
+        <div className={`flex items-center gap-2.5 ${collapsed ? 'desktop:justify-center' : ''}`}>
           <div className="grid size-9 place-items-center rounded-xl bg-gradient-to-tr from-accent to-[#e67e58] text-[12.5px] font-extrabold text-white shadow-2xs">
-            {user?.name ? user.name.slice(0, 2).toUpperCase() : 'AD'}
+            <UserAvatar user={user} className="size-full" />
           </div>
-          <div className="min-w-0 flex-1">
+          <div className={`min-w-0 flex-1 ${collapsed ? 'desktop:hidden' : ''}`}>
             <p className="truncate text-[13px] font-bold text-white leading-tight">
               {user?.name || 'Administrator'}
             </p>
-            <span className="text-[11px] font-medium text-[#9cd4cb]">Administrator</span>
+            <span className="text-[11px] font-medium text-[#9cd4cb]">{roleLabel(userRole)}</span>
           </div>
-          <span className="inline-flex items-center gap-1 rounded-full bg-success/20 px-2 py-0.5 text-[10px] font-bold text-[#6be3a6]">
+          <span className={`inline-flex items-center gap-1 rounded-full bg-success/20 px-2 py-0.5 text-[10px] font-bold text-[#6be3a6] ${collapsed ? 'desktop:hidden' : ''}`}>
             <span className="size-1.5 rounded-full bg-success animate-pulse" />
             Online
           </span>

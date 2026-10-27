@@ -4,9 +4,10 @@ export default function ClinicLogo({
   className = '',
   subtitle = 'Clinic Administration',
   collapsed = false,
+  prominent = false,
 }) {
   return (
-    <div className={`flex items-center gap-3 ${className}`}>
+    <div className={`flex items-center ${prominent ? 'gap-4 sm:gap-5' : 'gap-3'} ${className}`}>
       {/* Premium Emerald Emblem */}
       <svg
         width={size}
@@ -14,7 +15,7 @@ export default function ClinicLogo({
         viewBox="0 0 512 512"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        className="shrink-0 drop-shadow-[0_4px_12px_rgba(16,185,129,0.28)] transition-transform hover:scale-105"
+        className={`${prominent ? 'size-16 sm:size-20' : ''} shrink-0 drop-shadow-[0_4px_12px_rgba(16,185,129,0.28)] transition-transform hover:scale-105`}
       >
         <defs>
           <linearGradient id="emblemBg" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -97,11 +98,11 @@ export default function ClinicLogo({
       {!iconOnly && (
         <div className={collapsed ? 'desktop:hidden' : ''}>
           <div className="flex items-center gap-1.5 leading-none">
-            <span className="text-[17px] font-black tracking-tight text-white">TMC</span>
-            <span className="text-[17px] font-extrabold tracking-tight text-[#34d399]">CareLink</span>
+            <span className={`${prominent ? 'text-[28px] sm:text-[36px]' : 'text-[17px]'} font-black tracking-tight text-white`}>TMC</span>
+            <span className={`${prominent ? 'text-[28px] sm:text-[36px]' : 'text-[17px]'} font-extrabold tracking-tight text-[#34d399]`}>CareLink</span>
           </div>
           {subtitle && (
-            <span className="mt-1 block text-[11px] font-medium tracking-wide text-[#9bd1c8]">
+            <span className={`mt-1 block ${prominent ? 'text-[12px] sm:text-[14px]' : 'text-[11px]'} font-medium tracking-wide text-[#9bd1c8]`}>
               {subtitle}
             </span>
           )}

@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMedicalRecords } from '../hooks/useMedicalRecords'
-import { usePatients } from '../hooks/usePatients'
 import { useConsultations } from '../hooks/useConsultations'
-import { useAppointments } from '../hooks/useAppointments'
 import { useToast } from '../hooks/useToast'
 import { useForm } from '../hooks/useForm'
 import { useMedicalRecordList } from '../hooks/useMedicalRecordList'
 import { useAuth } from '../hooks/useAuth'
 import { formatDate, initials, todayISO } from '../lib/format'
+import { medicalRecordPatientFields } from '../lib/medicalRecordPatientInfo'
 import {
   PILL, PRIMARY_BTN, PANEL, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT, SIDEBAR_FORM,
   FORM_LABEL, FORM_FIELD, FORM_ROW, BTN_SUCCESS, BTN_DANGER, BTN_INFO, BTN_VIEW, BTN_ACTION_DANGER,
@@ -40,7 +39,6 @@ const DETAIL_TABS = [
 // Timeline event type → Tailwind classes for the type tag.
 const TIMELINE_CLASS = {
   Consultation: 'bg-[#e8f0fe] text-[#1a56c4]',
-  Appointment: 'bg-[#e1f5fe] text-[#0d47a1]',
   'Medical Condition': 'bg-[#fff3d6] text-[#8a5a00]',
   'Allergy Recorded': 'bg-[#ffebe6] text-[#b3361f]',
   'Medication Prescribed': 'bg-[#dff6dd] text-[#1e5a1b]',
@@ -74,8 +72,8 @@ function formatAge(age, suffix = '') {
 }
 
 // Builds the chronological record timeline from the record's clinical
-// sections, its consultations, and its appointments (joined by patient id).
-function buildTimeline(record, consults = [], appointments = []) {
+// sections and completed consultations (joined by patient id).
+function buildTimeline(record, consults = []) {
   if (!record) return []
   const events = []
   for (const h of (record.medicalHistory || [])) {
@@ -92,10 +90,6 @@ function buildTimeline(record, consults = [], appointments = []) {
   }
   for (const c of (consults || [])) {
     events.push({ id: `cons-${c.id}`, date: c.date, type: 'Consultation', title: c.diagnosis || c.chiefComplaint || 'Consultation', subtitle: c.chiefComplaint, staff: c.staff, consultation: c })
-  }
-  for (const a of (appointments || [])) {
-    if (a.patientId !== record.patientId) continue
-    events.push({ id: `appt-${a.id}`, date: a.date, type: 'Appointment', title: a.type || 'Appointment', subtitle: a.status, staff: a.staff })
   }
   return events.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
 }
@@ -255,15 +249,12 @@ function MedicalRecords({ page }) {
     addAllergy,
     updateAllergy,
     removeAllergy,
-    createRecord,
     addMedication,
     updateMedication,
     removeMedication,
     removeHistory,
   } = useMedicalRecords()
-  const { data: registeredPatients = [] } = usePatients()
   const { data: consultations = [] } = useConsultations()
-  const { data: appointments = [] } = useAppointments()
   const { showToast } = useToast()
   const { userRole } = useAuth()
   const canEdit = MEDICAL_ROLES.includes(userRole)
@@ -274,10 +265,9 @@ function MedicalRecords({ page }) {
   const {
     search,
     setSearch,
+    clearSearch,
     statusFilter,
     setStatusFilter,
-    patientFilter,
-    setPatientFilter,
     clearFilters,
     filtered,
     pageItems,
@@ -285,25 +275,6 @@ function MedicalRecords({ page }) {
     totalPages,
     goToPage,
   } = useMedicalRecordList(records, { pageSize: 5, debounceDelay: 300 })
-
-  // Patients / students available for dropdown selection
-  const patientOptions = useMemo(() => {
-    const map = new Map()
-    const recordList = Array.isArray(records) ? records : []
-    const patientList = Array.isArray(registeredPatients) ? registeredPatients : []
-    for (const r of recordList) {
-      if (r?.patientId) {
-        map.set(r.patientId, { patientId: r.patientId, name: r.name || '', type: r.type || '' })
-      }
-    }
-    for (const p of patientList) {
-      const key = p.patientId || String(p.id)
-      if (!map.has(key)) {
-        map.set(key, { patientId: key, name: p.name || '', type: p.type || '' })
-      }
-    }
-    return Array.from(map.values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-  }, [records, registeredPatients])
 
   // ---------- Detail view state ----------
   const [selectedId, setSelectedId] = useState(null)
@@ -317,8 +288,6 @@ function MedicalRecords({ page }) {
   const [consultDetails, setConsultDetails] = useState(null)
   const [medDetails, setMedDetails] = useState(null) // { med, patientName }
   const [medicationModal, setMedicationModal] = useState(null) // { record, medication? }
-  const [createOpen, setCreateOpen] = useState(false)
-  const [createPatientId, setCreatePatientId] = useState('')
   const [busy, setBusy] = useState(false)
   const busyRef = useRef(false)
 
@@ -339,20 +308,12 @@ function MedicalRecords({ page }) {
     validate: (values) => (values.name.trim() ? {} : { name: 'Medication name is required.' }),
   })
 
-  // Registered patients that do not have a medical record yet.
-  const patientsWithoutRecord = useMemo(() => {
-    const withRecord = new Set((Array.isArray(records) ? records : []).map((r) => r.patientId))
-    return (Array.isArray(registeredPatients) ? registeredPatients : [])
-      .filter((p) => p.patientId && !withRecord.has(p.patientId))
-      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-  }, [records, registeredPatients])
-
   // Per-patient consultation metadata (count + last date) from the shared store.
   const consultMeta = useMemo(() => {
     const map = {}
     const list = Array.isArray(consultations) ? consultations : []
     for (const c of list) {
-      if (!c?.patientId) continue
+      if (!c?.patientId || c.status !== 'Completed') continue
       const entry = map[c.patientId] || (map[c.patientId] = { count: 0, last: '' })
       entry.count += 1
       if (c.date && c.date > entry.last) entry.last = c.date
@@ -371,16 +332,12 @@ function MedicalRecords({ page }) {
   const recordList = Array.isArray(records) ? records : []
   const selected = selectedId ? recordList.find((r) => r.id === selectedId) || null : null
   const patientConsults = useMemo(
-    () => (selected && Array.isArray(consultations) ? consultations.filter((c) => c.patientId === selected.patientId) : []),
+    () => (selected && Array.isArray(consultations) ? consultations.filter((c) => c.patientId === selected.patientId && c.status === 'Completed') : []),
     [selected, consultations],
   )
-  const patientAppointments = useMemo(
-    () => (selected && Array.isArray(appointments) ? appointments.filter((a) => a.patientId === selected.patientId) : []),
-    [selected, appointments],
-  )
   const timeline = useMemo(
-    () => (selected ? buildTimeline(selected, patientConsults, appointments) : []),
-    [selected, patientConsults, appointments],
+    () => (selected ? buildTimeline(selected, patientConsults) : []),
+    [selected, patientConsults],
   )
   const activeConditions = selected ? (selected.conditions || []).filter((c) => c.status === 'Active') : []
   const activeMedications = selected ? (selected.medications || []).filter((m) => m.status === 'Active') : []
@@ -392,7 +349,6 @@ function MedicalRecords({ page }) {
       if (conditionModal) setConditionModal(null)
       else if (allergyModal) setAllergyModal(null)
       else if (medicationModal) setMedicationModal(null)
-      else if (createOpen) setCreateOpen(false)
       else if (removeTarget) setRemoveTarget(null)
       else if (archiveTarget) setArchiveTarget(null)
       else if (consultDetails) setConsultDetails(null)
@@ -400,7 +356,7 @@ function MedicalRecords({ page }) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [busy, conditionModal, allergyModal, medicationModal, createOpen, removeTarget, archiveTarget, consultDetails, medDetails])
+  }, [busy, conditionModal, allergyModal, medicationModal, removeTarget, archiveTarget, consultDetails, medDetails])
 
   const openRecord = (record) => {
     setSelectedId(record.id)
@@ -577,26 +533,6 @@ function MedicalRecords({ page }) {
     }
   }
 
-  // ---------- Create record ----------
-  const handleCreateRecord = async () => {
-    if (!createPatientId || busy || busyRef.current) return
-    busyRef.current = true
-    setBusy(true)
-    try {
-      const created = await createRecord({ patientId: createPatientId })
-      showToast(`Medical record created for ${created.name}.`)
-      setCreateOpen(false)
-      setCreatePatientId('')
-      setSelectedId(created.id)
-      setActiveTab('overview')
-    } catch (err) {
-      showToast(err?.message || 'Failed to create the medical record.', 'error')
-    } finally {
-      busyRef.current = false
-      setBusy(false)
-    }
-  }
-
   const REMOVE_KINDS = {
     condition: { title: 'Remove Condition', label: (item) => item.name },
     allergy: { title: 'Remove Allergy', label: (item) => item.allergen },
@@ -642,7 +578,8 @@ function MedicalRecords({ page }) {
             type="button"
             key={status}
             className={`flex cursor-pointer flex-col gap-[2px] rounded-lg border border-line-strong bg-white p-[14px_16px] text-left transition-all duration-200 hover:border-primary ${statusFilter === status ? 'border-primary bg-[#f0faf8] shadow-[inset_0_0_0_1px_var(--color-primary)]' : ''}`}
-            onClick={() => setStatusFilter(statusFilter === status ? 'All' : status)}
+            aria-pressed={statusFilter === status}
+            onClick={() => setStatusFilter(status)}
           >
             <small className="text-[11px] font-extrabold uppercase tracking-[0.02em] text-muted">{status === 'All' ? 'All Records' : status}</small>
             <strong className="text-[26px] leading-none text-ink">{statusCounts[status] || 0}</strong>
@@ -651,34 +588,39 @@ function MedicalRecords({ page }) {
       </div>
 
       <div className={`${PANEL} p-5`}>
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-5 grid gap-3">
           <div>
             <h3 className="m-0 text-[18px] text-[#143d40]">Patient Medical Records</h3>
-            <p className={KICKER}>Search patient records and open complete medical histories</p>
+            <p className={KICKER}>Search patient records and check their medical history.</p>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-[10px]">
-            <input
-              type="text"
-              className={`${SEARCH_INPUT} min-w-[200px] flex-[1_1_220px]`}
-              placeholder="Search patient, ID, record no., condition, or allergen..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative w-full shrink-0 sm:w-[340px]">
+              <label htmlFor="medical-record-search" className="sr-only">
+                Search {statusFilter === 'All' ? 'all' : statusFilter.toLowerCase()} records
+              </label>
+              <input
+                id="medical-record-search"
+                type="search"
+                className={`${SEARCH_INPUT} h-11 w-full pr-10 [&::-webkit-search-cancel-button]:appearance-none`}
+                placeholder="Search patient, ID, condition..."
+                title="Search by patient, ID, record number, condition, or allergen"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              {search && (
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 grid size-7 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-muted hover:bg-primary/10 hover:text-primary"
+                  aria-label="Clear search"
+                  title="Clear search"
+                  onClick={clearSearch}
+                >
+                  ×
+                </button>
+              )}
+            </div>
             <select
-              className={SELECT_INPUT}
-              value={patientFilter}
-              onChange={(e) => setPatientFilter(e.target.value)}
-              aria-label="Filter by patient or student"
-            >
-              <option value="All">All Patients / Students</option>
-              {patientOptions.map((p) => (
-                <option key={p.patientId} value={p.patientId}>
-                  {p.name} ({p.patientId}{p.type ? ` · ${p.type}` : ''})
-                </option>
-              ))}
-            </select>
-            <select
-              className={SELECT_INPUT}
+              className={`${SELECT_INPUT} h-11 w-full sm:w-[150px]`}
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               aria-label="Filter by record status"
@@ -690,26 +632,16 @@ function MedicalRecords({ page }) {
                 </option>
               ))}
             </select>
-            {(search || statusFilter !== 'All' || patientFilter !== 'All') && (
-              <button type="button" className={PILL} onClick={clearFilters}>
+            {(search || statusFilter !== 'All') && (
+              <button type="button" className={`${PILL} h-11`} onClick={clearFilters}>
                 Clear filters
-              </button>
-            )}
-            {canEdit && patientsWithoutRecord.length > 0 && (
-              <button
-                type="button"
-                className={`${PRIMARY_BTN} min-h-[38px] text-[13px]`}
-                onClick={() => { setCreatePatientId(''); setCreateOpen(true) }}
-                disabled={busy}
-              >
-                + New Record
               </button>
             )}
             {!isLoading && !error && (
               <>
                 <button
                   type="button"
-                  className={`${PILL} flex items-center gap-1.5`}
+                  className={`${PILL} h-11 flex items-center gap-1.5`}
                   onClick={() => refetch()}
                   disabled={isRefetching}
                   title="Refresh medical records"
@@ -718,8 +650,8 @@ function MedicalRecords({ page }) {
                   {isRefetching ? 'Refreshing...' : 'Refresh'}
                 </button>
                 <RefreshingBadge refreshing={isRefetching} />
-                <span className="ml-auto whitespace-nowrap text-[12.5px] font-bold text-muted">
-                  {filtered.length} of {records.length} records
+                <span role="status" aria-live="polite" className="ml-auto whitespace-nowrap text-right text-[12.5px] font-bold text-muted">
+                  {filtered.length} of {statusCounts[statusFilter] || 0} {statusFilter === 'All' ? '' : `${statusFilter.toLowerCase()} `}records
                 </span>
               </>
             )}
@@ -743,7 +675,7 @@ function MedicalRecords({ page }) {
                   <th>Allergies</th>
                   <th>Last Updated</th>
                   <th>Status</th>
-                  <th>Actions</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -796,15 +728,12 @@ function MedicalRecords({ page }) {
                           <span className="text-muted">None</span>
                         )}
                       </td>
-                      <td className="text-muted">{formatDate(record.lastUpdated)}</td>
+                      <td className="text-muted">{formatDate(record.lastUpdatedAt || record.lastUpdated)}</td>
                       <td>
                         <StatusBadge status={record.status} />
                       </td>
                       <td onClick={(e) => e.stopPropagation()}>
                         <div className="flex flex-wrap gap-[6px]">
-                          <button type="button" className={BTN_VIEW} onClick={() => openRecord(record)}>
-                            View Record
-                          </button>
                           {canEdit && (
                             record.status === 'Archived' ? (
                               <button
@@ -838,9 +767,7 @@ function MedicalRecords({ page }) {
                     <td colSpan="9">
                       <EmptyState
                         message={
-                          patientFilter !== 'All'
-                            ? 'No medical records found for the selected patient or student.'
-                            : 'No medical records matched your search or filters.'
+                          `No ${statusFilter === 'All' ? '' : `${statusFilter.toLowerCase()} `}medical records matched your search or filters.`
                         }
                       />
                     </td>
@@ -856,74 +783,39 @@ function MedicalRecords({ page }) {
     </>
   )
 
-  // Everything the student entered through the mobile app: profile and
-  // health details, plus their own appointment and certificate requests.
-  const renderStudentProvided = () => {
-    const sp = selected.studentProfile
-    const requests = patientAppointments
-      .filter((a) => a.reason || a.type)
-      .sort((a, b) => (a.date < b.date ? 1 : -1))
-      .slice(0, 5)
+  const renderPatientInformation = () => {
+    const profile = selected.studentProfile
+    const editor = selected.lastUpdatedBy
     const field = (label, value) => (
       <div key={label}>
         <span className={PROFILE_LBL}>{label}</span>
-        <p className={`${PROFILE_VAL} whitespace-pre-line break-words`}>{value || '—'}</p>
+        <p className={`${PROFILE_VAL} whitespace-pre-line break-words`}>{value ?? '—'}</p>
       </div>
     )
     return (
-      <div className={`${PANEL} mt-4 p-5`}>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="m-0 text-[16px] text-[#143d40]">Provided by the Student (Mobile App)</h3>
-          {sp && (
-            <span className={`rounded-full px-[10px] py-[3px] text-[11px] font-extrabold ${sp.isProfileComplete ? 'bg-[#dff6dd] text-[#1e5a1b]' : 'bg-[#fff3d6] text-[#8a5a00]'}`}>
-              {sp.isProfileComplete ? 'Profile complete' : 'Profile incomplete'}
-            </span>
+      <>
+        <div className={`${PANEL} p-5`}>
+          <h3 className={SECTION_TITLE}>Patient Information</h3>
+          {selected.studentProvided && (
+            <p className="mb-4 mt-0 text-[12px] text-muted">
+              Includes information provided or updated by the student through the mobile app.
+              {selected.studentUpdatedAt && <> Latest student update: {formatDate(selected.studentUpdatedAt)}.</>}
+            </p>
           )}
+          <div className={PROFILE_GRID}>
+            {medicalRecordPatientFields(selected).map(([label, value]) => field(label, label === 'Age' ? formatAge(value) : value || '—'))}
+          </div>
         </div>
-        {sp ? (
-          <>
-            <div className={PROFILE_GRID}>
-              {field('First Name', sp.firstName)}
-              {field('Middle Name', sp.middleName)}
-              {field('Last Name', sp.lastName)}
-              {field('Student ID', sp.studentId)}
-              {field('Age', sp.age ? formatAge(sp.age) : '')}
-              {field('Course / Program', sp.courseDept)}
-              {field('Block / Section', sp.block)}
-              {field('Nationality', sp.nationality)}
-              {field('Email', sp.email)}
-              {field('Contact Number', sp.contact)}
-              {field('Emergency Contact', sp.emergencyContactName)}
-              {field('Emergency Contact No.', sp.emergencyContactPhone)}
-            </div>
-            <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4">
-              {field('Home Address', sp.address)}
-              {field('Reported Allergies', sp.allergies && sp.allergies !== 'None' ? sp.allergies : 'None reported')}
-              {field('Reported Medical History', sp.history && sp.history !== 'None' ? sp.history : 'None reported')}
-            </div>
-            {requests.length > 0 && (
-              <div className="mt-4">
-                <span className={PROFILE_LBL}>Recent Appointment Requests</span>
-                <div className="mt-1 grid gap-[6px]">
-                  {requests.map((a) => (
-                    <div key={a.id} className={`${MINI_CARD} flex flex-wrap items-center gap-2 text-[12.5px]`}>
-                      <strong className="text-ink">{formatDate(a.date)}{a.time ? ` · ${a.time}` : ''}</strong>
-                      <span className="text-ink">{a.type}</span>
-                      {a.reason && <span className="text-muted">— {a.reason}</span>}
-                      <span className="ml-auto"><StatusBadge status={a.status} /></span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {sp.updatedAt && (
-              <p className="m-0 mt-3 text-[12px] text-muted">Last updated by the student {formatDate(sp.updatedAt.slice(0, 10))}</p>
-            )}
-          </>
-        ) : (
-          <div className={EMPTY_MINI}>This record is not linked to a student profile yet.</div>
-        )}
-      </div>
+        <div className={`${PANEL} mt-4 p-5`}>
+          <h3 className={SECTION_TITLE}>Record Information</h3>
+          <div className={PROFILE_GRID}>
+            {field('Record No.', selected.id)}
+            {field('Last Updated', formatDate(selected.lastUpdatedAt || selected.lastUpdated))}
+            {field('Profile Status', profile ? (profile.isProfileComplete ? 'Complete' : 'Incomplete') : 'Not linked')}
+            {field('Last Updated By', editor ? `${editor.name} (${editor.source === 'Mobile App' ? 'Student, Mobile App' : editor.source})` : 'Not recorded')}
+          </div>
+        </div>
+      </>
     )
   }
 
@@ -934,53 +826,7 @@ function MedicalRecords({ page }) {
         : null
     return (
     <>
-      <div className={`${PANEL} p-5`}>
-        <h3 className={SECTION_TITLE}>Patient Information</h3>
-        <div className={PROFILE_GRID}>
-          <div>
-            <span className={PROFILE_LBL}>Patient</span>
-            <p className={PROFILE_VAL}>{selected.name}</p>
-          </div>
-          <div>
-            <span className={PROFILE_LBL}>Patient ID</span>
-            <p className={PROFILE_VAL}>{selected.patientId}</p>
-          </div>
-          <div>
-            <span className={PROFILE_LBL}>Age</span>
-            <p className={PROFILE_VAL}>{formatAge(selected.age)}</p>
-          </div>
-          <div>
-            <span className={PROFILE_LBL}>Sex</span>
-            <p className={PROFILE_VAL}>{selected.sex}</p>
-          </div>
-          <div>
-            <span className={PROFILE_LBL}>Type</span>
-            <p className={PROFILE_VAL}>{selected.type}</p>
-          </div>
-          <div>
-            <span className={PROFILE_LBL}>Course / Dept.</span>
-            <p className={PROFILE_VAL}>{selected.courseDept}</p>
-          </div>
-          <div>
-            <span className={PROFILE_LBL}>Contact</span>
-            <p className={PROFILE_VAL}>{selected.contact}</p>
-          </div>
-          <div>
-            <span className={PROFILE_LBL}>Emergency Contact</span>
-            <p className={PROFILE_VAL}>{selected.emergencyContact}</p>
-          </div>
-          <div>
-            <span className={PROFILE_LBL}>Record No.</span>
-            <p className={PROFILE_VAL}>{selected.id}</p>
-          </div>
-          <div>
-            <span className={PROFILE_LBL}>Last Updated</span>
-            <p className={PROFILE_VAL}>{formatDate(selected.lastUpdated)}</p>
-          </div>
-        </div>
-      </div>
-
-      {renderStudentProvided()}
+      {renderPatientInformation()}
 
       <div className="mt-4 grid grid-cols-2 gap-4 max-[900px]:grid-cols-1">
         <div className={`${PANEL} p-5`}>
@@ -1728,52 +1574,6 @@ function MedicalRecords({ page }) {
         </div>
       )}
 
-
-      {/* ============ CREATE RECORD MODAL ============ */}
-      {createOpen && (
-        <div
-          className={MODAL_BACKDROP}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Create medical record"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !busy) setCreateOpen(false)
-          }}
-        >
-          <div className={MODAL_CARD_SM}>
-            <div className={MODAL_HEADER}>
-              <h3 className="m-0 text-[18px] text-ink">New Medical Record</h3>
-              <button type="button" className={MODAL_CLOSE} onClick={() => { if (!busy) setCreateOpen(false) }}>✕</button>
-            </div>
-            <div className={MODAL_BODY}>
-              <label className={FORM_LABEL}>
-                Patient *
-                <select className={FORM_FIELD} value={createPatientId} onChange={(e) => setCreatePatientId(e.target.value)} disabled={busy}>
-                  <option value="">Select a registered patient…</option>
-                  {patientsWithoutRecord.map((p) => (
-                    <option key={p.patientId} value={p.patientId}>
-                      {p.name} ({p.patientId})
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <p className="mb-0 text-[12.5px] text-muted">
-                Demographics are copied from the patient registry. Only patients without a record are listed.
-              </p>
-            </div>
-            <div className={MODAL_FOOTER}>
-              <div className={MODAL_FOOTER_ACTIONS}>
-                <button type="button" className={PILL} onClick={() => { if (!busy) setCreateOpen(false) }} disabled={busy}>
-                  Cancel
-                </button>
-                <button type="button" className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`} onClick={handleCreateRecord} disabled={busy || !createPatientId}>
-                  {busy ? 'Creating...' : 'Create Record'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ============ REMOVE CONFIRMATION MODAL ============ */}
       {removeTarget && (

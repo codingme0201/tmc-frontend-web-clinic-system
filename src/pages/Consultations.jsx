@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Play, Trash2 } from 'lucide-react'
+import AppointmentDatePicker from '../components/AppointmentDatePicker'
+import AppointmentTimePicker from '../components/AppointmentTimePicker'
 import { useSearchParams } from 'react-router-dom'
 import { useConsultations } from '../hooks/useConsultations'
 import { usePatients } from '../hooks/usePatients'
@@ -10,7 +13,7 @@ import { usePagination } from '../hooks/usePagination'
 import { useAuth } from '../hooks/useAuth'
 import { formatDate, timeToMinutes, todayISO } from '../lib/format'
 import {
-  APPOINTMENT_TYPES, TIME_SLOTS, VISIT_TYPES, VISIT_NEW, VISIT_FOLLOW_UP, currentSlot, isSlotClosed, departmentForType,
+  CONSULTATION_TYPES, TIME_SLOTS, VISIT_TYPES, VISIT_NEW, VISIT_FOLLOW_UP, currentSlot, departmentForType,
 } from '../lib/clinic'
 import {
   PILL, PRIMARY_BTN, PANEL, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT,
@@ -29,9 +32,6 @@ import { EmptyState, ErrorState } from '../components/AsyncState'
 const MEDICAL_ROLES = ['admin', 'doctor', 'nurse']
 
 const STATUSES = ['Scheduled', 'In Progress', 'Completed']
-
-// Lists sort active work first: In Progress → Scheduled → Completed.
-const STATUS_ORDER = { 'In Progress': 0, Scheduled: 1, Completed: 2 }
 
 const DISPOSITIONS = ['Sent to Class', 'Sent Home', 'Rest in Clinic', 'Referred to Hospital']
 
@@ -190,9 +190,10 @@ function Consultations({ page }) {
   const [selectedStaffId, setSelectedStaffId] = useState(null)
   const [newComplaint, setNewComplaint] = useState('')
   const [newDate, setNewDate] = useState(() => todayISO())
+  const newConsultFormRef = useRef(null)
   const [newTime, setNewTime] = useState(() => currentSlot())
   const [newVisitType, setNewVisitType] = useState(VISIT_NEW)
-  const [newType, setNewType] = useState('Check-up')
+  const [newType, setNewType] = useState('General Check-up')
   const [newPreviousId, setNewPreviousId] = useState('')
   const [followUpTarget, setFollowUpTarget] = useState(null)
   const [followUpForm, setFollowUpForm] = useState({ date: '', time: '09:00 AM', notes: '' })
@@ -241,12 +242,6 @@ function Consultations({ page }) {
           (cons.diagnosis || '').toLowerCase().includes(q) ||
           cons.staff.toLowerCase().includes(q)
         return matchStatus && matchVisit && matchQuery
-      })
-      .sort((a, b) => {
-        const statusDiff = STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
-        if (statusDiff !== 0) return statusDiff
-        if (a.date !== b.date) return a.date.localeCompare(b.date)
-        return timeToMinutes(a.time) - timeToMinutes(b.time)
       })
   }, [consultations, debouncedSearch, statusFilter, visitFilter])
 
@@ -327,6 +322,9 @@ function Consultations({ page }) {
     if (draft.followUpRequired && draft.followUpDate && draft.followUpDate <= todayISO()) {
       errors.followUp = ['Follow-up date must be after today']
     }
+    if (draft.followUpRequired && draft.followUpDate && !draft.followUpTime) {
+      errors.followUp = ['Choose an available follow-up time slot']
+    }
     setDraftErrors(errors)
     if (Object.keys(errors).length > 0) {
       showToast('Please complete the required fields before finishing the consultation.', 'error')
@@ -358,6 +356,7 @@ function Consultations({ page }) {
   }
 
   const handleCreateConsultation = async (startImmediately = false) => {
+    if (!newConsultFormRef.current?.reportValidity()) return
     if (!selectedPatientId) {
       showToast('Please select a patient.', 'error')
       return
@@ -388,7 +387,7 @@ function Consultations({ page }) {
       setSelectedPatientId('')
       setNewComplaint('')
       setNewVisitType(VISIT_NEW)
-      setNewType('Check-up')
+      setNewType('General Check-up')
       setNewPreviousId('')
       if (startImmediately) {
         openWorkspace(created)
@@ -442,8 +441,8 @@ function Consultations({ page }) {
     }
     if (cons.status === 'In Progress' && canRecord) {
       buttons.push(
-        <button key="continue" type="button" className={BTN_INFO} onClick={() => openWorkspace(cons)} disabled={busy}>
-          Continue
+        <button key="continue" type="button" className={`${BTN_INFO} inline-flex items-center justify-center`} onClick={() => openWorkspace(cons)} disabled={busy} title="Continue consultation" aria-label={`Continue consultation ${cons.reference}`}>
+          <Play size={16} aria-hidden="true" />
         </button>,
       )
     }
@@ -458,8 +457,8 @@ function Consultations({ page }) {
     }
     if (canDelete) {
       buttons.push(
-        <button key="delete" type="button" className={BTN_DANGER} onClick={() => setDeleteTarget(cons)} disabled={busy}>
-          Delete
+        <button key="delete" type="button" className={`${BTN_DANGER} inline-flex items-center justify-center`} onClick={() => setDeleteTarget(cons)} disabled={busy} title="Delete consultation" aria-label={`Delete consultation ${cons.reference}`}>
+          <Trash2 size={16} aria-hidden="true" />
         </button>,
       )
     }
@@ -508,7 +507,7 @@ function Consultations({ page }) {
                 setNewTime(currentSlot())
                 setNewDate(todayISO())
                 setNewVisitType(VISIT_NEW)
-                setNewType(myDepartment === 'Dental' ? 'Dental concern' : 'Check-up')
+                setNewType('General Check-up')
                 setNewPreviousId('')
                 setNewConsultModalOpen(true)
               }}
@@ -996,29 +995,18 @@ function Consultations({ page }) {
                       <div className="grid grid-cols-2 gap-[10px] max-[620px]:grid-cols-1">
                         <label className={CONSULT_FIELD}>
                           Follow-up Date (optional — book now)
-                          <input
-                            type="date"
+                          <AppointmentDatePicker
+                            staffId={draft.staffId}
                             min={tomorrowISO()}
                             className={CONSULT_INPUT}
                             value={draft.followUpDate}
-                            onChange={(e) => updateDraft('followUpDate', e.target.value)}
+                            onChange={(date) => updateDraft('followUpDate', date)}
                             disabled={busy}
                           />
                         </label>
                         <label className={CONSULT_FIELD}>
                           Time Slot
-                          <select
-                            className={CONSULT_INPUT}
-                            value={draft.followUpTime}
-                            onChange={(e) => updateDraft('followUpTime', e.target.value)}
-                            disabled={busy || !draft.followUpDate}
-                          >
-                            {TIME_SLOTS.map((t) => (
-                              <option key={t} value={t} disabled={isSlotClosed(draft.followUpDate, t)}>
-                                {t}
-                              </option>
-                            ))}
-                          </select>
+                          <AppointmentTimePicker date={draft.followUpDate} staffId={draft.staffId} className={CONSULT_INPUT} value={draft.followUpTime} onChange={(time) => updateDraft('followUpTime', time)} disabled={busy} />
                         </label>
                       </div>
                       <label className={CONSULT_FIELD}>
@@ -1340,28 +1328,18 @@ function Consultations({ page }) {
                 <div className="grid grid-cols-2 gap-3">
                   <label className={CONSULT_FIELD}>
                     <span>Date</span>
-                    <input
-                      type="date"
+                    <AppointmentDatePicker
+                      staffId={followUpTarget.staffId}
                       min={tomorrowISO()}
                       className={CONSULT_INPUT}
                       value={followUpForm.date}
-                      onChange={(e) => setFollowUpForm({ ...followUpForm, date: e.target.value })}
+                      onChange={(date) => setFollowUpForm({ ...followUpForm, date })}
                       required
                     />
                   </label>
                   <label className={CONSULT_FIELD}>
                     <span>Time Slot</span>
-                    <select
-                      className={CONSULT_INPUT}
-                      value={followUpForm.time}
-                      onChange={(e) => setFollowUpForm({ ...followUpForm, time: e.target.value })}
-                    >
-                      {TIME_SLOTS.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
+                    <AppointmentTimePicker date={followUpForm.date} staffId={followUpTarget.staffId} className={CONSULT_INPUT} value={followUpForm.time} onChange={(time) => setFollowUpForm({ ...followUpForm, time })} required />
                   </label>
                 </div>
                 <label className={CONSULT_FIELD}>
@@ -1408,6 +1386,7 @@ function Consultations({ page }) {
               </button>
             </div>
             <form
+              ref={newConsultFormRef}
               onSubmit={(e) => {
                 e.preventDefault()
                 handleCreateConsultation(true)
@@ -1433,12 +1412,14 @@ function Consultations({ page }) {
                     value={newType}
                     onChange={(e) => {
                       setNewType(e.target.value)
+                      setNewVisitType(e.target.value === VISIT_FOLLOW_UP ? VISIT_FOLLOW_UP : VISIT_NEW)
+                      setNewPreviousId('')
                       setSelectedStaffId(null)
                     }}
                   >
-                    {APPOINTMENT_TYPES.map((t) => (
+                    {CONSULTATION_TYPES.map((t) => (
                       <option key={t} value={t}>
-                        {t} ({departmentForType(t)})
+                        {t}
                       </option>
                     ))}
                   </select>
@@ -1498,11 +1479,12 @@ function Consultations({ page }) {
                 <div className="grid grid-cols-2 gap-3">
                   <label className={CONSULT_FIELD}>
                     <span>Date</span>
-                    <input
-                      type="date"
+                    <AppointmentDatePicker
                       className={CONSULT_INPUT}
                       value={newDate}
-                      onChange={(e) => setNewDate(e.target.value)}
+                      onChange={setNewDate}
+                      min={todayISO()}
+                      disabled={busy}
                       required
                     />
                   </label>

@@ -2,6 +2,18 @@ import { useCallback, useContext } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppContext } from '../context/AppContext'
 import { activityLogsService } from '../services/activityLogsService'
+import { useAuth } from './useAuth'
+
+export function useAdminActivityLogs() {
+  const { user, userRole } = useAuth()
+  const query = useQuery({
+    queryKey: ['activity-logs', 'admin', user?.id],
+    queryFn: () => activityLogsService.fetchActivityLogs({ role: 'admin' }),
+    enabled: userRole === 'admin',
+    refetchInterval: 3000,
+  })
+  return { ...query, data: query.data || [], error: query.error?.message ?? null }
+}
 
 /**
  * Activity/audit log store — instantiated once by AppProvider so every page

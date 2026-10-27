@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAppContext } from '../context/AppContext'
 import { queueService } from '../services/queueService'
+import { useAuth } from './useAuth'
 
 /**
  * Daily patient queue store (first in, first out).
@@ -12,19 +13,22 @@ import { queueService } from '../services/queueService'
  */
 export function useQueueStore({ onLog } = {}, scope = 'page', date = '') {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
   const onLogRef = useRef(onLog)
   useEffect(() => {
     onLogRef.current = onLog
   }, [onLog])
 
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
-    queryKey: ['queue', scope, date],
+    queryKey: ['queue', scope, date, user?.id],
     queryFn: () => queueService.fetchQueue(date),
+    enabled: Boolean(user?.id),
     refetchInterval: 30000,
   })
 
   const invalidateLinked = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['queue'] })
+    queryClient.invalidateQueries({ queryKey: ['clinic-insights'] })
     queryClient.invalidateQueries({ queryKey: ['appointments'] })
     queryClient.invalidateQueries({ queryKey: ['consultations'] })
   }, [queryClient])

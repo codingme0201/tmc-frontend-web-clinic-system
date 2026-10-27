@@ -40,7 +40,7 @@ export default function ClinicianSelect({
     ].filter((g) => g.members.length > 0)
   }, [clinicians, department])
 
-  const emptyLabel = department ? `No available ${department} doctors` : 'No available clinicians'
+  const emptyLabel = department ? `No available ${department} doctors / nurses` : 'No available clinicians'
 
   return (
     <select

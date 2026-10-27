@@ -7,7 +7,7 @@ import { useToast } from '../hooks/useToast'
 import { rolesService } from '../services/rolesService'
 import {
   PILL, PRIMARY_BTN, PANEL, KICKER, TABLE, SIDEBAR_FORM, FORM_LABEL, FORM_FIELD,
-  BTN_INFO, BTN_PRIMARY, BTN_DANGER, BTN_ACTION_DANGER,
+  BTN_INFO, BTN_PRIMARY,
 } from '../lib/ui'
 import InlineSpinner from '../components/Spinner'
 import Skeleton from '../components/Skeleton'
@@ -69,8 +69,7 @@ function RolesPermissions({ page }) {
   const busyRef = useRef(false)
   const [busy, setBusy] = useState(false)
 
-  // Create / edit role modal
-  const [editing, setEditing] = useState(null) // null = create mode
+  const [editing, setEditing] = useState(null)
   const [roleModalOpen, setRoleModalOpen] = useState(false)
   const roleForm = useForm({ defaultValues: { name: '', description: '' } })
 
@@ -79,21 +78,8 @@ function RolesPermissions({ page }) {
   const [permLoading, setPermLoading] = useState(false)
   const [selectedIds, setSelectedIds] = useState(() => new Set())
 
-  // Delete confirmation modal
-  const [deleteTarget, setDeleteTarget] = useState(null)
-
-  const canCreate = can('roles.create')
   const canUpdate = can('roles.update')
   const canAssign = can('roles.assign_permissions')
-  const canDelete = can('roles.delete')
-
-  // ---------- Create / Edit -------------------------------------------------
-
-  const openCreate = () => {
-    setEditing(null)
-    roleForm.reset()
-    setRoleModalOpen(true)
-  }
 
   const openEdit = (role) => {
     setEditing(role)
@@ -108,7 +94,7 @@ function RolesPermissions({ page }) {
   }
 
   const handleSaveRole = async ({ name, description }) => {
-    if (busyRef.current) return
+    if (!editing || busyRef.current) return
 
     busyRef.current = true
     setBusy(true)
@@ -117,13 +103,8 @@ function RolesPermissions({ page }) {
       description: description.trim() || null,
     }
     try {
-      if (editing) {
-        await roles.updateRole(editing.id, editing.is_system ? { ...payload, name: editing.name } : payload)
-        showToast(`Role "${roleLabel(editing.name)}" updated.`)
-      } else {
-        await roles.createRole(payload)
-        showToast(`Role "${roleLabel(payload.name)}" created.`)
-      }
+      await roles.updateRole(editing.id, editing.is_system ? { ...payload, name: editing.name } : payload)
+      showToast(`Role "${roleLabel(editing.name)}" updated.`)
       setRoleModalOpen(false)
     } catch (err) {
       showToast(err?.message || 'Failed to save the role.', 'error')
@@ -180,24 +161,6 @@ function RolesPermissions({ page }) {
     }
   }
 
-  // ---------- Delete ------------------------------------------------------------
-
-  const handleConfirmDelete = async () => {
-    if (!deleteTarget || busyRef.current) return
-    busyRef.current = true
-    setBusy(true)
-    try {
-      await roles.removeRole(deleteTarget.id)
-      showToast(`Role "${roleLabel(deleteTarget.name)}" deleted.`)
-      setDeleteTarget(null)
-    } catch (err) {
-      showToast(err?.message || 'Failed to delete the role.', 'error')
-    } finally {
-      busyRef.current = false
-      setBusy(false)
-    }
-  }
-
   // ---------- Render ---------------------------------------------------------------
 
   const totalSelected = selectedIds.size
@@ -212,11 +175,6 @@ function RolesPermissions({ page }) {
           <h2 className="m-0 text-[clamp(30px,5vw,48px)] leading-[1.02] text-ink">{page.title}</h2>
           <span className="mt-[6px] block text-[13px] text-muted">{page.description}</span>
         </div>
-        {canCreate && (
-          <button type="button" className={PRIMARY_BTN} onClick={openCreate}>
-            + Create Role
-          </button>
-        )}
       </section>
 
       {/* Roles panel */}
@@ -225,8 +183,7 @@ function RolesPermissions({ page }) {
           <div>
             <h3 className="m-0 text-[18px] text-[#143d40]">System Roles</h3>
             <p className={KICKER}>
-              Predefined roles (Administrator, Doctor, Nurse, Front Desk, Student) cannot be renamed or deleted. Custom
-              roles can be deleted when no user is assigned to them.
+              Manage role descriptions and permissions. Predefined roles cannot be renamed.
             </p>
           </div>
           {!roles.isLoading && !roles.error && (
@@ -272,7 +229,7 @@ function RolesPermissions({ page }) {
                 ) : roles.data.length === 0 ? (
                   <tr>
                     <td colSpan="5">
-                      <EmptyState message="No roles configured yet. Create one to get started." />
+                      <EmptyState message="No roles configured yet." />
                     </td>
                   </tr>
                 ) : (
@@ -298,27 +255,11 @@ function RolesPermissions({ page }) {
                               Edit
                             </button>
                           )}
-                          {canAssign && (
+                          {canAssign && !LOCKED_ROLES.includes(role.name) && (
                             <button type="button" className={BTN_PRIMARY} onClick={() => openPerms(role)}>
-                              {LOCKED_ROLES.includes(role.name) ? 'View Permissions' : 'Permissions'}
+                              Permissions
                             </button>
                           )}
-                          {canDelete && !role.is_system && (
-                            <button type="button" className={BTN_DANGER} onClick={() => setDeleteTarget(role)}>
-                              Delete
-                            </button>
-                          )}
-                          {canDelete && role.is_system ? (
-                            <button
-                              type="button"
-                              className={`${BTN_DANGER} cursor-not-allowed opacity-50`}
-                              disabled
-                              title="Predefined roles cannot be deleted."
-                              aria-label={`${roleLabel(role.name)} is a predefined role and cannot be deleted`}
-                            >
-                              Delete
-                            </button>
-                          ) : null}
                         </div>
                       </td>
                     </tr>
@@ -330,20 +271,19 @@ function RolesPermissions({ page }) {
         </div>
       </div>
 
-      {/* ================= CREATE / EDIT ROLE MODAL ================= */}
-      {roleModalOpen && (
+      {roleModalOpen && editing && (
         <div
           className={MODAL_BACKDROP}
           role="dialog"
           aria-modal="true"
-          aria-label={editing ? 'Edit role' : 'Create role'}
+          aria-label="Edit role"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget && !busy) setRoleModalOpen(false)
           }}
         >
           <div className={MODAL_CARD_SM}>
             <div className={MODAL_HEADER}>
-              <h3 className="m-0 text-[18px] text-ink">{editing ? `Edit Role — ${roleLabel(editing.name)}` : 'Create Role'}</h3>
+              <h3 className="m-0 text-[18px] text-ink">Edit Role — {roleLabel(editing.name)}</h3>
               <button
                 type="button"
                 className={MODAL_CLOSE}
@@ -382,13 +322,6 @@ function RolesPermissions({ page }) {
                     disabled={busy}
                   />
                 </label>
-                {!editing && (
-                  <p className="mt-0.5 text-[12px] text-muted">
-                    Use the predefined roles whenever possible. A custom role cannot be another administrator role,
-                    duplicate an existing role, or receive administrative permissions (users, roles, settings, audit
-                    logs). Permissions can be assigned after creating the role.
-                  </p>
-                )}
                 <div className={MODAL_FOOTER_ACTIONS}>
                   <button
                     type="button"
@@ -400,7 +333,7 @@ function RolesPermissions({ page }) {
                   </button>
                   <button type="submit" className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`} disabled={busy}>
                     {busy && <InlineSpinner />}
-                    {busy ? 'Saving...' : editing ? 'Save Changes' : 'Create Role'}
+                    {busy ? 'Saving...' : 'Save Changes'}
                   </button>
                 </div>
               </form>
@@ -515,56 +448,6 @@ function RolesPermissions({ page }) {
                     {busy ? 'Saving...' : 'Save Permissions'}
                   </button>
                 )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= DELETE CONFIRMATION MODAL ================= */}
-      {deleteTarget && (
-        <div
-          className={MODAL_BACKDROP}
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Delete role ${roleLabel(deleteTarget.name)}`}
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !busy) setDeleteTarget(null)
-          }}
-        >
-          <div className={MODAL_CARD_SM}>
-            <div className={MODAL_HEADER}>
-              <h3 className="m-0 text-[18px] text-ink">Delete Role</h3>
-              <button
-                type="button"
-                className={MODAL_CLOSE}
-                onClick={() => {
-                  if (!busy) setDeleteTarget(null)
-                }}
-              >
-                ✕
-              </button>
-            </div>
-            <div className={MODAL_BODY}>
-              <p className="mt-0">
-                Delete the role <strong>{roleLabel(deleteTarget.name)}</strong>? Users assigned to it must be
-                moved to another role first, and this cannot be undone.
-              </p>
-            </div>
-            <div className={MODAL_FOOTER}>
-              <div className={MODAL_FOOTER_ACTIONS}>
-                <button
-                  type="button"
-                  className={PILL}
-                  onClick={() => setDeleteTarget(null)}
-                  disabled={busy}
-                >
-                  Keep Role
-                </button>
-                <button type="button" className={`${BTN_ACTION_DANGER} min-h-10 px-[14px] text-[13px]`} onClick={handleConfirmDelete} disabled={busy}>
-                  {busy && <InlineSpinner />}
-                  {busy ? 'Deleting...' : 'Delete Role'}
-                </button>
               </div>
             </div>
           </div>

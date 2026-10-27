@@ -8,15 +8,15 @@ export const WORK_END = '05:00 PM'
 export const TIME_SLOTS = [
   '08:00 AM', '08:30 AM', '09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM',
   '11:00 AM', '11:30 AM', '01:00 PM', '01:30 PM', '02:00 PM', '02:30 PM',
-  '03:00 PM', '03:30 PM', '04:00 PM', '04:30 PM',
+  '03:00 PM', '03:30 PM', '04:00 PM', '04:30 PM', '05:00 PM',
 ]
 
 /** Same-day appointment booking closes after this time. */
-export const BOOKING_CUTOFF = '04:30 PM'
+export const BOOKING_CUTOFF = WORK_END
 
 /**
  * Whether an appointment slot can no longer be booked: past dates, every slot
- * once today's 4:30 PM cutoff has passed, and today's slots that have ended.
+ * once today's 5:00 PM cutoff has passed, and today's slots that have ended.
  */
 export function isSlotClosed(date, slot, now = new Date()) {
   if (!date) return false
@@ -35,8 +35,10 @@ export const SHIFT_TIMES = [
   '02:00 PM', '02:30 PM', '03:00 PM', '03:30 PM', '04:00 PM', '04:30 PM', '05:00 PM',
 ]
 
-/** Service categories; the visit type (new vs follow-up) is chosen separately. */
-export const APPOINTMENT_TYPES = ['Check-up', 'Dental concern', 'Fever', 'Vaccination', 'Emergency']
+/** Booking categories; follow-up bookings also determine the visit type. */
+export const APPOINTMENT_TYPES = ['General Check-up', 'Follow-up Consultation']
+
+export const CONSULTATION_TYPES = ['General Check-up', 'Follow-up Consultation']
 
 /**
  * Clinical department of a service type — mirrors backend

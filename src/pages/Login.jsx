@@ -61,7 +61,7 @@ function Login() {
           backgroundImage: `linear-gradient(rgba(8, 59, 63, 0.9), rgba(8, 59, 63, 0.94)), url(${heroImage})`,
         }}
       >
-        <ClinicLogo size={46} subtitle="TMC Expansion Clinic" />
+        <ClinicLogo size={80} prominent subtitle="TMC Expansion Clinic" />
         <div className="max-w-[620px] my-auto">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11.5px] font-extrabold text-[#c1e2dc] backdrop-blur-sm mb-3">
             Clinic Appointment and Medical Record Management System

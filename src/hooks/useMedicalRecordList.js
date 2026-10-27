@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearch } from './useSearch'
 import { usePagination } from './usePagination'
+import { filterMedicalRecords } from '../lib/medicalRecordFilters'
 
 /**
  * Medical Records list state — debounced search, status filter, and pagination.
@@ -24,29 +25,12 @@ export function useMedicalRecordList(records = [], { pageSize = 8, debounceDelay
   // Debounced query — the same value would be sent to the API as `?q=`.
   const { search, setSearch, debouncedSearch, resetSearch } = useSearch({ debounceMs: debounceDelay })
   const [statusFilter, setStatusFilter] = useState('All')
-  const [patientFilter, setPatientFilter] = useState('All')
 
   // Search + filter pipeline (runs against the debounced query only).
-  const filtered = useMemo(() => {
-    const list = Array.isArray(records) ? records : []
-    const q = debouncedSearch.trim().toLowerCase()
-    return list.filter((r) => {
-      const matchStatus = statusFilter === 'All' || r.status === statusFilter
-      const matchPatient =
-        patientFilter === 'All' ||
-        r.patientId === patientFilter ||
-        String(r.id) === String(patientFilter) ||
-        (r.name && r.name.toLowerCase() === patientFilter.toLowerCase())
-      const matchQuery =
-        !q ||
-        (r.name && r.name.toLowerCase().includes(q)) ||
-        (r.patientId && r.patientId.toLowerCase().includes(q)) ||
-        String(r.id ?? '').toLowerCase().includes(q) ||
-        (Array.isArray(r.conditions) && r.conditions.some((c) => c?.name?.toLowerCase().includes(q))) ||
-        (Array.isArray(r.allergies) && r.allergies.some((a) => a?.allergen?.toLowerCase().includes(q)))
-      return matchStatus && matchPatient && matchQuery
-    })
-  }, [records, debouncedSearch, statusFilter, patientFilter])
+  const filtered = useMemo(
+    () => filterMedicalRecords(records, { search: debouncedSearch, status: statusFilter }),
+    [records, debouncedSearch, statusFilter],
+  )
 
   // Client-side pagination over the filtered list. For server-side pagination,
   // swap this for a fetch driven by queryParams.page/limit and keep the same
@@ -57,36 +41,33 @@ export function useMedicalRecordList(records = [], { pageSize = 8, debounceDelay
   // Any search/filter change starts back at page 1 (mirrors an API refetch).
   useEffect(() => {
     resetPage()
-  }, [debouncedSearch, statusFilter, patientFilter, resetPage])
+  }, [debouncedSearch, statusFilter, resetPage])
 
   // Request + response parameters ready for the future REST API.
   const queryParams = useMemo(
     () => ({
       q: debouncedSearch.trim(),
       status: statusFilter === 'All' ? '' : statusFilter,
-      patient: patientFilter === 'All' ? '' : patientFilter,
       page: currentPage,
       limit: pageSize,
       total: filtered.length,
       totalPages,
     }),
-    [debouncedSearch, statusFilter, patientFilter, currentPage, pageSize, filtered.length, totalPages],
+    [debouncedSearch, statusFilter, currentPage, pageSize, filtered.length, totalPages],
   )
 
   const clearFilters = () => {
     resetSearch()
     setStatusFilter('All')
-    setPatientFilter('All')
   }
 
   return {
     search,
     setSearch,
+    clearSearch: resetSearch,
     debouncedSearch,
     statusFilter,
     setStatusFilter,
-    patientFilter,
-    setPatientFilter,
     filtered,
     pageItems,
     currentPage,

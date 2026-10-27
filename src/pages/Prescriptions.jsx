@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import { usePrescriptions, usePrescriptionDetail } from '../hooks/usePrescriptions'
 import { usePatients } from '../hooks/usePatients'
 import { useConsultations } from '../hooks/useConsultations'
@@ -8,7 +9,7 @@ import { useModal } from '../hooks/useModal'
 import { useAuth } from '../hooks/useAuth'
 import { formatDate, todayISO } from '../lib/format'
 import {
-  KICKER, PANEL, TABLE, SEARCH_INPUT, SELECT_INPUT, PILL, PRIMARY_BTN, BTN_INFO, BTN_DANGER, BTN_ACTION_DANGER,
+  KICKER, PANEL, TABLE, SEARCH_INPUT, SELECT_INPUT, PILL, PRIMARY_BTN, BTN_DANGER, BTN_ACTION_DANGER,
 } from '../lib/ui'
 import Pagination from '../components/Pagination'
 import RefreshingBadge from '../components/RefreshingBadge'
@@ -293,7 +294,7 @@ function Prescriptions({ page }) {
           {error ? (
             <ErrorState message={error} onRetry={refetch} />
           ) : isLoading ? (
-            <TableSkeleton columns={7} />
+            <TableSkeleton columns={canDelete ? 7 : 6} />
           ) : (
             <table className={`${TABLE} [&_tbody_tr[data-row]]:cursor-pointer [&_tbody_tr[data-row]:hover]:bg-[#f7fbfb]`}>
               <thead>
@@ -304,7 +305,7 @@ function Prescriptions({ page }) {
                   <th>Medications</th>
                   <th>Prescribed By</th>
                   <th>Consultation</th>
-                  {(canUpdate || canDelete) && <th>Actions</th>}
+                  {canDelete && <th>Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -333,27 +334,25 @@ function Prescriptions({ page }) {
                     <td className="whitespace-nowrap font-mono text-[12.5px] font-bold text-[#0d47a1]">
                       {rx.consultation?.reference || '—'}
                     </td>
-                    {(canUpdate || canDelete) && (
+                    {canDelete && (
                       <td onClick={(e) => e.stopPropagation()}>
-                        <div className="flex flex-wrap gap-[6px]">
-                          {canUpdate && (
-                            <button type="button" className={BTN_INFO} onClick={() => openEdit(rx)} disabled={busy}>
-                              Edit
-                            </button>
-                          )}
-                          {canDelete && (
-                            <button type="button" className={BTN_DANGER} onClick={() => setRemoveTarget(rx)} disabled={busy}>
-                              Remove
-                            </button>
-                          )}
-                        </div>
+                        <button
+                          type="button"
+                          className={`${BTN_DANGER} inline-flex items-center justify-center`}
+                          onClick={() => setRemoveTarget(rx)}
+                          disabled={busy}
+                          aria-label={`Remove prescription ${rx.reference}`}
+                          title="Remove prescription"
+                        >
+                          <Trash2 size={16} aria-hidden="true" />
+                        </button>
                       </td>
                     )}
                   </tr>
                 ))}
                 {prescriptions.length === 0 && (
                   <tr>
-                    <td colSpan={canUpdate || canDelete ? 7 : 6}>
+                    <td colSpan={canDelete ? 7 : 6}>
                       <EmptyState
                         message={
                           hasFilters

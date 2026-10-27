@@ -11,7 +11,7 @@ import { usePagination } from '../hooks/usePagination'
 import { useForm } from '../hooks/useForm'
 import { useAuth } from '../hooks/useAuth'
 import { formatDate, todayISO } from '../lib/format'
-import { KICKER, PANEL, TABLE, SEARCH_INPUT, SELECT_INPUT, PILL, PRIMARY_BTN, FORM_LABEL, FORM_FIELD, BTN_VIEW, BTN_SUCCESS, BTN_DANGER } from '../lib/ui'
+import { KICKER, PANEL, TABLE, SEARCH_INPUT, SELECT_INPUT, PILL, PRIMARY_BTN, FORM_LABEL, FORM_FIELD } from '../lib/ui'
 import StatusBadge from '../components/StatusBadge'
 import Pagination from '../components/Pagination'
 import RefreshingBadge from '../components/RefreshingBadge'
@@ -227,8 +227,7 @@ function MedicalCertificates({ page }) {
       form.values.patient
         ? consultations.filter(
             (c) =>
-              (c.patient === form.values.patient ||
-                (form.values.patientId && c.patientId === form.values.patientId)) &&
+              form.values.patientId && c.patientId === form.values.patientId &&
               c.status === 'Completed',
           )
         : [],
@@ -299,7 +298,7 @@ function MedicalCertificates({ page }) {
     const patConsults = patient
       ? consultations.filter(
           (c) =>
-            (c.patient === patient.name || (patient.patientId && c.patientId === patient.patientId)) &&
+            patient.patientId && c.patientId === patient.patientId &&
             c.status === 'Completed',
         )
       : []
@@ -308,7 +307,7 @@ function MedicalCertificates({ page }) {
       ...form.values,
       patient: patient?.name || '',
       patientDbId: patient ? String(patient.id) : '',
-      patientId: patient?.patientId || (patient ? String(patient.id) : ''),
+      patientId: patient?.patientId || '',
       consultationId: latest ? latest.id : '',
       diagnosis: latest?.diagnosis || latest?.chiefComplaint || '',
       issueDate: latest?.date || todayISO(),
@@ -339,10 +338,9 @@ function MedicalCertificates({ page }) {
       const patientObj = patients.find(
         (p) =>
           String(p.id) === String(form.values.patientDbId) ||
-          p.patientId === form.values.patientId ||
-          p.name === form.values.patient
+          p.patientId === form.values.patientId
       )
-      const patientIdVal = patientObj?.patientId || form.values.patientId || form.values.patientDbId
+      const patientIdVal = patientObj?.patientId || form.values.patientId
       const created = await addCertificate({
         patient: form.values.patient,
         patient_id: patientIdVal,
@@ -466,28 +464,6 @@ function MedicalCertificates({ page }) {
     }
   }
 
-  // Contextual quick actions per status (table rows)
-  const actionButtons = (cert) => {
-    const buttons = []
-    const add = (label, className, onClick) => {
-      buttons.push(
-        <button key={label} type="button" className={className} onClick={onClick}>
-          {label}
-        </button>,
-      )
-    }
-    if (cert.status === 'Pending' && canApprove) {
-      add('Approve', BTN_SUCCESS, () => setApproveTarget(cert))
-      add('Reject', BTN_DANGER, () => {
-        setRejectTarget(cert)
-        setRejectReason('')
-      })
-    } else if (cert.status === 'Approved' && canUpdate) {
-      add('Issue', BTN_SUCCESS, () => openIssue(cert))
-    }
-    return buttons
-  }
-
   const clearFilters = () => {
     resetSearch()
     setStatusFilter('All')
@@ -582,7 +558,7 @@ function MedicalCertificates({ page }) {
           ) : isLoading ? (
             <TableSkeleton columns={7} />
           ) : (
-            <table className={TABLE}>
+            <table className={`${TABLE} [&_tbody_tr[data-row]]:cursor-pointer [&_tbody_tr[data-row]:hover]:bg-[#f7fbfb]`}>
               <thead>
                 <tr>
                   <th>Reference</th>
@@ -592,12 +568,23 @@ function MedicalCertificates({ page }) {
                   <th>Diagnosis</th>
                   <th>Issued By</th>
                   <th>Status</th>
-                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {pageItems.map((cert) => (
-                  <tr key={cert.id}>
+                  <tr
+                    key={cert.id}
+                    data-row
+                    tabIndex={0}
+                    title="Click to view the certificate details"
+                    onClick={() => setDetails(cert)}
+                    onKeyDown={(event) => {
+                      if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+                        event.preventDefault()
+                        setDetails(cert)
+                      }
+                    }}
+                  >
                     <td className="whitespace-nowrap font-mono font-bold text-primary">{cert.reference}</td>
                     <td>
                       <strong className="font-bold text-ink">{cert.patient}</strong>
@@ -610,19 +597,11 @@ function MedicalCertificates({ page }) {
                     <td>
                       <StatusBadge status={cert.status} />
                     </td>
-                    <td>
-                      <div className="flex flex-wrap gap-[6px]">
-                        <button type="button" className={BTN_VIEW} onClick={() => setDetails(cert)}>
-                          View
-                        </button>
-                        {actionButtons(cert)}
-                      </div>
-                    </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan="8">
+                    <td colSpan="7">
                       <EmptyState message="No certificate requests matched your search or filters." />
                     </td>
                   </tr>

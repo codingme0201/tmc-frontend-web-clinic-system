@@ -1,15 +1,15 @@
+import UserAvatar from '../components/UserAvatar'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useForm, useWatch } from 'react-hook-form'
 import { useAuth } from '../hooks/useAuth'
 import { useClinicStaff, useClinicStaffMember } from '../hooks/useClinicStaff'
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { usePagination } from '../hooks/usePagination'
-import { formatDate, formatPhone, isValidPhone, PHONE_ERROR, todayISO } from '../lib/format'
-import { LICENSE_TYPES, LICENSE_TYPES_BY_ROLE, roleLabel } from '../lib/clinic'
+import { formatDate } from '../lib/format'
+import { roleLabel } from '../lib/clinic'
 import {
-  PILL, PRIMARY_BTN, PANEL, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT,
-  SIDEBAR_FORM, FORM_LABEL, FORM_FIELD, FORM_ROW, BTN_VIEW, BTN_INFO, BTN_SUCCESS,
+  PILL, PRIMARY_BTN, PANEL, TABLE, SEARCH_INPUT, SELECT_INPUT,
+  FORM_LABEL, FORM_FIELD, BTN_SUCCESS,
 } from '../lib/ui'
 import InlineSpinner from '../components/Spinner'
 import StatusBadge from '../components/StatusBadge'
@@ -34,42 +34,19 @@ const PROFILE_VAL = 'm-0 text-[14px] font-bold text-ink'
 const CARD = 'rounded-lg border border-line p-[14px_16px]'
 
 const CLINIC_ROLES = ['doctor', 'nurse', 'front_desk']
-// Only doctors and nurses edit a profile — and only their own.
-const SELF_EDIT_ROLES = ['doctor', 'nurse']
 const CREDENTIAL_STATUSES = ['Not Submitted', 'Pending Verification', 'Verified', 'Rejected']
 
-const EMPTY_PROFILE = {
-  position: '', specialization: '', background: '', contactNumber: '', licenseType: '', licenseNumber: '',
-  licenseIssuedAt: '', licenseExpiresAt: '', otherCredentials: '',
-}
-
-function profileToForm(member) {
-  return {
-    position: member.position || '',
-    specialization: member.specialization || '',
-    background: member.background || '',
-    contactNumber: member.contactNumber || '',
-    licenseType: member.credentials.licenseType || '',
-    licenseNumber: member.credentials.licenseNumber || '',
-    licenseIssuedAt: member.credentials.licenseIssuedAt || '',
-    licenseExpiresAt: member.credentials.licenseExpiresAt || '',
-    otherCredentials: member.credentials.otherCredentials || '',
-  }
-}
-
 function ClinicStaff({ page }) {
-  const { can, user, userRole } = useAuth()
+  const { can, userRole } = useAuth()
   const staff = useClinicStaff()
   const { showToast } = useToast()
-  const canManage = can('users.update')
-  const canEditOwn = SELF_EDIT_ROLES.includes(userRole)
+  const canManage = userRole !== 'front_desk' && can('users.update')
 
   const { search, setSearch, debouncedSearch, resetSearch } = useSearch({ debounceMs: 300 })
   const [roleFilter, setRoleFilter] = useState('All')
   const [credentialFilter, setCredentialFilter] = useState('All')
 
   const [viewId, setViewId] = useState(null)
-  const [editTarget, setEditTarget] = useState(null) // member being edited
   const [verifyTarget, setVerifyTarget] = useState(null)
   const [verifyStatus, setVerifyStatus] = useState('Verified')
   const [verifyNotes, setVerifyNotes] = useState('')
@@ -77,8 +54,6 @@ function ClinicStaff({ page }) {
   const busyRef = useRef(false)
   const [busy, setBusy] = useState(false)
 
-  const profileForm = useForm({ defaultValues: EMPTY_PROFILE })
-  const formLicenseType = useWatch({ control: profileForm.control, name: 'licenseType' })
 
   const detail = useClinicStaffMember(viewId)
 
@@ -109,43 +84,6 @@ function ClinicStaff({ page }) {
   useEffect(() => {
     resetPage()
   }, [debouncedSearch, roleFilter, credentialFilter, resetPage])
-
-  const myEntry = staff.data.find((m) => m.id === user?.id) || null
-
-  const openEdit = (member) => {
-    if (member.id !== user?.id) return
-    setEditTarget(member)
-    profileForm.reset(profileToForm(member))
-  }
-
-  const licenseOptions = editTarget ? LICENSE_TYPES_BY_ROLE[editTarget.role] || LICENSE_TYPES : LICENSE_TYPES
-
-  const handleSaveProfile = async (values) => {
-    if (!editTarget || busyRef.current) return
-    busyRef.current = true
-    setBusy(true)
-    try {
-      const payload = {
-        ...values,
-        licenseType: values.licenseType || null,
-        licenseNumber: values.licenseNumber.trim() || null,
-        licenseIssuedAt: values.licenseIssuedAt || null,
-        licenseExpiresAt: values.licenseExpiresAt || null,
-      }
-      const saved = await staff.updateMyProfile(payload)
-      showToast(
-        saved.credentials.status === 'Pending Verification'
-          ? 'Profile saved. The license was sent to the administrator for verification.'
-          : 'Profile saved.',
-      )
-      setEditTarget(null)
-    } catch (err) {
-      showToast(err?.message || 'Failed to save the profile.', 'error')
-    } finally {
-      busyRef.current = false
-      setBusy(false)
-    }
-  }
 
   const openVerify = (member) => {
     setVerifyTarget(member)
@@ -191,15 +129,9 @@ function ClinicStaff({ page }) {
     <div>
       <section className="mb-5 flex items-center justify-between gap-4 max-[620px]:flex-col max-[620px]:items-start">
         <div>
-          <p className={KICKER}>{page.eyebrow}</p>
           <h2 className="m-0 text-[clamp(30px,5vw,48px)] leading-[1.02] text-ink">{page.title}</h2>
           <span className="mt-[6px] block text-[13px] text-muted">{page.description}</span>
         </div>
-        {canEditOwn && myEntry && (
-          <button type="button" className={PRIMARY_BTN} onClick={() => openEdit(myEntry)}>
-            Edit My Profile
-          </button>
-        )}
       </section>
 
       <div className="mb-5 grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
@@ -260,9 +192,9 @@ function ClinicStaff({ page }) {
           {staff.error ? (
             <ErrorState message={staff.error} onRetry={staff.refetch} />
           ) : staff.isLoading ? (
-            <TableSkeleton columns={6} />
+            <TableSkeleton columns={5} />
           ) : (
-            <table className={TABLE}>
+            <table className={`${TABLE} [&_tbody_tr[data-row]]:cursor-pointer [&_tbody_tr[data-row]:hover]:bg-[#f7fbfb]`}>
               <thead>
                 <tr>
                   <th>Staff Member</th>
@@ -270,14 +202,25 @@ function ClinicStaff({ page }) {
                   <th>License / Credentials</th>
                   <th>Verification</th>
                   <th>Today&apos;s Patients</th>
-                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {pageItems.map((m) => (
-                  <tr key={m.id}>
+                  <tr
+                    key={m.id}
+                    data-row
+                    tabIndex={0}
+                    title={`View ${m.name}'s details`}
+                    onClick={() => setViewId(m.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        setViewId(m.id)
+                      }
+                    }}
+                  >
                     <td>
-                      <strong className="block font-bold text-ink">{m.name}</strong>
+                      <div className="flex items-center gap-2"><UserAvatar user={m} className="size-9 rounded-full bg-accent text-[11px] font-extrabold text-white" /><strong className="block font-bold text-ink">{m.name}</strong></div>
                       <span className="block text-[12px] text-muted">{m.email}</span>
                       {m.status !== 'active' && <StatusBadge status="Inactive" />}
                     </td>
@@ -288,22 +231,11 @@ function ClinicStaff({ page }) {
                     <td>{licenseCell(m)}</td>
                     <td>{m.role === 'front_desk' ? <span className="text-muted">—</span> : <StatusBadge status={m.credentials.status} />}</td>
                     <td className="font-bold text-ink">{m.role === 'front_desk' ? '—' : m.todayAppointmentsCount}</td>
-                    <td>
-                      <div className="flex flex-wrap gap-[6px]">
-                        <button type="button" className={BTN_VIEW} onClick={() => setViewId(m.id)}>View</button>
-                        {canEditOwn && m.id === user?.id && (
-                          <button type="button" className={BTN_INFO} onClick={() => openEdit(m)}>Edit</button>
-                        )}
-                        {canManage && m.role !== 'front_desk' && m.credentials.licenseNumber && m.credentials.status !== 'Verified' && (
-                          <button type="button" className={BTN_SUCCESS} onClick={() => openVerify(m)}>Verify</button>
-                        )}
-                      </div>
-                    </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan="6">
+                    <td colSpan="5">
                       <EmptyState message="No clinic staff matched your search or filters." />
                     </td>
                   </tr>
@@ -331,6 +263,7 @@ function ClinicStaff({ page }) {
                 <DetailSkeleton />
               ) : (
                 <div className="grid gap-[14px]">
+                  <UserAvatar user={member} className="size-20 rounded-full bg-accent text-[22px] font-extrabold text-white" />
                   <div className={PROFILE_GRID}>
                     <div><span className={PROFILE_LBL}>Role</span><p className={PROFILE_VAL}>{roleLabel(member.role)}</p></div>
                     <div><span className={PROFILE_LBL}>Position</span><p className={PROFILE_VAL}>{member.position || '—'}</p></div>
@@ -422,125 +355,11 @@ function ClinicStaff({ page }) {
             </div>
             <div className={MODAL_FOOTER}>
               <div className={MODAL_FOOTER_ACTIONS}>
-                {member && canEditOwn && member.id === user?.id && (
-                  <button type="button" className={BTN_INFO} onClick={() => { setViewId(null); openEdit(member) }}>Edit</button>
-                )}
                 {member && canManage && member.role !== 'front_desk' && member.credentials.licenseNumber && member.credentials.status !== 'Verified' && (
                   <button type="button" className={BTN_SUCCESS} onClick={() => { setViewId(null); openVerify(member) }}>Verify</button>
                 )}
                 <button type="button" className={PILL} onClick={() => setViewId(null)}>Close</button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= EDIT PROFILE / CREDENTIALS MODAL ================= */}
-      {editTarget && (
-        <div className={MODAL_BACKDROP} role="dialog" aria-modal="true" aria-label="Edit credentials"
-          onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) setEditTarget(null) }}>
-          <div className={MODAL_CARD}>
-            <div className={MODAL_HEADER}>
-              <h3 className="m-0 text-[18px] text-ink">
-                My Profile &amp; Credentials
-              </h3>
-              <button type="button" className={MODAL_CLOSE} onClick={() => { if (!busy) setEditTarget(null) }}>✕</button>
-            </div>
-            <div className={MODAL_BODY}>
-              <form className={SIDEBAR_FORM} onSubmit={(e) => profileForm.handleSubmit(handleSaveProfile, (errors) => showToast(Object.values(errors)[0]?.message || 'Please check the highlighted fields.', 'error'))(e)}>
-                <div className={FORM_ROW}>
-                  <label className={FORM_LABEL}>
-                    Position
-                    <input type="text" className={FORM_FIELD} placeholder="e.g. School Physician" {...profileForm.register('position')} disabled={busy} />
-                  </label>
-                  <label className={FORM_LABEL}>
-                    Specialization
-                    <input type="text" className={FORM_FIELD} placeholder="e.g. Family Medicine" {...profileForm.register('specialization')} disabled={busy} />
-                  </label>
-                </div>
-                <label className={FORM_LABEL}>
-                  Background (education, training, experience)
-                  <textarea
-                    className={`${FORM_FIELD} min-h-24 resize-y`}
-                    placeholder="e.g. Doctor of Medicine, UST (2012). 10 years in family and school medicine."
-                    maxLength={3000}
-                    {...profileForm.register('background')}
-                    disabled={busy}
-                  />
-                </label>
-                <label className={FORM_LABEL}>
-                  Contact Number
-                  <input
-                    type="tel"
-                    inputMode="numeric"
-                    maxLength={13}
-                    className={FORM_FIELD}
-                    placeholder="e.g. 0917-123-4567"
-                    {...profileForm.register('contactNumber', {
-                      validate: (v) => isValidPhone(v) || PHONE_ERROR,
-                      onChange: (e) => profileForm.setValue('contactNumber', formatPhone(e.target.value)),
-                    })}
-                    disabled={busy}
-                  />
-                </label>
-
-                {editTarget.role !== 'front_desk' && (
-                  <div className="flex flex-col gap-3.5 rounded-xl border border-line bg-[#fbfdfc] p-4">
-                    <div className="border-b border-line pb-2">
-                      <span className="text-[12px] font-extrabold uppercase tracking-wider text-primary">Professional License</span>
-                      <p className="mt-0.5 text-[11.5px] text-muted">
-                        PRC license numbers are 7 digits. Changing the license sends it back for administrator verification.
-                      </p>
-                    </div>
-                    <div className={FORM_ROW}>
-                      <label className={FORM_LABEL}>
-                        License Type
-                        <select className={FORM_FIELD} {...profileForm.register('licenseType')} disabled={busy}>
-                          <option value="">Select license type</option>
-                          {licenseOptions.map((t) => (<option key={t} value={t}>{t}</option>))}
-                        </select>
-                      </label>
-                      <label className={FORM_LABEL}>
-                        License Number
-                        <input
-                          type="text"
-                          inputMode={formLicenseType?.startsWith('PRC') ? 'numeric' : 'text'}
-                          className={`${FORM_FIELD} font-mono`}
-                          placeholder={formLicenseType?.startsWith('PRC') ? '7 digits, e.g. 0123456' : 'License / certificate no.'}
-                          {...profileForm.register('licenseNumber', {
-                            validate: (v) => !v || !formLicenseType?.startsWith('PRC') || /^\d{7}$/.test(v.replace(/\s+/g, '')) || 'PRC license numbers must be exactly 7 digits.',
-                          })}
-                          disabled={busy}
-                        />
-                      </label>
-                    </div>
-                    {profileForm.formState.errors.licenseNumber && (
-                      <p className="m-0 text-[12px] font-bold text-danger">{profileForm.formState.errors.licenseNumber.message}</p>
-                    )}
-                    <div className={FORM_ROW}>
-                      <label className={FORM_LABEL}>
-                        Date Issued
-                        <input type="date" max={todayISO()} className={FORM_FIELD} {...profileForm.register('licenseIssuedAt')} disabled={busy} />
-                      </label>
-                      <label className={FORM_LABEL}>
-                        Valid Until
-                        <input type="date" className={FORM_FIELD} {...profileForm.register('licenseExpiresAt')} disabled={busy} />
-                      </label>
-                    </div>
-                    <label className={FORM_LABEL}>
-                      Other Credentials (board certification, trainings)
-                      <input type="text" className={FORM_FIELD} placeholder="e.g. Diplomate, PAFP; BLS certified" {...profileForm.register('otherCredentials')} disabled={busy} />
-                    </label>
-                  </div>
-                )}
-                <div className={MODAL_FOOTER_ACTIONS}>
-                  <button type="button" className={PILL} onClick={() => setEditTarget(null)} disabled={busy}>Cancel</button>
-                  <button type="submit" className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`} disabled={busy}>
-                    {busy && <InlineSpinner />}
-                    {busy ? 'Saving...' : 'Save Profile'}
-                  </button>
-                </div>
-              </form>
             </div>
           </div>
         </div>

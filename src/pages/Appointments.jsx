@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAppointments, useFollowUpOptions } from '../hooks/useAppointments'
 import { usePatients } from '../hooks/usePatients'
+import { useEligibleStaff } from '../hooks/useStaffSchedules'
 import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { useModal } from '../hooks/useModal'
-import { useForm, useWatch } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import { usePagination } from '../hooks/usePagination'
 import { formatDate, todayISO } from '../lib/format'
+import { APPOINTMENT_SUMMARY, appointmentSummaryStatus, countAppointmentSummary } from '../lib/appointmentSummary'
 import {
-  APPOINTMENT_TYPES, TIME_SLOTS, VISIT_TYPES, VISIT_NEW, VISIT_FOLLOW_UP, roleLabel, isSlotClosed, departmentForType,
+  APPOINTMENT_TYPES, VISIT_NEW, VISIT_FOLLOW_UP, roleLabel, departmentForType,
 } from '../lib/clinic'
 import {
   PILL, PRIMARY_BTN, PANEL, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT, SIDEBAR_FORM,
@@ -24,11 +26,19 @@ import { EmptyState, ErrorState } from '../components/AsyncState'
 import RefreshingBadge from '../components/RefreshingBadge'
 import TableSkeleton from '../components/skeletons/TableSkeleton'
 import StudentSelect from '../components/StudentSelect'
+import AppointmentDatePicker from '../components/AppointmentDatePicker'
+import AppointmentTimePicker from '../components/AppointmentTimePicker'
 
-const STATUSES = ['Pending', 'Under Review', 'Approved', 'Rescheduled', 'Rejected', 'Cancelled', 'Completed', 'No-Show']
+const STATUSES = ['Pending', 'Under Review', 'Approved', 'Rescheduled', 'Rejected', 'Cancelled', 'Completed', 'No-Show', 'Expired']
 const ACTIVE_STATUSES = ['Pending', 'Under Review', 'Approved', 'Rescheduled']
 // Statuses from which the appointment state machine allows Approve / Reject.
 const REVIEWABLE_STATUSES = ['Pending', 'Under Review', 'Rescheduled']
+const STATUS_ACTIONS = [
+  { label: 'Pending', status: 'Pending', from: ['Under Review'] },
+  { label: 'Under Review', status: 'Under Review', from: ['Pending'] },
+  { label: 'Cancel', status: 'Cancelled', from: ACTIVE_STATUSES },
+  { label: 'No Show', status: 'No-Show', from: ACTIVE_STATUSES },
+]
 
 const MODAL_CARD = 'flex max-h-[90vh] w-[min(650px,100%)] animate-modal-scale flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgba(8,20,20,0.22)]'
 const MODAL_CARD_SM = MODAL_CARD + ' w-[min(480px,100%)]'
@@ -49,8 +59,7 @@ const FOLLOW_UP_BOX = 'rounded-lg border border-[#d9ccf7] bg-[#f7f3ff] p-[12px_1
 const DEFAULT_BOOKING = {
   patient: '',
   patientId: '',
-  type: 'Check-up',
-  visitType: VISIT_NEW,
+  type: 'General Check-up',
   previousConsultationId: '',
   reason: '',
   date: todayISO(),
@@ -72,10 +81,11 @@ function Appointments({ page }) {
     assignStaff,
   } = useAppointments()
   const { data: patients } = usePatients()
-  const { can } = useAuth()
+  const { data: eligibleStaff } = useEligibleStaff()
+  const { can, userRole } = useAuth()
   const { showToast } = useToast()
 
-  const canCreate = can('appointments.create')
+  const canCreate = userRole !== 'doctor' && can('appointments.create')
   const canUpdate = can('appointments.update')
   const canApprove = can('appointments.approve')
   const canReject = can('appointments.reject')
@@ -83,7 +93,7 @@ function Appointments({ page }) {
   // Search / filter state
   const { search, setSearch, debouncedSearch, resetSearch } = useSearch({ debounceMs: 300 })
   const [statusFilter, setStatusFilter] = useState('All')
-  const [visitFilter, setVisitFilter] = useState('All')
+  const [typeFilter, setTypeFilter] = useState('All')
   const [dateFilter, setDateFilter] = useState('')
 
   // Modal state
@@ -98,34 +108,19 @@ function Appointments({ page }) {
   // Book appointment form
   const bookForm = useForm({ defaultValues: DEFAULT_BOOKING })
   const bookPatientId = useWatch({ control: bookForm.control, name: 'patientId' })
-  const bookPatientName = useWatch({ control: bookForm.control, name: 'patient' })
-  const bookVisitType = useWatch({ control: bookForm.control, name: 'visitType' })
   const bookType = useWatch({ control: bookForm.control, name: 'type' })
   const bookStaffId = useWatch({ control: bookForm.control, name: 'staffId' })
   const bookPreviousId = useWatch({ control: bookForm.control, name: 'previousConsultationId' })
   const bookDate = useWatch({ control: bookForm.control, name: 'date' })
-  const isFollowUpBooking = bookVisitType === VISIT_FOLLOW_UP
+  const isFollowUpBooking = bookType === VISIT_FOLLOW_UP
   const { data: followUpOptions, isLoading: followUpOptionsLoading } = useFollowUpOptions(
     bookPatientId,
     bookModal.isOpen && isFollowUpBooking,
   )
 
-  // Status summary counts
-  const counts = useMemo(() => {
-    const count = (status) => appointments.filter((a) => a.status === status).length
-    return {
-      Pending: count('Pending'),
-      'Under Review': count('Under Review'),
-      Approved: count('Approved'),
-      Rejected: count('Rejected'),
-      Cancelled: count('Cancelled'),
-      'No-Show': count('No-Show'),
-    }
-  }, [appointments])
+  // Count the live database records once per summary category.
+  const counts = useMemo(() => countAppointmentSummary(appointments), [appointments])
 
-  // Search + filter pipeline (runs against the debounced query). The API
-  // already returns appointments in first-in-first-out order (date, time
-  // slot, check-in, booking time), so the list keeps that order.
   const filtered = useMemo(() => {
     const q = debouncedSearch.trim().toLowerCase()
     return appointments.filter((app) => {
@@ -136,12 +131,12 @@ function Appointments({ page }) {
         app.reason.toLowerCase().includes(q) ||
         app.type.toLowerCase().includes(q) ||
         (app.staff || '').toLowerCase().includes(q)
-      const matchStatus = statusFilter === 'All' || app.status === statusFilter
-      const matchVisit = visitFilter === 'All' || app.visitType === visitFilter
+      const matchStatus = statusFilter === 'All' || (statusFilter === 'Pending' ? appointmentSummaryStatus(app.status) === 'Pending' : app.status === statusFilter)
+      const matchType = typeFilter === 'All' || app.type === typeFilter
       const matchDate = !dateFilter || app.date === dateFilter
-      return matchQuery && matchStatus && matchVisit && matchDate
+      return matchQuery && matchStatus && matchType && matchDate
     })
-  }, [appointments, debouncedSearch, statusFilter, visitFilter, dateFilter])
+  }, [appointments, debouncedSearch, statusFilter, typeFilter, dateFilter])
 
   // Client-side pagination over the filtered list; swap for API pagination
   // later without touching the table or the Pagination UI.
@@ -151,7 +146,7 @@ function Appointments({ page }) {
   // Any search/filter change starts back at page 1.
   useEffect(() => {
     resetPage()
-  }, [debouncedSearch, statusFilter, visitFilter, dateFilter, resetPage])
+  }, [debouncedSearch, statusFilter, typeFilter, dateFilter, resetPage])
 
   // Keep the detail modal in sync with live store updates
   const selected = selectedId ? appointments.find((a) => a.id === selectedId) || null : null
@@ -179,6 +174,13 @@ function Appointments({ page }) {
 
   const handleApprove = (app) =>
     runAction(() => updateStatus(app.id, 'Approved'), `${app.reference} approved.`, 'Failed to approve the appointment.')
+
+  const handleStatusChange = (app, status) =>
+    runAction(
+      () => updateStatus(app.id, status),
+      `${app.reference} marked as ${status}.`,
+      'Failed to update the appointment status.',
+    )
 
   const openReject = (app) => {
     setRejectTarget(app)
@@ -211,20 +213,24 @@ function Appointments({ page }) {
   }
 
   const openBook = () => {
+    if (!canCreate) return
     bookForm.reset({ ...DEFAULT_BOOKING, date: todayISO() })
     bookModal.open()
   }
 
-  const handleBook = async ({ patient, patientId, type, visitType, previousConsultationId, reason, date, time, staffId }) => {
-    if (visitType === VISIT_FOLLOW_UP && !patientId) {
-      showToast('Select a registered student so the follow-up can be linked to their previous visit.', 'error')
+  const handleBook = async ({ patientId, type, previousConsultationId, reason, date, time, staffId }) => {
+    if (!canCreate) return
+    const visitType = type === VISIT_FOLLOW_UP ? VISIT_FOLLOW_UP : VISIT_NEW
+    const patient = patients.find((entry) => entry.patientId === patientId)
+    if (!patient) {
+      showToast('Select a registered patient from the search results. Add unregistered patients through the Patients Module first.', 'error')
       return
     }
     const ok = await runAction(
       () =>
         createAppointment({
-          patient: patient.trim(),
-          patientId: patientId ? patientId.trim() : '',
+          patient: patient.name,
+          patientId: patient.patientId,
           type,
           visitType,
           previousConsultationId: visitType === VISIT_FOLLOW_UP ? previousConsultationId || null : null,
@@ -242,7 +248,7 @@ function Appointments({ page }) {
   const clearFilters = () => {
     resetSearch()
     setStatusFilter('All')
-    setVisitFilter('All')
+    setTypeFilter('All')
     setDateFilter('')
   }
 
@@ -283,14 +289,7 @@ function Appointments({ page }) {
 
       {/* Status summary chips (click to filter) */}
       <div className="mb-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
-        {[
-          { key: 'Pending', label: 'Pending', dot: 'bg-gold' },
-          { key: 'Under Review', label: 'Under Review', dot: 'bg-[#1a56c4]' },
-          { key: 'Approved', label: 'Approved', dot: 'bg-success' },
-          { key: 'Rejected', label: 'Rejected', dot: 'bg-accent' },
-          { key: 'Cancelled', label: 'Cancelled', dot: 'bg-muted' },
-          { key: 'No-Show', label: 'No-Show', dot: 'bg-[#d9534f]' },
-        ].map(({ key, label, dot }) => (
+        {APPOINTMENT_SUMMARY.map(({ key, label, dot, description }) => (
           <button
             type="button"
             key={key}
@@ -299,6 +298,8 @@ function Appointments({ page }) {
                 ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
                 : 'border-line-strong/80'
             }`}
+            title={description}
+            aria-pressed={statusFilter === key}
             onClick={() => setStatusFilter(statusFilter === key ? 'All' : key)}
           >
             <div className="flex items-center justify-between gap-1">
@@ -319,7 +320,7 @@ function Appointments({ page }) {
         <div className="mb-4 sm:mb-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
             <h3 className="m-0 text-[17px] sm:text-[18px] font-bold text-[#143d40]">Appointment Requests & Records</h3>
-            <p className={KICKER}>First in, first out · click an appointment to review it</p>
+            <p className={KICKER}>New requests first · approved appointments by date and time</p>
           </div>
           <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-end gap-2 sm:gap-2.5">
             <input
@@ -345,14 +346,14 @@ function Appointments({ page }) {
               </select>
               <select
                 className={`${SELECT_INPUT} flex-1 sm:flex-initial`}
-                value={visitFilter}
-                onChange={(e) => setVisitFilter(e.target.value)}
-                aria-label="Filter by visit type"
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                aria-label="Appointment Types"
               >
-                <option value="All">All Visit Types</option>
-                {VISIT_TYPES.map((v) => (
-                  <option key={v} value={v}>
-                    {v}
+                <option value="All">Appointment Types</option>
+                {APPOINTMENT_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
                   </option>
                 ))}
               </select>
@@ -364,7 +365,7 @@ function Appointments({ page }) {
                 aria-label="Filter by date"
               />
             </div>
-            {(search || statusFilter !== 'All' || visitFilter !== 'All' || dateFilter) && (
+            {(search || statusFilter !== 'All' || typeFilter !== 'All' || dateFilter) && (
               <button type="button" className={PILL} onClick={clearFilters}>
                 Clear filters
               </button>
@@ -590,17 +591,16 @@ function Appointments({ page }) {
                 </section>
 
                 <section className={SECTION}>
-                  <h4 className={SECTION_TITLE}>{canAssign ? 'Assign Doctor' : 'Doctor'}</h4>
+                  <h4 className={SECTION_TITLE}>{canAssign ? 'Assign Doctor / Nurse' : 'Doctor / Nurse'}</h4>
                   {canAssign ? (
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                       <ClinicianSelect
-                        roles={['doctor']}
                         department={departmentForType(selected.type)}
                         value={assignStaffId}
                         onChange={(id) => setAssignDraft({ id: selected.id, staffId: id })}
-                        unassignedLabel={`Select a ${departmentForType(selected.type)} doctor`}
+                        unassignedLabel={`Select a ${departmentForType(selected.type)} doctor / nurse`}
                         disabled={busy}
-                        aria-label="Assign doctor"
+                        aria-label="Assign Doctor / Nurse"
                       />
                       <button
                         type="button"
@@ -608,7 +608,7 @@ function Appointments({ page }) {
                         onClick={saveAssignment}
                         disabled={busy || !assignChanged}
                       >
-                        {busy ? 'Saving...' : 'Save Doctor'}
+                        {busy ? 'Saving...' : 'Save'}
                       </button>
                     </div>
                   ) : (
@@ -619,7 +619,7 @@ function Appointments({ page }) {
                   )}
                   {canAssign && (
                     <p className="m-0 mt-2 text-[12px] text-muted">
-                      Only {departmentForType(selected.type)} doctors are listed. The system checks the doctor&apos;s
+                      Only {departmentForType(selected.type)} doctors and nurses are listed. The system checks their
                       schedule and existing bookings for {selected.time}.
                     </p>
                   )}
@@ -628,6 +628,18 @@ function Appointments({ page }) {
             </div>
             <div className={MODAL_FOOTER}>
               <div className={MODAL_FOOTER_ACTIONS}>
+                {canUpdate && STATUS_ACTIONS.map(({ label, status, from }) => (
+                  <button
+                    key={status}
+                    type="button"
+                    className={`${status === 'Cancelled' || status === 'No-Show' ? BTN_ACTION_DANGER : PILL} disabled:cursor-not-allowed disabled:opacity-50`}
+                    onClick={() => handleStatusChange(selected, status)}
+                    disabled={busy || !from.includes(selected.status)}
+                    aria-pressed={selected.status === status}
+                  >
+                    {label}
+                  </button>
+                ))}
                 {canReview && canReject && (
                   <button type="button" className={BTN_ACTION_DANGER} onClick={() => openReject(selected)} disabled={busy}>
                     <Icon name="x" size={16} />
@@ -713,7 +725,7 @@ function Appointments({ page }) {
       )}
 
       {/* ================= BOOK APPOINTMENT MODAL ================= */}
-      {bookModal.isOpen && (
+      {canCreate && bookModal.isOpen && (
         <div
           className={MODAL_BACKDROP}
           role="dialog"
@@ -740,55 +752,39 @@ function Appointments({ page }) {
                 <label className={FORM_LABEL}>
                   <span>Student / Patient *</span>
                   <StudentSelect
-                    value={bookPatientId || bookPatientName}
+                    value={bookPatientId}
                     valueKey="patientId"
-                    allowCustomInput
-                    placeholder="Type student name or ID (e.g. 24-012345)..."
-                    onChange={(val, student) => {
-                      if (student) {
-                        bookForm.setValue('patient', student.name)
-                        bookForm.setValue('patientId', student.patientId)
-                      } else {
-                        bookForm.setValue('patient', val || '')
-                        bookForm.setValue('patientId', '')
-                      }
+                    patients={patients}
+                    clearSelectionOnSearch
+                    placeholder="Search registered patient by name or ID..."
+                    onChange={(_val, student) => {
+                      bookForm.setValue('patient', student?.name || '')
+                      bookForm.setValue('patientId', student?.patientId || '')
                       bookForm.setValue('previousConsultationId', '')
                     }}
                   />
-                  {!bookPatientName && (
-                    <input
-                      type="hidden"
-                      {...bookForm.register('patient', { required: 'Student / Patient is required.' })}
-                    />
-                  )}
+                  <span className="text-[11.5px] font-normal text-muted">
+                    Select an existing patient from the results. Register new patients in the Patients Module first.
+                  </span>
                 </label>
-                <div className={FORM_ROW}>
-                  <label className={FORM_LABEL}>
-                    Visit Type
-                    <select className={FORM_FIELD} {...bookForm.register('visitType')}>
-                      {VISIT_TYPES.map((v) => (
-                        <option key={v} value={v}>
-                          {v}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className={FORM_LABEL}>
-                    Appointment Type
-                    <select
-                      className={FORM_FIELD}
-                      {...bookForm.register('type', {
-                        onChange: () => bookForm.setValue('staffId', null),
-                      })}
-                    >
-                      {APPOINTMENT_TYPES.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
+                <label className={FORM_LABEL}>
+                  Appointment Type
+                  <select
+                    className={FORM_FIELD}
+                    {...bookForm.register('type', {
+                      onChange: () => {
+                        bookForm.setValue('staffId', null)
+                        bookForm.setValue('previousConsultationId', '')
+                      },
+                    })}
+                  >
+                    {APPOINTMENT_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 {isFollowUpBooking && (
                   <div className={FOLLOW_UP_BOX}>
                     <label className={FORM_LABEL}>
@@ -801,7 +797,10 @@ function Appointments({ page }) {
                           const id = e.target.value ? Number(e.target.value) : ''
                           bookForm.setValue('previousConsultationId', id)
                           const previous = followUpOptions.find((c) => c.id === id)
-                          if (previous?.staffId && !bookStaffId) bookForm.setValue('staffId', previous.staffId)
+                          const clinician = eligibleStaff.find((staff) => staff.id === previous?.staffId)
+                          if (clinician && !bookStaffId && clinician.staffProfile?.department === departmentForType(bookType)) {
+                            bookForm.setValue('staffId', clinician.id)
+                          }
                         }}
                       >
                         <option value="">
@@ -828,9 +827,8 @@ function Appointments({ page }) {
                   </div>
                 )}
                 <label className={FORM_LABEL}>
-                  Assign Doctor
+                  Assign Doctor / Nurse
                   <ClinicianSelect
-                    roles={['doctor']}
                     department={departmentForType(bookType)}
                     value={bookStaffId}
                     onChange={(id) => bookForm.setValue('staffId', id)}
@@ -848,17 +846,19 @@ function Appointments({ page }) {
                 <div className={FORM_ROW}>
                   <label className={FORM_LABEL}>
                     Date
-                    <input type="date" min={todayISO()} className={FORM_FIELD} {...bookForm.register('date', { required: 'A date is required.' })} />
+                    <Controller
+                      name="date"
+                      control={bookForm.control}
+                      rules={{ required: 'A date is required.' }}
+                      render={({ field }) => <AppointmentDatePicker value={field.value} onChange={field.onChange} onBlur={field.onBlur} name={field.name} staffId={bookStaffId} min={todayISO()} className={FORM_FIELD} required />}
+                    />
                   </label>
                   <label className={FORM_LABEL}>
                     Time Slot (8:00 AM – 5:00 PM)
-                    <select className={FORM_FIELD} {...bookForm.register('time')}>
-                      {TIME_SLOTS.map((t) => (
-                        <option key={t} value={t} disabled={isSlotClosed(bookDate, t)}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
+                    <Controller
+                      name="time" control={bookForm.control} rules={{ required: 'A time slot is required.' }}
+                      render={({ field }) => <AppointmentTimePicker date={bookDate} staffId={bookStaffId} value={field.value} onChange={field.onChange} onBlur={field.onBlur} name={field.name} className={FORM_FIELD} required />}
+                    />
                   </label>
                 </div>
                 <div className={MODAL_FOOTER_ACTIONS}>

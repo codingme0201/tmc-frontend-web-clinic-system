@@ -18,7 +18,12 @@ export function usePatientsStore({ onLog } = {}) {
   const createMutation = useMutation({
     mutationFn: patientsService.createPatient,
     onSuccess: (created) => {
+      queryClient.setQueryData(['patients'], (current = []) => [
+        ...current.filter((patient) => patient.id !== created.id),
+        created,
+      ])
       queryClient.invalidateQueries({ queryKey: ['patients'] })
+      queryClient.invalidateQueries({ queryKey: ['medical-records'] })
       onLogRef.current?.(`Created new patient profile for ${created.name} (${created.type})`)
     },
   })
@@ -95,7 +100,12 @@ export function useUpdatePatientStatus() {
   const mutation = useMutation({
     mutationFn: ({ id, status }) => patientsService.updatePatientStatus(id, status),
     onSuccess: (updated) => {
+      queryClient.setQueryData(['patients'], (current) => current?.map(
+        (patient) => patient.id === updated.id ? { ...patient, ...updated } : patient,
+      ))
+      queryClient.setQueryData(['patient', updated.id], updated)
       queryClient.invalidateQueries({ queryKey: ['patients'] })
+      queryClient.invalidateQueries({ queryKey: ['patient', updated.id] })
       log?.(`Set patient ${updated?.name} (${updated?.patientId}) to ${updated?.status}`)
     },
   })

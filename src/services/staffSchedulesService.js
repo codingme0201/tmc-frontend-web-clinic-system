@@ -21,6 +21,15 @@ export async function fetchStaffSchedule(id) {
   return res.data
 }
 
+export async function fetchScheduledStaff() {
+  return (await request('/staff-schedules/staff')).data
+}
+
+export async function fetchStaffScheduleDetails(userId, date) {
+  const params = new URLSearchParams({ date })
+  return (await request(`/staff-schedules/staff/${userId}?${params}`)).data
+}
+
 /** Create a new staff schedule. */
 export async function createStaffSchedule(payload) {
   const res = await request('/staff-schedules', { method: 'POST', body: payload })
@@ -51,12 +60,24 @@ export async function fetchEligibleStaff() {
   return res.data
 }
 
+export async function fetchWeeklyStaffSchedules() {
+  return (await request('/weekly-staff-schedules')).data
+}
+
+export async function saveWeeklyStaffSchedule(payload) {
+  return request('/weekly-staff-schedules', { method: 'POST', body: payload })
+}
+
 export const staffSchedulesService = {
   fetchStaffSchedules,
   fetchStaffSchedule,
+  fetchScheduledStaff,
+  fetchStaffScheduleDetails,
   createStaffSchedule,
   updateStaffSchedule,
   deleteStaffSchedule,
   updateStaffAvailability,
   fetchEligibleStaff,
+  fetchWeeklyStaffSchedules,
+  saveWeeklyStaffSchedule,
 }

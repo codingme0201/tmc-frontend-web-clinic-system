@@ -1,22 +1,23 @@
 import { useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { syncService } from '../services/syncService'
+import { useAuth } from './useAuth'
 
 const POLL_MS = 3000
 
 // Server sync module → query keys whose data comes from it.
 const MODULE_QUERIES = {
-  appointments: ['appointments', 'queue', 'follow-up-options', 'clinic-insights', 'patient-history', 'reports', 'reports-statistics', 'staff-schedules', 'clinic-staff', 'clinic-staff-member', 'patients'],
+  appointments: ['appointments', 'queue', 'follow-up-options', 'clinic-insights', 'patient-history', 'reports', 'reports-statistics', 'staff-schedules', 'clinic-staff', 'clinic-staff-member', 'patients', 'appointment-calendar'],
   consultations: ['consultations', 'queue', 'follow-up-options', 'patient-history', 'reports', 'reports-statistics', 'medical-records', 'patients', 'clinic-insights'],
   medical_records: ['medical-records', 'patient-medical', 'patient-history'],
   medical_certificates: ['medical-certificates', 'patient-history', 'reports', 'reports-statistics', 'patients', 'clinic-insights'],
   prescriptions: ['prescriptions', 'patient-history', 'reports', 'reports-statistics', 'medical-records', 'patients', 'clinic-insights'],
   patients: ['patients', 'patient', 'patient-medical', 'medical-records', 'reports', 'reports-statistics', 'users'],
-  users: ['users', 'clinic-staff', 'clinic-staff-member', 'eligible-staff', 'notification-recipients', 'staff-schedules', 'staff'],
+  users: ['users', 'clinic-staff', 'clinic-staff-member', 'eligible-staff', 'notification-recipients', 'staff-schedules', 'staff', 'appointment-calendar'],
   notifications: ['notifications', 'notifications-unread-count'],
-  staff_schedules: ['staff-schedules', 'clinic-staff', 'clinic-staff-member', 'eligible-staff', 'staff'],
-  staff_profiles: ['clinic-staff', 'clinic-staff-member', 'eligible-staff', 'staff'],
-  settings: ['settings'],
+  staff_schedules: ['staff-schedules', 'weekly-staff-schedules', 'clinic-staff', 'clinic-staff-member', 'eligible-staff', 'staff', 'appointment-calendar'],
+  staff_profiles: ['clinic-staff', 'clinic-staff-member', 'eligible-staff', 'staff', 'appointment-calendar'],
+  settings: ['settings', 'appointment-calendar'],
   activity_logs: ['activity-logs', 'audit-logs'],
   roles: ['roles', 'permissions'],
   staff: ['staff'],
@@ -32,6 +33,7 @@ const MODULE_QUERIES = {
  * the open page refetches in the background without a reload.
  */
 export function useLiveSync(enabled = true) {
+  const { refreshProfilePicture } = useAuth()
   const queryClient = useQueryClient()
   const previousRef = useRef(null)
 
@@ -48,13 +50,14 @@ export function useLiveSync(enabled = true) {
     if (!data) return
     const previous = previousRef.current
     previousRef.current = data
-    if (!previous) return
-
     const keys = new Set()
     Object.keys(data).forEach((module) => {
-      if (data[module] === previous[module]) return
+      // The first poll can itself expire appointments after a page's initial
+      // fetch. Refresh modules with a version even before a baseline exists.
+      if (previous ? data[module] === previous[module] : !data[module]) return
+      if (module === 'users') refreshProfilePicture()
       for (const key of MODULE_QUERIES[module] ?? []) keys.add(key)
     })
     keys.forEach((key) => queryClient.invalidateQueries({ queryKey: [key] }))
-  }, [data, queryClient])
+  }, [data, queryClient, refreshProfilePicture])
 }

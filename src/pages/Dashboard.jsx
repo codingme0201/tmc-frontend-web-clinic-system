@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAppointments } from '../hooks/useAppointments'
 import { usePatients } from '../hooks/usePatients'
+import { useAcademicPrograms } from '../hooks/useAcademicPrograms'
 import { useConsultations } from '../hooks/useConsultations'
 import { useStaff } from '../hooks/useStaff'
-import { useActivityLogs } from '../hooks/useActivityLogs'
+import { useAdminActivityLogs } from '../hooks/useActivityLogs'
 import { useClinicInsights } from '../hooks/useClinicInsights'
 import { useQueue } from '../hooks/useQueue'
 import { useAuth } from '../hooks/useAuth'
@@ -11,9 +13,10 @@ import { useAppContext } from '../context/AppContext'
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { usePagination } from '../hooks/usePagination'
-import { todayISO, formatPhone, isValidPhone, PHONE_ERROR } from '../lib/format'
-import { APPOINTMENT_TYPES, TIME_SLOTS, VISIT_TYPES, VISIT_NEW, currentSlot, isSlotClosed, departmentForType, DEPARTMENT_MEDICAL } from '../lib/clinic'
-import { PILL, PRIMARY_BTN, PANEL, PANEL_HEADER, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT, SIDEBAR_FORM, FORM_LABEL, FORM_FIELD, FORM_ROW } from '../lib/ui'
+import { formatDate, todayISO } from '../lib/format'
+import { dashboardConsultations, dashboardPatientGroups, onDutyStaff } from '../lib/dashboardPreview'
+import { APPOINTMENT_TYPES, VISIT_NEW, currentSlot, departmentForType } from '../lib/clinic'
+import { PILL, PRIMARY_BTN, PANEL, PANEL_HEADER, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT, SIDEBAR_FORM, FORM_LABEL, FORM_FIELD } from '../lib/ui'
 import Pagination from '../components/Pagination'
 import StatusBadge from '../components/StatusBadge'
 import { EmptyState, ErrorState } from '../components/AsyncState'
@@ -23,21 +26,28 @@ import DashboardCardSkeleton from '../components/skeletons/DashboardCardSkeleton
 import TableSkeleton from '../components/skeletons/TableSkeleton'
 import ListSkeleton from '../components/skeletons/ListSkeleton'
 import CardSkeleton from '../components/skeletons/CardSkeleton'
-import FormSkeleton from '../components/skeletons/FormSkeleton'
 import StudentSelect from '../components/StudentSelect'
 import QueueBoard from '../components/QueueBoard'
 import ClinicianSelect from '../components/ClinicianSelect'
-import CourseSelect from '../components/CourseSelect'
-import VisitTypeBadge from '../components/VisitTypeBadge'
+import AppointmentTimePicker from '../components/AppointmentTimePicker'
+import UserAvatar from '../components/UserAvatar'
+import AdjustStaffStatusModal from '../components/AdjustStaffStatusModal'
+import OnDutyStaffModal from '../components/OnDutyStaffModal'
 
 function Dashboard() {
-  const [activeTab, setActiveTab] = useState('overview') // 'overview', 'appointments', 'consultations', 'patients', 'schedule', 'activity'
-  const { can, userRole } = useAuth()
+  const [activeTab, setActiveTab] = useState('overview') // Overview, Queue, Consultations and Patient Registry
+  const { can, userRole, user } = useAuth()
+  // Web accounts store their full name in the authenticated account payload.
+  // Skip professional titles so clinicians are greeted by their given name.
+  const firstName = !['student', 'patient'].includes(userRole)
+    ? (user?.name || '').trim().replace(/^(?:(?:dr|doctor|nurse|mr|mrs|ms|miss|prof)\.?\s+)+/i, '').split(/\s+/)[0]
+    : ''
   const { navigate } = useAppContext()
   const canViewConsultations = can('consultations.view')
-  // Audit logs are admin-only; clinic activity and peak hours are shown to
-  // every dashboard user.
+  const canCreateAppointments = userRole !== 'doctor' && can('appointments.create')
+  // Audit logs are admin-only; the clinic activity summary is visible to staff.
   const canViewAuditLog = userRole === 'admin'
+  const canEditStaffStatus = userRole === 'admin'
 
   // All data flows through shared custom hooks — the page never imports or
   // mutates shared store data directly.
@@ -46,6 +56,7 @@ function Dashboard() {
     isLoading: appointmentsLoading,
     error: appointmentsError,
     refetch: refetchAppointments,
+    isRefetching: appointmentsRefetching,
     createAppointment,
     updateStatus: updateAppointmentStatus,
   } = useAppointments('dashboard')
@@ -64,7 +75,6 @@ function Dashboard() {
     isLoading: patientsLoading,
     error: patientsError,
     refetch: refetchPatients,
-    addPatient,
   } = usePatients()
 
   const {
@@ -72,11 +82,10 @@ function Dashboard() {
     isLoading: consultationsLoading,
     error: consultationsError,
     refetch: refetchConsultations,
-    addConsultation,
   } = useConsultations('dashboard', { enabled: canViewConsultations })
   const queue = useQueue('dashboard')
 
-  const { data: activityLogs, isLoading: logsLoading, error: logsError, refetch: refetchLogs } = useActivityLogs()
+  const { data: activityLogs, isLoading: logsLoading, error: logsError, refetch: refetchLogs } = useAdminActivityLogs()
   const {
     data: clinicInsights,
     isLoading: insightsLoading,
@@ -87,61 +96,40 @@ function Dashboard() {
   const { showToast } = useToast()
 
   // Modals & Panels Active States
-  const [selectedPatient, setSelectedPatient] = useState(null)
+  const [selectedPatientEntry, setSelectedPatient] = useState(null)
+  const selectedPatient = patients.find((patient) => patient.id === selectedPatientEntry?.id) || null
 
   // Book Appointment Form State
   const [appPatient, setAppPatient] = useState('')
   const [appPatientId, setAppPatientId] = useState('')
-  const [appType, setAppType] = useState('Check-up')
-  const [appVisitType, setAppVisitType] = useState(VISIT_NEW)
+  const [appType, setAppType] = useState('General Check-up')
   const [appTime, setAppTime] = useState(() => currentSlot())
   const [appStaffId, setAppStaffId] = useState(null)
   const [queueBusyId, setQueueBusyId] = useState(null)
   const [booking, setBooking] = useState(false)
-  const [logging, setLogging] = useState(false)
-  const [addingPatient, setAddingPatient] = useState(false)
+  const [adjustShiftOpen, setAdjustShiftOpen] = useState(false)
+  const [onDutyOpen, setOnDutyOpen] = useState(false)
+  const newAppointmentsRef = useRef(null)
   const [statusUpdating, setStatusUpdating] = useState(null) // staff name currently being toggled
-
-  // Log Consultation Form State
-  const [consPatient, setConsPatient] = useState('')
-  const [consSymptoms, setConsSymptoms] = useState('')
-  const [consBp, setConsBp] = useState('120/80')
-  const [consTemp, setConsTemp] = useState('36.7°C')
-  const [consPulse, setConsPulse] = useState('75 bpm')
-  const [consDiagnosis, setConsDiagnosis] = useState('')
-  const [consTreatment, setConsTreatment] = useState('')
-  const [consDisposition, setConsDisposition] = useState('Sent to Class')
-  const [consStaffId, setConsStaffId] = useState(null)
-
-  // Add Patient Form State
-  const [patId, setPatId] = useState('')
-  const [patName, setPatName] = useState('')
-  const [patType, setPatType] = useState('Student')
-  const [patDept, setPatDept] = useState('')
-  const [patContact, setPatContact] = useState('')
-  const [patEmergency, setPatEmergency] = useState('')
-  const [patAllergies, setPatAllergies] = useState('')
-  const [patHistory, setPatHistory] = useState('')
 
   // Search/Filters State
   const { search: consSearch, setSearch: setConsSearch, debouncedSearch: debouncedConsSearch } = useSearch()
   const { search: patSearch, setSearch: setPatSearch, debouncedSearch: debouncedPatSearch } = useSearch()
-  const [patFilter, setPatFilter] = useState('All')
-
-  // Derived defaults for the consultation form (patients/staff load async).
-  const effectiveConsPatient = consPatient || patients[0]?.name || ''
+  const [patDepartment, setPatDepartment] = useState('')
+  const [patCategory, setPatCategory] = useState('all')
+  const { groups: academicDepartments } = useAcademicPrograms()
 
   // Appointment Actions
   const handleAddAppointment = async (e) => {
     e.preventDefault()
-    if (booking || !appPatient.trim()) return
+    if (!canCreateAppointments || booking || !appPatient.trim()) return
     setBooking(true)
     try {
       await createAppointment({
         patient: appPatient.trim(),
         patientId: appPatientId,
         type: appType,
-        visitType: appVisitType,
+        visitType: VISIT_NEW,
         date: todayISO(),
         time: appTime,
         reason: appType,
@@ -186,72 +174,9 @@ function Dashboard() {
   const handleNoShow = (entry) =>
     runQueueAction(entry, () => updateAppointmentStatus(entry.appointmentId, 'No-Show'), `${entry.patient} marked as No-Show.`)
 
-  // Consultation Actions
-  const handleLogConsultation = async (e) => {
-    e.preventDefault()
-    if (logging || !effectiveConsPatient.trim() || !consDiagnosis.trim()) return
-    setLogging(true)
-    try {
-      await addConsultation({
-        patient: effectiveConsPatient,
-        staff_id: consStaffId,
-        symptoms: consSymptoms,
-        vitals: { bp: consBp, temp: consTemp, pulse: consPulse },
-        diagnosis: consDiagnosis,
-        treatment: consTreatment,
-        disposition: consDisposition,
-      })
-      showToast('Consultation logged.')
-      // Reset form
-      setConsSymptoms('')
-      setConsDiagnosis('')
-      setConsTreatment('')
-    } catch (err) {
-      showToast(err?.message || 'Failed to log the consultation.', 'error')
-    } finally {
-      setLogging(false)
-    }
-  }
-
-  // Patient Actions
-  const handleAddPatient = async (e) => {
-    e.preventDefault()
-    if (addingPatient || !patId.trim() || !patName.trim()) return
-    if (!isValidPhone(patContact)) {
-      showToast(PHONE_ERROR, 'error')
-      return
-    }
-    setAddingPatient(true)
-    try {
-      await addPatient({
-        id: patId,
-        name: patName,
-        type: patType,
-        courseDept: patDept,
-        contact: patContact,
-        emergencyContact: patEmergency,
-        allergies: patAllergies || 'None',
-        history: patHistory || 'None',
-      })
-      showToast(`Patient profile created for ${patName}.`)
-      // Reset form
-      setPatId('')
-      setPatName('')
-      setPatDept('')
-      setPatContact('')
-      setPatEmergency('')
-      setPatAllergies('')
-      setPatHistory('')
-    } catch (err) {
-      showToast(err?.message || 'Failed to create the patient profile.', 'error')
-    } finally {
-      setAddingPatient(false)
-    }
-  }
-
   // Staff coverage action
   const handleUpdateStaffStatus = async (member, newStatus) => {
-    if (statusUpdating) return
+    if (!canEditStaffStatus || statusUpdating) return
     setStatusUpdating(member.userId)
     try {
       await updateStaffStatus(member.name, newStatus, member.userId)
@@ -263,26 +188,50 @@ function Dashboard() {
     }
   }
 
+  const onDutyMembers = useMemo(() => onDutyStaff(staff), [staff])
+  const handleSummaryCard = (target) => {
+    if (target === 'newAppointments') {
+      const section = newAppointmentsRef.current
+      section?.focus({ preventScroll: true })
+      section?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' })
+    } else if (target === 'onDuty') {
+      setOnDutyOpen(true)
+      refetchStaff()
+    } else {
+      if (target === 'patients') {
+        setPatCategory('all')
+        setPatSearch('')
+        setPatDepartment('')
+        patPagination.resetPage()
+      }
+      if (target === 'consultations') {
+        setConsSearch('')
+        consPagination.resetPage()
+      }
+      setActiveTab(target)
+    }
+  }
+
   // Stats derivation
   const activeStats = useMemo(() => {
-    const todayAppts = appointments.filter((a) => a.date === todayISO() && a.status !== 'Cancelled' && a.status !== 'Rejected').length
+    const todayAppts = appointments.filter((a) => a.date === todayISO() && !['Cancelled', 'Rejected', 'Expired', 'No-Show'].includes(a.status)).length
     const activeCons = staff.filter((s) => s.status === 'On duty').length
     const scheduledToday = staff.filter((s) => s.scheduledToday).length
     const totalPats = patients.length
     const totalConsults = consultations.length
     return [
-      { label: 'Today Appointments', value: todayAppts, trend: `${appointments.filter((a) => a.status === 'Pending').length} pending review` },
-      { label: 'On-Duty Staff', value: activeCons, trend: `${scheduledToday} scheduled today · ${staff.filter((s) => s.status === 'Break').length} on break` },
-      { label: 'Registered Patients', value: totalPats, trend: 'Unified clinic health list' },
+      { target: 'newAppointments', label: "Today's Appointments", value: todayAppts, trend: `${appointments.filter((a) => a.status === 'Pending').length} pending review` },
+      { target: 'onDuty', label: 'On-Duty Staff', value: activeCons, trend: `${scheduledToday} scheduled today · ${staff.filter((s) => s.status === 'Break').length} on break` },
+      { target: 'patients', label: 'Registered Patients', value: totalPats, trend: 'Unified clinic health list' },
       canViewConsultations
-        ? { label: 'Total Consultations', value: totalConsults, trend: 'Clinic visit records logged' }
-        : { label: 'Waiting in Queue', value: queue.meta?.waiting ?? 0, trend: `${queue.meta?.expected ?? 0} expected today` },
+        ? { target: 'consultations', label: 'Total Consultations', value: totalConsults, trend: 'Clinic visit records logged' }
+        : { target: 'appointments', label: 'Waiting in Queue', value: queue.meta?.waiting ?? 0, trend: `${queue.meta?.expected ?? 0} expected today` },
     ]
   }, [appointments, staff, patients, consultations, canViewConsultations, queue.meta])
 
   // Filtered Consultations
   const filteredConsultations = useMemo(() => {
-    return consultations.filter((cons) => {
+    return dashboardConsultations(consultations, todayISO()).filter((cons) => {
       const matchSearch =
         cons.patient.toLowerCase().includes(debouncedConsSearch.toLowerCase()) ||
         cons.diagnosis.toLowerCase().includes(debouncedConsSearch.toLowerCase())
@@ -291,23 +240,45 @@ function Dashboard() {
   }, [consultations, debouncedConsSearch])
 
   // Filtered Patients
+  const departmentByCourse = useMemo(() => new Map(
+    academicDepartments.flatMap((group) => group.courses.map((course) => [course, group.department])),
+  ), [academicDepartments])
+  const patientDepartments = useMemo(() => [...new Set([
+    ...academicDepartments.map((group) => group.department),
+    ...patients.map((patient) => {
+      const course = (patient.courseDept || '').trim()
+      return departmentByCourse.get(course) || course
+    }).filter(Boolean),
+  ])].sort((a, b) => a.localeCompare(b)), [academicDepartments, patients, departmentByCourse])
+
+  const registryToday = todayISO()
+  const registrationGroups = useMemo(
+    () => dashboardPatientGroups(patients, registryToday),
+    [patients, registryToday],
+  )
+  const patientSummaryCards = [
+    { key: 'all', label: 'Recent Patients', trend: 'New registrations or active visits in the last 7 days' },
+    { key: 'today', label: 'New Patients Today', trend: 'Registered today' },
+    { key: 'active', label: 'Active Patients', trend: 'Active patients in this 7-day preview' },
+  ]
+
   const filteredPatients = useMemo(() => {
-    const q = debouncedPatSearch.toLowerCase()
-    return patients
+    const q = debouncedPatSearch.trim().toLowerCase()
+    return registrationGroups[patCategory]
       .filter((pat) => {
         const matchSearch = pat.name.toLowerCase().includes(q) || (pat.patientId || '').toLowerCase().includes(q)
-        const matchFilter = patFilter === 'All' || pat.type === patFilter
+        const course = (pat.courseDept || '').trim()
+        const matchFilter = !patDepartment || (departmentByCourse.get(course) || course) === patDepartment
         return matchSearch && matchFilter
       })
       .sort((a, b) => (a.patientId || '').localeCompare(b.patientId || '', undefined, { numeric: true }))
-  }, [patients, debouncedPatSearch, patFilter])
+  }, [registrationGroups, patCategory, debouncedPatSearch, patDepartment, departmentByCourse])
 
   // Client-side pagination per list — swap for API-driven pages later without
   // touching the tables or the Pagination UI.
   const consPagination = usePagination(filteredConsultations)
   const patPagination = usePagination(filteredPatients)
   const logsPagination = usePagination(activityLogs)
-  const staffPagination = usePagination(staff)
 
   const { resetPage: resetConsPage } = consPagination
   const { resetPage: resetPatPage } = patPagination
@@ -318,17 +289,17 @@ function Dashboard() {
   }, [debouncedConsSearch, resetConsPage])
   useEffect(() => {
     resetPatPage()
-  }, [debouncedPatSearch, patFilter, resetPatPage])
+  }, [debouncedPatSearch, patDepartment, patCategory, resetPatPage])
 
   // Patient history for detail lookup
   const patientHistoryLogs = useMemo(() => {
     if (!selectedPatient) return []
-    return consultations.filter((c) => c.patient === selectedPatient.name)
+    return consultations.filter((c) => c.patientId && c.patientId === selectedPatient.patientId)
   }, [selectedPatient, consultations])
 
-  // Every patient with an appointment today, in queue order: being seen,
-  // waiting (FIFO), expected, awaiting approval, then served.
-  const queuePreview = queue.entries
+  const newAppointments = useMemo(() => appointments
+    .filter((appointment) => ['Pending', 'Under Review'].includes(appointment.status))
+    .sort((a, b) => b.id - a.id), [appointments])
 
   // Overview load state — each widget loads independently, so a slow API
   // never blocks the whole dashboard. These booleans drive the stat cards
@@ -344,7 +315,6 @@ function Dashboard() {
     refetchInsights()
   }
 
-  const activity = clinicInsights?.clinicActivity || []
   const peakHours = clinicInsights?.peakHours || []
 
   return (
@@ -357,7 +327,7 @@ function Dashboard() {
               TMC Expansion Clinic Administration
             </span>
             <h2 className="m-0 text-[22px] sm:text-[30px] md:text-[36px] font-extrabold tracking-tight text-ink leading-tight">
-              Clinic Command Center
+              Welcome back{userRole === 'admin' ? ', Admin' : firstName ? `, ${firstName}` : ''}!
             </h2>
           </div>
           <div>
@@ -384,6 +354,13 @@ function Dashboard() {
           >
             Queue ({queue.meta?.waiting ?? 0} waiting)
           </button>
+          <button
+            type="button"
+            className={`cursor-pointer whitespace-nowrap rounded-xl border-0 px-3.5 py-2 text-[12.5px] sm:text-[13px] font-extrabold transition-all duration-150 ${activeTab === 'patients' ? 'bg-primary text-white shadow-xs' : 'text-muted-soft hover:bg-white/60 hover:text-primary'}`}
+            onClick={() => setActiveTab('patients')}
+          >
+            Patient Registry
+          </button>
           {canViewConsultations && (
             <button
               type="button"
@@ -393,27 +370,6 @@ function Dashboard() {
               Consultations
             </button>
           )}
-          <button
-            type="button"
-            className={`cursor-pointer whitespace-nowrap rounded-xl border-0 px-3.5 py-2 text-[12.5px] sm:text-[13px] font-extrabold transition-all duration-150 ${activeTab === 'patients' ? 'bg-primary text-white shadow-xs' : 'text-muted-soft hover:bg-white/60 hover:text-primary'}`}
-            onClick={() => setActiveTab('patients')}
-          >
-            Patient Registry
-          </button>
-          <button
-            type="button"
-            className={`cursor-pointer whitespace-nowrap rounded-xl border-0 px-3.5 py-2 text-[12.5px] sm:text-[13px] font-extrabold transition-all duration-150 ${activeTab === 'schedule' ? 'bg-primary text-white shadow-xs' : 'text-muted-soft hover:bg-white/60 hover:text-primary'}`}
-            onClick={() => setActiveTab('schedule')}
-          >
-            Staff Shifts
-          </button>
-          <button
-            type="button"
-            className={`cursor-pointer whitespace-nowrap rounded-xl border-0 px-3.5 py-2 text-[12.5px] sm:text-[13px] font-extrabold transition-all duration-150 ${activeTab === 'activity' ? 'bg-primary text-white shadow-xs' : 'text-muted-soft hover:bg-white/60 hover:text-primary'}`}
-            onClick={() => setActiveTab('activity')}
-          >
-            Clinic Activity
-          </button>
         </nav>
       </section>
 
@@ -434,7 +390,7 @@ function Dashboard() {
             ) : (
               <div className="mb-5 grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
                 {activeStats.map((item) => (
-                  <article key={item.label} className="group relative overflow-hidden rounded-2xl border border-line-strong/80 bg-white p-3.5 sm:p-5 shadow-[0_4px_24px_rgba(18,57,59,0.06)] transition-all duration-200 hover:border-primary/40 hover:shadow-[0_8px_30px_rgba(18,57,59,0.1)]">
+                  <button type="button" key={item.label} onClick={() => handleSummaryCard(item.target)} aria-label={`${item.label}: ${item.value}`} aria-haspopup={item.target === 'onDuty' ? 'dialog' : undefined} className="group relative cursor-pointer text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary overflow-hidden rounded-2xl border border-line-strong/80 bg-white p-3.5 sm:p-5 shadow-[0_4px_24px_rgba(18,57,59,0.06)] transition-all duration-200 hover:border-primary/40 hover:shadow-[0_8px_30px_rgba(18,57,59,0.1)]">
                     <div className="flex items-center justify-between gap-1">
                       <p className="m-0 text-[11px] sm:text-[12px] font-extrabold uppercase tracking-wider text-muted-soft truncate">
                         {item.label}
@@ -447,62 +403,45 @@ function Dashboard() {
                     <span className="text-[11px] sm:text-[12px] font-medium text-muted truncate block">
                       {item.trend}
                     </span>
-                  </article>
+                  </button>
                 ))}
               </div>
             )}
 
                 {/* Overview Multi Grid */}
-                <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(280px,0.9fr)] gap-[18px] max-[980px]:grid-cols-1">
-                  {/* Appointments Quick View */}
-                  <article className={`${PANEL} row-span-2 max-[980px]:row-auto`}>
+                <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(280px,0.9fr)] gap-5 max-[980px]:grid-cols-1">
+                  {/* Patient visits by time of day */}
+                  <article className={`${PANEL} flex min-w-0 min-h-[330px] flex-col`}>
                     <div className={PANEL_HEADER}>
                       <div>
-                        <p className={KICKER}>Queue Management · First In, First Out</p>
-                        <h3 className="m-0 text-[17px] sm:text-[18px] font-bold text-[#143d40]">Today&apos;s Patient Queue</h3>
+                        <h3 className="m-0 text-[17px] sm:text-[18px] font-bold text-[#143d40]">Clinic Peak Activity Hours</h3>
+                        <p className="mb-0 mt-1 text-[12px] leading-relaxed text-muted">Patient visits by time of day for the current school week.</p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <RefreshingBadge refreshing={queue.isRefetching && !queue.isLoading} />
-                        <button type="button" className={PILL} onClick={() => setActiveTab('appointments')}>Manage Queue</button>
-                      </div>
+                      <RefreshingBadge refreshing={insightsRefetching && !insightsLoading} />
                     </div>
-                    {queue.error ? (
-                      <ErrorState message={queue.error} onRetry={queue.refetch} />
-                    ) : queue.isLoading ? (
-                      <ListSkeleton rows={3} />
-                    ) : (
-                    <div className="grid max-h-[520px] gap-2.5 overflow-y-auto pr-1">
-                      {queuePreview.map((entry) => (
-                        <div className="flex flex-col sm:grid sm:grid-cols-[92px_minmax(0,1fr)_auto] items-start sm:items-center gap-2.5 sm:gap-3 rounded-xl border border-line-strong/80 bg-white/70 p-3 sm:p-3.5 shadow-2xs transition-all duration-150 hover:border-primary/40 hover:bg-white" key={entry.appointmentId}>
-                          <div className="flex w-full items-center justify-between sm:w-auto sm:flex-col sm:items-start">
-                            <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-0.5 text-[12px] font-extrabold text-primary">
-                              {entry.queueStatus === 'Waiting' ? `#${entry.position} · ` : entry.queueStatus === 'In Consultation' ? 'Now · ' : ''}{entry.time}
-                            </span>
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <strong className="block truncate font-bold text-ink text-[13.5px]">{entry.patient}</strong>
-                              <VisitTypeBadge visitType={entry.visitType} compact />
-                            </div>
-                            <span className="block text-[12px] text-muted">
-                              {entry.reference} · {entry.type} · {entry.staffId ? entry.staff : 'Doctor not yet assigned'}
-                            </span>
-                          </div>
-                          <div className="flex flex-col items-start gap-1 sm:items-end">
-                            <StatusBadge status={entry.queueStatus} />
-                            {entry.queueStatus === 'Awaiting Approval' && <span className="text-[11px] font-bold text-muted">Appointment: {entry.appointmentStatus}</span>}
-                          </div>
+                    {insightsError ? <ErrorState message={insightsError} onRetry={refetchInsights} /> : insightsLoading ? <CardSkeleton rows={5} /> : (
+                      <div className="flex flex-1 flex-col justify-center">
+                        <div className="mb-3 flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider text-muted">
+                          <span>Time of Day</span><span>Patient Visits</span>
                         </div>
-                      ))}
-                      {queuePreview.length === 0 && (
-                        <EmptyState message="No patients have an appointment today. Pending, approved and checked-in appointments for today appear here." />
-                      )}
-                    </div>
+                        <ul className="m-0 grid list-none gap-4 p-0" aria-label="Patient visits by time of day">
+                          {peakHours.map((hour) => (
+                            <li className="grid grid-cols-[minmax(0,150px)_minmax(0,1fr)_32px] items-center gap-3 max-[480px]:grid-cols-[minmax(0,118px)_minmax(0,1fr)_24px] max-[480px]:gap-2" key={hour.label}>
+                              <span className="text-[11px] sm:text-[12px] font-bold tabular-nums text-ink">{hour.label}</span>
+                              <div className="h-3 overflow-hidden rounded-full bg-[#e5efec]" aria-hidden="true">
+                                <div className="h-full rounded-full bg-primary transition-[width] duration-300 motion-reduce:transition-none" style={{ width: `${hour.percent}%` }} />
+                              </div>
+                              <span className="text-right text-[12px] font-extrabold tabular-nums text-ink" aria-label={`${hour.count} patient visits`}>{hour.count}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        {peakHours.every((hour) => !hour.count) && <p role="status" className="mb-0 mt-4 text-[12px] text-muted">No patient visits for the current school week.</p>}
+                      </div>
                     )}
                   </article>
 
                   {/* Staff Shift Status Quick View */}
-                  <article className={PANEL}>
+                  <article className={`${PANEL} min-w-0 min-h-[330px]`}>
                     <div className={PANEL_HEADER}>
                       <div>
                         <p className={KICKER}>Coverage Summary</p>
@@ -510,7 +449,7 @@ function Dashboard() {
                       </div>
                       <div className="flex items-center gap-2">
                         <RefreshingBadge refreshing={staffRefetching && !staffLoading} />
-                        <button type="button" className="cursor-pointer rounded-[7px] bg-bg px-3 py-2 font-extrabold text-primary" onClick={() => setActiveTab('schedule')}>Adjust Shifts</button>
+                        {canEditStaffStatus && <button type="button" className="cursor-pointer rounded-[7px] bg-bg px-3 py-2 font-extrabold text-primary" onClick={() => setAdjustShiftOpen(true)}>Adjust Shift</button>}
                       </div>
                     </div>
                     {staffError ? (
@@ -518,20 +457,20 @@ function Dashboard() {
                     ) : staffLoading ? (
                       <ListSkeleton rows={4} avatar />
                     ) : (
-                    <div className="grid gap-[10px]">
+                    <div className="grid max-h-[280px] gap-[10px] overflow-y-auto">
                       {staff.length === 0 && (
                         <EmptyState message="No active doctors or nurses yet. Add them in User Management and plan their shifts in the Doctor/Nurse Schedule." />
                       )}
                       {staff.map((member) => (
                         <div className="grid grid-cols-[42px_minmax(0,1fr)] items-center gap-3 rounded-lg border border-line p-3" key={member.userId}>
-                          <div className="grid size-[42px] place-items-center rounded-full bg-accent text-[13px] font-extrabold text-[#fffaf3]">{member.name.slice(0, 2).toUpperCase()}</div>
+                          <div className="grid size-[42px] place-items-center rounded-full bg-accent text-[13px] font-extrabold text-[#fffaf3]"><UserAvatar user={member} className="size-full" /></div>
                           <div>
                             <strong className="block text-ink">{member.name}</strong>
                             <span className="block text-[12px] text-muted">{member.role} · {member.department}</span>
                             <span className="block text-[11.5px] font-bold text-primary">{member.shift}</span>
                           </div>
                           <div className="col-start-2">
-                            <StatusBadge status={member.status} />
+                            <StatusBadge status={member.status === 'Break' ? 'On Break' : member.status} />
                           </div>
                         </div>
                       ))}
@@ -539,46 +478,62 @@ function Dashboard() {
                     )}
                   </article>
 
-                  {/* Clinic Activity Summary */}
-                  <article className={PANEL}>
+                  {/* New appointment requests */}
+                  <article ref={newAppointmentsRef} tabIndex={-1} aria-labelledby="new-appointments-title" className={`${PANEL} min-w-0 min-h-[330px] scroll-mt-24`}>
                     <div className={PANEL_HEADER}>
-                      <div>
-                        <p className={KICKER}>All clinic records</p>
-                        <h3 className="m-0 text-[18px] text-[#143d40]">Clinic Activity</h3>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <RefreshingBadge refreshing={insightsRefetching && !insightsLoading} />
-                        <button type="button" className="cursor-pointer rounded-[7px] bg-bg px-3 py-2 font-extrabold text-primary" onClick={() => setActiveTab('activity')}>View All</button>
-                      </div>
+                      <h3 className="m-0 text-[17px] sm:text-[18px] font-bold text-[#143d40]" id="new-appointments-title">New Appointments</h3>
+                      <RefreshingBadge refreshing={appointmentsRefetching && !appointmentsLoading} />
                     </div>
-                    {insightsError ? (
-                      <ErrorState message={insightsError} onRetry={refetchInsights} />
-                    ) : insightsLoading ? (
-                      <CardSkeleton rows={4} />
+                    {appointmentsError ? (
+                      <ErrorState message={appointmentsError} onRetry={refetchAppointments} />
                     ) : (
-                    <div className="grid gap-4">
-                      {activity.every((item) => !item.count) && (
-                        <EmptyState message="No appointments, consultations, prescriptions or certificates have been recorded yet." />
-                      )}
-                      {activity.map((item) => (
-                        <div className="grid gap-[7px]" style={{ '--bar-size': `${item.percent}%` }} key={item.label}>
-                          <span className="flex justify-between text-[13px] font-extrabold text-ink">
-                            {item.label}
-                            <span className="text-muted">{item.count} <span className="font-bold text-[11px]">({item.recentCount ?? 0} in last 30 days)</span></span>
-                          </span>
-                          <b className="block h-[10px] w-full rounded-full bg-[linear-gradient(90deg,var(--color-primary)_var(--bar-size),#e5efec_var(--bar-size))]" />
-                        </div>
-                      ))}
-                    </div>
+                      <div className="max-h-[280px] overflow-auto rounded-lg border border-line">
+                        {appointmentsLoading ? <TableSkeleton columns={2} /> : (
+                        <table className={TABLE}>
+                          <thead><tr><th>Patient Name</th><th>Appointment Date</th></tr></thead>
+                          <tbody>
+                            {newAppointments.length === 0 ? (
+                              <tr><td colSpan="2"><EmptyState message="No new appointment requests." /></td></tr>
+                            ) : newAppointments.map((appointment) => (
+                              <tr key={appointment.id}>
+                                <td className="font-bold text-ink">{appointment.patient}</td>
+                                <td className="text-[12.5px] text-muted">{formatDate(appointment.date)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        )}
+                      </div>
                     )}
                   </article>
+
+                  {canViewAuditLog && (
+                    <article className={`${PANEL} min-w-0 min-h-[330px]`}>
+                      <div className={PANEL_HEADER}>
+                        <h3 className="m-0 text-[18px] text-[#143d40]">Live Activity Audit Log</h3>
+                        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-primary"><span className="size-2 rounded-full bg-success" />Live</span>
+                      </div>
+                      <div className="flex max-h-[280px] flex-col gap-[10px] overflow-y-auto pr-1" aria-live="polite" aria-relevant="additions text">
+                        {logsError ? <ErrorState message={logsError} onRetry={refetchLogs} /> : logsLoading ? <ListSkeleton rows={4} /> : logsPagination.pageItems.length === 0 ? <EmptyState message="No administrator actions recorded yet." /> : logsPagination.pageItems.map((log) => (
+                          <div className="flex gap-[10px] rounded-lg border border-line bg-[#fafcfb] p-[10px]" key={log.id}>
+                            <time dateTime={log.createdAt} title={log.createdAt ? new Date(log.createdAt).toLocaleString() : undefined} className="shrink-0 font-mono text-[11px] font-extrabold text-primary">{log.time}</time>
+                            <div>
+                              <strong className="block text-[12.5px] text-ink">{log.user}</strong>
+                              <p className="mb-0 mt-0.5 text-[12px] leading-[1.3] text-muted">{log.action}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <Pagination currentPage={logsPagination.currentPage} totalPages={logsPagination.totalPages} onPageChange={logsPagination.goToPage} />
+                    </article>
+                  )}
                 </div>
           </div>
         )}
 
         {/* ================= APPOINTMENTS TAB ================= */}
         {activeTab === 'appointments' && (
-          <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)] gap-5 max-[980px]:grid-cols-1">
+          <div className={`grid gap-5 ${canCreateAppointments ? 'grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)] max-[980px]:grid-cols-1' : 'grid-cols-1'}`}>
             {/* Left Column: FIFO queue */}
             <div className={`${PANEL} p-5`}>
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -603,11 +558,11 @@ function Dashboard() {
             </div>
 
             {/* Right Column: Book Appointment Form */}
+            {canCreateAppointments && (
             <div className={`${PANEL} self-start p-5`}>
               <h3 className="m-0 text-[18px] text-[#143d40]">Book Walk-in Appointment</h3>
               <p className="mt-0.5 text-[12px] text-muted">Register a walk-in or phone schedule for today</p>
 
-              {can('appointments.create') ? (
               <form onSubmit={handleAddAppointment} className={SIDEBAR_FORM}>
                 <label className={FORM_LABEL}>
                   Student / Patient
@@ -623,50 +578,36 @@ function Dashboard() {
                   />
                 </label>
 
-                <div className={FORM_ROW}>
-                  <label className={FORM_LABEL}>
-                    Visit Type
-                    <select value={appVisitType} onChange={(e) => setAppVisitType(e.target.value)} className={FORM_FIELD}>
-                      {VISIT_TYPES.map((v) => (
-                        <option key={v} value={v}>{v}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className={FORM_LABEL}>
-                    Appointment Type
-                    <select
-                      value={appType}
-                      onChange={(e) => {
-                        setAppType(e.target.value)
-                        setAppStaffId(null)
-                      }}
-                      className={FORM_FIELD}
-                    >
-                      {APPOINTMENT_TYPES.map((t) => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
+                <label className={FORM_LABEL}>
+                  Appointment Type
+                  <select
+                    value={appType}
+                    onChange={(e) => {
+                      setAppType(e.target.value)
+                      setAppStaffId(null)
+                    }}
+                    className={FORM_FIELD}
+                  >
+                    {APPOINTMENT_TYPES.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </label>
 
                 <label className={FORM_LABEL}>
-                  Assign Doctor
+                  Assign Doctor / Nurse
                   <ClinicianSelect
-                    roles={['doctor']}
                     department={departmentForType(appType)}
                     value={appStaffId}
                     onChange={(id) => setAppStaffId(id)}
                     unassignedLabel="Assign later"
+                    aria-label="Assign Doctor / Nurse"
                   />
                 </label>
 
                 <label className={FORM_LABEL}>
                   Time Slot (today, 8:00 AM – 5:00 PM)
-                  <select value={appTime} onChange={(e) => setAppTime(e.target.value)} className={FORM_FIELD}>
-                    {TIME_SLOTS.map((t) => (
-                      <option key={t} value={t} disabled={isSlotClosed(todayISO(), t)}>{t}</option>
-                    ))}
-                  </select>
+                  <AppointmentTimePicker date={todayISO()} staffId={appStaffId} value={appTime} onChange={setAppTime} className={FORM_FIELD} required />
                 </label>
 
                 <button type="submit" className={`${PRIMARY_BTN} w-full`} disabled={booking || !appPatient.trim()}>
@@ -679,23 +620,22 @@ function Dashboard() {
                   )}
                 </button>
               </form>
-              ) : (
-                <p className="mt-3 text-[12.5px] text-muted">Your role cannot book appointments.</p>
-              )}
             </div>
+            )}
           </div>
         )}
 
         {/* ================= CONSULTATIONS TAB ================= */}
         {activeTab === 'consultations' && canViewConsultations && (
-          <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)] gap-5 max-[980px]:grid-cols-1">
+          <div className="grid grid-cols-1 gap-5">
             {/* Left Column: List of consults */}
             <div className={`${PANEL} p-5`}>
               <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="m-0 text-[18px] text-[#143d40]">Clinical Consultation Logs</h3>
-                  <p className={KICKER}>Detailed historical consultation diagnosis and treatment records</p>
+                  <p className={KICKER}>New and completed consultations from the last 7 days</p>
                 </div>
+                <div className="flex flex-wrap items-center gap-[10px]">
                 <input
                   type="text"
                   placeholder="Search patient or diagnosis..."
@@ -703,6 +643,8 @@ function Dashboard() {
                   onChange={(e) => setConsSearch(e.target.value)}
                   className={SEARCH_INPUT}
                 />
+                  <Link to="/consultations" className={`${PILL} shrink-0 no-underline`}>View All</Link>
+                </div>
               </div>
 
               <div className="overflow-x-auto rounded-lg border border-line">
@@ -771,141 +713,42 @@ function Dashboard() {
               />
             </div>
 
-            {/* Right Column: Add Consult form */}
-            <div className={`${PANEL} self-start p-5`}>
-              <h3 className="m-0 text-[18px] text-[#143d40]">Log New Consultation</h3>
-              <p className="mt-0.5 text-[12px] text-muted">Log student symptoms and medication outcome</p>
-
-              {patientsLoading || staffLoading ? (
-                <FormSkeleton fields={6} />
-              ) : (
-              <form onSubmit={handleLogConsultation} className={SIDEBAR_FORM}>
-                <label className={FORM_LABEL}>
-                  <span>Student / Patient *</span>
-                  <StudentSelect
-                    value={effectiveConsPatient}
-                    valueKey="name"
-                    onChange={(name) => setConsPatient(name)}
-                    patients={patients}
-                    disabled={patientsLoading}
-                    placeholder="Type student name or ID (e.g. 24-012345)..."
-                  />
-                </label>
-
-                <label className={FORM_LABEL}>
-                  Attending Doctor / Nurse
-                  <ClinicianSelect
-                    department={DEPARTMENT_MEDICAL}
-                    value={consStaffId}
-                    onChange={(id) => setConsStaffId(id)}
-                    unassignedLabel="Select doctor / nurse"
-                  />
-                </label>
-
-                <label className={FORM_LABEL}>
-                  Symptoms Reported
-                  <input
-                    type="text"
-                    placeholder="e.g. Headache, Fever, Sprained ankle"
-                    value={consSymptoms}
-                    onChange={(e) => setConsSymptoms(e.target.value)}
-                    required
-                    className={FORM_FIELD}
-                  />
-                </label>
-
-                <div className={FORM_ROW}>
-                  <label className={FORM_LABEL}>
-                    Blood Pressure
-                    <input
-                      type="text"
-                      placeholder="120/80"
-                      value={consBp}
-                      onChange={(e) => setConsBp(e.target.value)}
-                      className={FORM_FIELD}
-                    />
-                  </label>
-                  <label className={FORM_LABEL}>
-                    Temperature
-                    <input
-                      type="text"
-                      placeholder="36.5°C"
-                      value={consTemp}
-                      onChange={(e) => setConsTemp(e.target.value)}
-                      className={FORM_FIELD}
-                    />
-                  </label>
-                  <label className={FORM_LABEL}>
-                    Pulse
-                    <input
-                      type="text"
-                      placeholder="75 bpm"
-                      value={consPulse}
-                      onChange={(e) => setConsPulse(e.target.value)}
-                      className={FORM_FIELD}
-                    />
-                  </label>
-                </div>
-
-                <label className={FORM_LABEL}>
-                  Diagnosis
-                  <input
-                    type="text"
-                    placeholder="Clinical evaluation"
-                    value={consDiagnosis}
-                    onChange={(e) => setConsDiagnosis(e.target.value)}
-                    required
-                    className={FORM_FIELD}
-                  />
-                </label>
-
-                <label className={FORM_LABEL}>
-                  Treatment & Prescribed Meds
-                  <textarea
-                    placeholder="e.g. Paracetamol 500mg (1 tab), rest for 30 mins"
-                    value={consTreatment}
-                    onChange={(e) => setConsTreatment(e.target.value)}
-                    required
-                    className={`${FORM_FIELD} min-h-20 resize-y`}
-                  />
-                </label>
-
-                <label className={FORM_LABEL}>
-                  Disposition
-                  <select value={consDisposition} onChange={(e) => setConsDisposition(e.target.value)} className={FORM_FIELD}>
-                    <option value="Sent to Class">Sent to Class</option>
-                    <option value="Sent Home">Sent Home</option>
-                    <option value="Rest in Clinic">Rest in Clinic</option>
-                    <option value="Referred to Hospital">Referred to Hospital</option>
-                  </select>
-                </label>
-
-                <button type="submit" className={`${PRIMARY_BTN} w-full`} disabled={logging}>
-                  {logging ? (
-                    <>
-                      <InlineSpinner />Logging...
-                    </>
-                  ) : (
-                    'Log Consultation'
-                  )}
-                </button>
-              </form>
-              )}
-            </div>
           </div>
         )}
 
         {/* ================= PATIENT OVERVIEW ================= */}
         {activeTab === 'patients' && (
-          <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)] gap-5 max-[980px]:grid-cols-1">
+          <div className="grid grid-cols-1 gap-5">
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-4">
+              {patientsLoading ? (
+                Array.from({ length: 3 }, (_, index) => <DashboardCardSkeleton key={index} />)
+              ) : patientsError ? null : patientSummaryCards.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  aria-pressed={patCategory === item.key}
+                  onClick={() => setPatCategory(item.key)}
+                  className={`group relative cursor-pointer overflow-hidden rounded-2xl border bg-white p-3.5 text-left shadow-[0_4px_24px_rgba(18,57,59,0.06)] transition-all duration-200 hover:border-primary/40 hover:shadow-[0_8px_30px_rgba(18,57,59,0.1)] sm:p-5 ${patCategory === item.key ? 'border-primary ring-2 ring-primary/20' : 'border-line-strong/80'}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-muted-soft sm:text-[12px]">{item.label}</span>
+                    <span className={`mt-1 size-2 shrink-0 rounded-full ${patCategory === item.key ? 'bg-primary' : 'bg-primary/30'}`} />
+                  </div>
+                  <strong className="mb-1 mt-2 block text-[24px] font-extrabold leading-none tracking-tight text-[#10393b] sm:mt-3 sm:text-[32px]">
+                    {registrationGroups[item.key].length}
+                  </strong>
+                  <span className="block text-[11px] font-medium text-muted sm:text-[12px]">{item.trend}</span>
+                </button>
+              ))}
+            </div>
             {/* Main Patients Database */}
             <div className={`${PANEL} p-5`}>
               <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="m-0 text-[18px] text-[#143d40]">Patient Registry</h3>
-                  <p className={KICKER}>Comprehensive record of student patients</p>
+                  <p className={KICKER}>Active patients registered or seen in the last 7 days</p>
                 </div>
-                <div className="flex gap-[10px]">
+                <div className="flex flex-wrap gap-[10px]">
                   <input
                     type="text"
                     placeholder="Search by name or ID..."
@@ -914,28 +757,44 @@ function Dashboard() {
                     className={SEARCH_INPUT}
                   />
                   <select
-                    value={patFilter}
-                    onChange={(e) => setPatFilter(e.target.value)}
+                    aria-label="By Department"
+                    value={patDepartment}
+                    onChange={(e) => setPatDepartment(e.target.value)}
                     className={SELECT_INPUT}
                   >
-                    <option value="All">All Types</option>
-                    <option value="Student">Student</option>
+                    <option value="">By Department</option>
+                    {patientDepartments.map((department) => (
+                      <option key={department} value={department}>{department}</option>
+                    ))}
                   </select>
+                  <Link to="/patients" className={`${PILL} shrink-0 no-underline`}>View All</Link>
+                  {(patSearch || patDepartment || patCategory !== 'all') && (
+                    <button type="button" className={PILL} onClick={() => {
+                      setPatSearch('')
+                      setPatDepartment('')
+                      setPatCategory('all')
+                    }}>Clear filters</button>
+                  )}
                 </div>
               </div>
+
+              {!patientsLoading && !patientsError && (
+                <p role="status" className="mb-3 text-[12px] text-muted">
+                  {patientSummaryCards.find((item) => item.key === patCategory).label}: {filteredPatients.length} of {registrationGroups[patCategory].length} patients
+                </p>
+              )}
 
               <div className="overflow-x-auto rounded-lg border border-line">
                 {patientsError ? (
                   <ErrorState message={patientsError} onRetry={refetchPatients} />
                 ) : patientsLoading ? (
-                  <TableSkeleton columns={6} />
+                  <TableSkeleton columns={5} />
                 ) : (
                   <table className={`${TABLE} [&_tbody_tr]:cursor-pointer [&_tbody_tr:hover]:bg-[#f7fbfb]`}>
                     <thead>
                       <tr>
                         <th>Patient ID</th>
                         <th>Full Name</th>
-                        <th>Type</th>
                         <th>Course/Department</th>
                         <th>Allergies</th>
                         <th>Status</th>
@@ -951,19 +810,18 @@ function Dashboard() {
                         >
                           <td className="font-bold text-primary">{pat.patientId}</td>
                           <td className="font-bold text-ink">{pat.name}</td>
-                          <td>{pat.type}</td>
                           <td>{pat.courseDept}</td>
                           <td className={pat.allergies !== 'None' ? 'font-bold text-danger' : ''}>
                             {pat.allergies}
                           </td>
                           <td>
-                            <span className="inline-flex rounded-full bg-[#dff6dd] px-[10px] py-1 text-[11px] font-extrabold uppercase text-[#1e5a1b]">Active</span>
+                            <StatusBadge status={pat.status} />
                           </td>
                         </tr>
                       ))}
                       {filteredPatients.length === 0 && (
                         <tr>
-                          <td colSpan="6">
+                          <td colSpan="5">
                             <EmptyState message="No patient profiles found." />
                           </td>
                         </tr>
@@ -980,280 +838,18 @@ function Dashboard() {
               />
             </div>
 
-            {/* Right Column: Register New Patient Form */}
-            <div className={`${PANEL} self-start p-5`}>
-              <h3 className="m-0 text-[18px] text-[#143d40]">Create Patient Profile</h3>
-              <p className="mt-0.5 text-[12px] text-muted">Register new student or campus staff</p>
-
-              <form onSubmit={handleAddPatient} className={SIDEBAR_FORM}>
-                <div className={FORM_ROW}>
-                  <label className={FORM_LABEL}>
-                    Patient ID
-                    <input
-                      type="text"
-                      placeholder="e.g. 24-012345"
-                      value={patId}
-                      onChange={(e) => setPatId(e.target.value)}
-                      required
-                      className={FORM_FIELD}
-                    />
-                  </label>
-                  <label className={FORM_LABEL}>
-                    Full Name
-                    <input
-                      type="text"
-                      placeholder="Full Name"
-                      value={patName}
-                      onChange={(e) => setPatName(e.target.value)}
-                      required
-                      className={FORM_FIELD}
-                    />
-                  </label>
-                </div>
-
-                <div className={FORM_ROW}>
-                  <label className={FORM_LABEL}>
-                    Category
-                    <select value={patType} onChange={(e) => setPatType(e.target.value)} className={FORM_FIELD}>
-                      <option value="Student">Student</option>
-                    </select>
-                  </label>
-                  <label className={FORM_LABEL}>
-                    Course/Dept
-                    <CourseSelect value={patDept} onChange={setPatDept} required />
-                  </label>
-                </div>
-
-                <label className={FORM_LABEL}>
-                  Contact Number
-                  <input
-                    type="tel"
-                    placeholder="0917-123-4567"
-                    value={patContact}
-                    onChange={(e) => setPatContact(formatPhone(e.target.value))}
-                    maxLength={13}
-                    className={FORM_FIELD}
-                  />
-                </label>
-
-                <label className={FORM_LABEL}>
-                  Emergency Contact (Name & Phone)
-                  <input
-                    type="text"
-                    placeholder="Guardian Name - 09xx..."
-                    value={patEmergency}
-                    onChange={(e) => setPatEmergency(e.target.value)}
-                    required
-                    className={FORM_FIELD}
-                  />
-                </label>
-
-                <label className={FORM_LABEL}>
-                  Known Allergies
-                  <input
-                    type="text"
-                    placeholder="e.g. Penicillin, Nuts, None"
-                    value={patAllergies}
-                    onChange={(e) => setPatAllergies(e.target.value)}
-                    className={FORM_FIELD}
-                  />
-                </label>
-
-                <label className={FORM_LABEL}>
-                  Medical History
-                  <textarea
-                    placeholder="e.g. Hypertension, Asthma, None"
-                    value={patHistory}
-                    onChange={(e) => setPatHistory(e.target.value)}
-                    className={`${FORM_FIELD} min-h-20 resize-y`}
-                  />
-                </label>
-
-                <button type="submit" className={`${PRIMARY_BTN} w-full`} disabled={addingPatient}>
-                  {addingPatient ? (
-                    <>
-                      <InlineSpinner />Adding...
-                    </>
-                  ) : (
-                    'Add Patient Profile'
-                  )}
-                </button>
-              </form>
-            </div>
           </div>
         )}
 
-        {/* ================= STAFF SHIFTS ================= */}
-        {activeTab === 'schedule' && (
-          <div className="grid grid-cols-1 gap-5">
-            {/* Left: Medical Staff Schedule Table */}
-            <div className={`${PANEL} p-5`}>
-              <div className={PANEL_HEADER}>
-                <h3 className="m-0 text-[18px] text-[#143d40]">Medical Staff Shift Coverage</h3>
-                <p className={KICKER}>Today&apos;s shifts from the Doctor/Nurse Schedule · On duty while a shift covers the current time</p>
-              </div>
-
-              <div className="overflow-x-auto rounded-lg border border-line">
-                {staffError ? (
-                  <ErrorState message={staffError} onRetry={refetchStaff} />
-                ) : staffLoading ? (
-                  <TableSkeleton columns={5} />
-                ) : (
-                  <table className={TABLE}>
-                    <thead>
-                      <tr>
-                        <th>Staff Member</th>
-                        <th>Role / Department</th>
-                        <th>Today&apos;s Shift</th>
-                        <th>Duty Status</th>
-                        <th>Set Status (today)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {staff.length === 0 && (
-                        <tr>
-                          <td colSpan="5">
-                            <EmptyState message="No active doctors or nurses yet. Add them in User Management, then plan their shifts in the Doctor/Nurse Schedule." />
-                          </td>
-                        </tr>
-                      )}
-                      {staffPagination.pageItems.map((member) => (
-                        <tr key={member.userId}>
-                          <td className="font-bold text-ink">{member.name}</td>
-                          <td>
-                            {member.role}
-                            <span className="block text-[12px] text-muted">{member.department}</span>
-                          </td>
-                          <td className="font-mono text-primary">{member.shift}</td>
-                          <td>
-                            <StatusBadge status={member.status} />
-                            <span className="block text-[11px] text-muted">
-                              {member.statusSource === 'manual' ? 'Set manually today' : 'From schedule'}
-                            </span>
-                          </td>
-                          <td>
-                            <select
-                              value={member.status}
-                              onChange={(e) => handleUpdateStaffStatus(member, e.target.value)}
-                              className={SELECT_INPUT}
-                              disabled={statusUpdating === member.userId}
-                            >
-                              <option value="On duty">On duty</option>
-                              <option value="Break">Break</option>
-                              <option value="Off duty">Off duty</option>
-                            </select>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-
-              <Pagination
-                currentPage={staffPagination.currentPage}
-                totalPages={staffPagination.totalPages}
-                onPageChange={staffPagination.goToPage}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* ================= CLINIC ACTIVITY ================= */}
-        {activeTab === 'activity' && (
-          <div className={`grid gap-5 ${canViewAuditLog ? 'grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)] max-[980px]:grid-cols-1' : 'grid-cols-1'}`}>
-            {/* Left: Peak Hours and Activity */}
-            <div className={`${PANEL} p-5`}>
-              {/* Peak Hours Chart */}
-              <div>
-                <div className={PANEL_HEADER}>
-                  <h3 className="m-0 text-[18px] text-[#143d40]">Clinic Peak Activity Hours</h3>
-                  <p className={KICKER}>Patient visits per time of day · all appointments and walk-in consultations</p>
-                </div>
-                {insightsError ? (
-                  <ErrorState message={insightsError} onRetry={refetchInsights} />
-                ) : insightsLoading ? (
-                  <CardSkeleton rows={4} />
-                ) : (
-                  <div className="mt-[14px] grid gap-3">
-                    {peakHours.every((hour) => !hour.count) && (
-                      <EmptyState message="No patient visits have been recorded yet." />
-                    )}
-                    {peakHours.map((hour) => (
-                      <div className="grid grid-cols-[150px_1fr_120px] items-center gap-3 max-[580px]:grid-cols-1" key={hour.label}>
-                        <span className="text-[12.5px] font-bold text-ink">{hour.label}</span>
-                        <div className="h-[10px] w-full rounded-full bg-[#e5efec]">
-                          <div
-                            className="h-full rounded-full bg-primary transition-[width] duration-300"
-                            style={{ width: `${hour.percent}%` }}
-                          />
-                        </div>
-                        <span className="text-right text-[12.5px] font-bold text-ink">{hour.count} visits<span className="block text-[11px] font-normal text-muted">{hour.recentCount ?? 0} in last 30 days</span></span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-6">
-                <div className={PANEL_HEADER}>
-                  <h3 className="m-0 text-[18px] text-[#143d40]">Clinic Activity</h3>
-                  <p className={KICKER}>All records (last 30 days in brackets)</p>
-                </div>
-                {insightsError ? (
-                  <ErrorState message={insightsError} onRetry={refetchInsights} />
-                ) : insightsLoading ? (
-                  <CardSkeleton rows={4} />
-                ) : (
-                  <div className="mt-[14px] grid gap-3">
-                    {activity.map((item) => (
-                      <div className="grid grid-cols-[150px_1fr_120px] items-center gap-3 max-[580px]:grid-cols-1" key={item.label}>
-                        <span className="text-[12.5px] font-bold text-ink">{item.label}</span>
-                        <div className="h-[10px] w-full rounded-full bg-[#e5efec]">
-                          <div className="h-full rounded-full bg-primary transition-[width] duration-300" style={{ width: `${item.percent}%` }} />
-                        </div>
-                        <span className="text-right text-[12.5px] font-bold text-ink">{item.count} <span className="font-normal text-muted">({item.recentCount ?? 0})</span></span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Right: Live System Audit Log (administrator only) */}
-            {canViewAuditLog && (
-            <div className={`${PANEL} self-start p-5`}>
-              <h3 className="m-0 text-[18px] text-[#143d40]">Live Activity Audit Log</h3>
-              <p className="mt-0.5 text-[12px] text-muted">Audit trail of administrator actions in real-time</p>
-
-              <div className="mt-[14px] flex max-h-[480px] flex-col gap-[10px] overflow-y-auto pr-1">
-                {logsError ? (
-                  <ErrorState message={logsError} onRetry={refetchLogs} />
-                ) : logsLoading ? (
-                  <ListSkeleton rows={4} />
-                ) : (
-                  logsPagination.pageItems.map((log, idx) => (
-                    <div className="flex gap-[10px] rounded-lg border border-line bg-[#fafcfb] p-[10px]" key={idx}>
-                      <div className="font-mono text-[11px] font-extrabold text-primary">{log.time}</div>
-                      <div>
-                        <strong className="block text-[12.5px] text-ink">{log.user}</strong>
-                        <p className="mt-0.5 text-[12px] leading-[1.3] text-muted">{log.action}</p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              <Pagination
-                currentPage={logsPagination.currentPage}
-                totalPages={logsPagination.totalPages}
-                onPageChange={logsPagination.goToPage}
-              />
-            </div>
-            )}
-          </div>
-        )}
       </div>
+
+      {onDutyOpen && (
+        <OnDutyStaffModal staff={onDutyMembers} loading={staffLoading} error={staffError} onRetry={refetchStaff} onClose={() => setOnDutyOpen(false)} />
+      )}
+
+      {canEditStaffStatus && adjustShiftOpen && (
+        <AdjustStaffStatusModal staff={staff} loading={staffLoading} error={staffError} onRetry={refetchStaff} updating={statusUpdating} onUpdate={handleUpdateStaffStatus} onClose={() => setAdjustShiftOpen(false)} />
+      )}
 
       {/* ================= PATIENT PROFILE VIEW MODAL ================= */}
       {selectedPatient && (
@@ -1281,8 +877,12 @@ function Dashboard() {
                   <p className="m-0 text-[14px] font-bold text-ink">{selectedPatient.name}</p>
                 </div>
                 <div>
-                  <label className="mb-0.5 block text-[11px] font-extrabold uppercase text-muted">Category</label>
-                  <p className="m-0 text-[14px] font-bold text-ink">{selectedPatient.type}</p>
+                  <label className="mb-0.5 block text-[11px] font-extrabold uppercase text-muted">Age</label>
+                  <p className="m-0 text-[14px] font-bold text-ink">{selectedPatient.age ?? '—'}</p>
+                </div>
+                <div>
+                  <label className="mb-0.5 block text-[11px] font-extrabold uppercase text-muted">Sex</label>
+                  <p className="m-0 text-[14px] font-bold text-ink">{selectedPatient.sex || '—'}</p>
                 </div>
                 <div>
                   <label className="mb-0.5 block text-[11px] font-extrabold uppercase text-muted">Course/Department</label>

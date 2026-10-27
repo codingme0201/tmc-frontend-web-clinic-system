@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAppContext } from '../context/AppContext'
 import { appointmentsService } from '../services/appointmentsService'
+import { useAuth } from './useAuth'
 
 /**
  * Appointment store — instantiated once by AppProvider so every page shares
@@ -14,6 +15,7 @@ import { appointmentsService } from '../services/appointmentsService'
  */
 export function useAppointmentsStore({ onLog } = {}, scope = 'page') {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
   const onLogRef = useRef(onLog)
   useEffect(() => {
     onLogRef.current = onLog
@@ -24,13 +26,16 @@ export function useAppointmentsStore({ onLog } = {}, scope = 'page') {
   // shows) instead of reading the dashboard's warmed cache. Mutations
   // invalidate the `['appointments']` prefix, which refreshes both copies.
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
-    queryKey: ['appointments', scope],
+    queryKey: ['appointments', scope, user?.id],
     queryFn: appointmentsService.fetchAppointments,
+    enabled: Boolean(user?.id),
   })
 
   // Appointment changes also move the queue, consultations and the doctor schedule.
   const invalidateLinked = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['clinic-insights'] })
     queryClient.invalidateQueries({ queryKey: ['appointments'] })
+    queryClient.invalidateQueries({ queryKey: ['appointment-calendar'] })
     queryClient.invalidateQueries({ queryKey: ['queue'] })
     queryClient.invalidateQueries({ queryKey: ['consultations'] })
     queryClient.invalidateQueries({ queryKey: ['staff-schedules'] })

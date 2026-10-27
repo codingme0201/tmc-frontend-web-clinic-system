@@ -1,8 +1,10 @@
-function StaffRow({ name, role, shift }) {
+import UserAvatar from './UserAvatar'
+
+function StaffRow({ name, role, shift, userId, profilePictureUrl }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-line-strong/80 bg-white/70 p-3 shadow-2xs transition-all duration-150 hover:border-primary/40 hover:bg-white hover:shadow-xs">
       <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-gradient-to-tr from-accent to-[#e67e58] text-[12.5px] font-extrabold text-white shadow-2xs">
-        {name.slice(0, 2).toUpperCase()}
+        <UserAvatar user={{ name, userId, profilePictureUrl }} className="size-full" />
       </div>
       <div className="min-w-0 flex-1">
         <strong className="block truncate text-ink text-[13px] font-bold">{name}</strong>

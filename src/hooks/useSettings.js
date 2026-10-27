@@ -17,6 +17,7 @@ export function useSettingsStore({ onLog } = {}, scope = 'settings') {
     mutationFn: settingsService.updateSettings,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] })
+      queryClient.invalidateQueries({ queryKey: ['appointment-calendar'] })
       onLogRef.current?.('Updated system settings')
     },
   })

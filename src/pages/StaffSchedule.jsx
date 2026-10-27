@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useStaffSchedules, useEligibleStaff } from '../hooks/useStaffSchedules'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
 import { usePagination } from '../hooks/usePagination'
-import { formatDate } from '../lib/format'
+import { formatDate, todayISO } from '../lib/format'
 import { SHIFT_TIMES, normalizeTime, roleLabel } from '../lib/clinic'
 import {
   PILL, PRIMARY_BTN, PANEL, KICKER, TABLE, SEARCH_INPUT, SELECT_INPUT,
   SIDEBAR_FORM, FORM_LABEL, FORM_FIELD, FORM_ROW,
-  BTN_INFO, BTN_DANGER, BTN_PRIMARY,
+  BTN_DANGER,
 } from '../lib/ui'
+import AppointmentDatePicker from '../components/AppointmentDatePicker'
+import CreateStaffScheduleModal from '../components/CreateStaffScheduleModal'
+import StaffScheduleDetailsModal from '../components/StaffScheduleDetailsModal'
 import InlineSpinner from '../components/Spinner'
 import Pagination from '../components/Pagination'
 import RefreshingBadge from '../components/RefreshingBadge'
@@ -30,7 +33,10 @@ const MODAL_FOOTER_ACTIONS = 'flex flex-wrap items-center justify-end gap-2'
 const TIME_OPTIONS = SHIFT_TIMES
 
 function StaffSchedule({ page }) {
-  const { can } = useAuth()
+  const { can, user, userRole } = useAuth()
+  const isAdmin = userRole === 'admin'
+  const isClinician = ['doctor', 'nurse'].includes(userRole)
+  const canManage = isAdmin || isClinician
   const schedules = useStaffSchedules()
   const eligibleStaff = useEligibleStaff()
   const { showToast } = useToast()
@@ -63,6 +69,8 @@ function StaffSchedule({ page }) {
 
   const [editing, setEditing] = useState(null)
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false)
+  const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [selectedStaff, setSelectedStaff] = useState(null)
   const scheduleForm = useForm({
     defaultValues: { user_id: '', date: '', start_time: '', end_time: '', status: 'Available', notes: '' },
   })
@@ -71,11 +79,15 @@ function StaffSchedule({ page }) {
   const [availabilityTarget, setAvailabilityTarget] = useState(null)
   const [availabilityStatus, setAvailabilityStatus] = useState('Available')
 
-  const canCreate = can('schedules.create')
-  const canUpdate = can('schedules.update')
-  const canDelete = can('schedules.delete')
+  const canCreate = canManage && can('schedules.create')
+  const canUpdate = canManage && can('schedules.update')
+  const canDelete = isAdmin && can('schedules.delete')
 
-  const staffOptions = useMemo(() => eligibleStaff.data || [], [eligibleStaff.data])
+  const staffOptions = useMemo(() => {
+    const staff = eligibleStaff.data || []
+    return isClinician ? staff.filter((member) => Number(member.id) === Number(user?.id)) : staff
+  }, [eligibleStaff.data, isClinician, user?.id])
+  const canEditSchedule = (schedule) => canUpdate && (isAdmin || Number(schedule.userId) === Number(user?.id))
 
   const roleOptions = useMemo(() => {
     const roles = new Set()
@@ -84,12 +96,12 @@ function StaffSchedule({ page }) {
   }, [schedules.data])
 
   const openCreate = () => {
-    setEditing(null)
-    scheduleForm.reset({ user_id: '', date: '', start_time: '', end_time: '', status: 'Available', notes: '' })
-    setScheduleModalOpen(true)
+    if (!canCreate) return
+    setCreateModalOpen(true)
   }
 
   const openEdit = (schedule) => {
+    if (!canEditSchedule(schedule)) return
     setEditing(schedule)
     scheduleForm.reset({
       user_id: schedule.userId || '',
@@ -107,25 +119,20 @@ function StaffSchedule({ page }) {
   }
 
   const handleSaveSchedule = async (values) => {
-    if (busyRef.current) return
+    if (busyRef.current || !editing || !canEditSchedule(editing)) return
     busyRef.current = true
     setBusy(true)
     try {
       const payload = {
-        user_id: Number(values.user_id),
+        user_id: isClinician ? Number(user.id) : Number(values.user_id),
         date: values.date,
         start_time: values.start_time,
         end_time: values.end_time,
         status: values.status,
         notes: values.notes || null,
       }
-      if (editing) {
-        await schedules.updateSchedule(editing.id, payload)
-        showToast('Schedule updated successfully.')
-      } else {
-        await schedules.createSchedule(payload)
-        showToast('Schedule created successfully.')
-      }
+      await schedules.updateSchedule(editing.id, payload)
+      showToast('Schedule updated successfully.')
       setScheduleModalOpen(false)
     } catch (err) {
       showToast(err?.message || 'Failed to save the schedule.', 'error')
@@ -154,12 +161,13 @@ function StaffSchedule({ page }) {
   }
 
   const openAvailabilityModal = (schedule) => {
+    if (!canEditSchedule(schedule)) return
     setAvailabilityTarget(schedule)
     setAvailabilityStatus(schedule.status === 'Unavailable' ? 'Unavailable' : 'Available')
   }
 
   const handleAvailability = async () => {
-    if (!availabilityTarget || busyRef.current) return
+    if (!availabilityTarget || !canEditSchedule(availabilityTarget) || busyRef.current) return
     busyRef.current = true
     setBusy(true)
     try {
@@ -183,16 +191,18 @@ function StaffSchedule({ page }) {
         <div>
           <p className={KICKER}>{page.eyebrow}</p>
           <h2 className="m-0 text-[clamp(30px,5vw,48px)] leading-[1.02] text-ink">{page.title}</h2>
-          <span className="mt-[6px] block text-[13px] text-muted">{page.description}</span>
+          <span className="mt-[6px] block text-[13px] text-muted">{userRole === 'front_desk' ? "View doctors' and nurses' schedules, availability, and assigned shifts." : page.description}</span>
         </div>
         {canCreate && (
-          <button type="button" className={PRIMARY_BTN} onClick={openCreate}>+ Create Schedule</button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" className={PRIMARY_BTN} onClick={openCreate}>+ Create Schedule</button>
+          </div>
         )}
       </section>
 
       <div className="mb-5 grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
         {[
-          { label: 'All Schedules', count: schedules.data.length, value: 'All' },
+          { label: 'All Staff', count: schedules.data.length, value: 'All' },
           { label: 'Available', count: availableCount, value: 'Available' },
           { label: 'Unavailable', count: unavailableCount, value: 'Unavailable' },
         ].map((chip) => (
@@ -220,77 +230,57 @@ function StaffSchedule({ page }) {
             <button type="button" className={PILL} onClick={() => { resetSearch(); setStatusFilter('All'); setRoleFilter('All') }}>Clear filters</button>
           )}
           <RefreshingBadge refreshing={schedules.isRefetching} />
-          <span className="ml-auto whitespace-nowrap text-[12.5px] font-bold text-muted">{filtered.length} of {schedules.data.length} schedules</span>
+          <span className="ml-auto whitespace-nowrap text-[12.5px] font-bold text-muted">{filtered.length} of {schedules.data.length} staff</span>
         </div>
 
         <div className="overflow-x-auto rounded-lg border border-line">
           {schedules.error ? (
             <ErrorState message={schedules.error} onRetry={schedules.refetch} />
           ) : (
-            <table className={TABLE}>
+            <table className={`${TABLE} min-w-[620px] max-sm:[&_th]:p-2 max-sm:[&_td]:p-2`}>
               <thead>
                 <tr>
                   <th>Staff Member</th>
                   <th>Role</th>
-                  <th>Date</th>
-                  <th>Start Time</th>
-                  <th>End Time</th>
-                  <th>Assigned Patients</th>
+                  <th>Department</th>
+                  <th>Email</th>
                   <th>Status</th>
-                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {schedules.isLoading ? (
-                  <TableSkeleton columns={8} />
+                  <TableSkeleton columns={5} />
                 ) : pageItems.length === 0 ? (
-                  <tr><td colSpan="8">
-                    <EmptyState message={search || statusFilter !== 'All' || roleFilter !== 'All' ? 'No schedules match the current filters.' : 'No schedules found. Create one to get started.'} />
+                  <tr><td colSpan={5}>
+                    <EmptyState message={search || statusFilter !== 'All' || roleFilter !== 'All' ? 'No staff match the current filters.' : 'No staff schedules found. Create one to get started.'} />
                   </td></tr>
                 ) : (
                   pageItems.map((s) => (
-                    <tr key={s.id}>
-                      <td><strong className="font-bold text-ink">{s.user?.name || '—'}</strong></td>
-                      <td className="text-muted">{roleLabel(s.user?.role)}</td>
-                      <td className="text-[12.5px] text-muted">{formatDate(s.date)}</td>
-                      <td className="text-[12.5px] text-muted">{s.startTime}</td>
-                      <td className="text-[12.5px] text-muted">{s.endTime}</td>
-                      <td className="text-[12px]">
-                        {s.bookedAppointments?.length ? (
-                          <div className="grid gap-0.5">
-                            <strong className="text-primary">{s.bookedAppointments.length} booked</strong>
-                            {s.bookedAppointments.slice(0, 3).map((a) => (
-                              <span key={a.id} className="text-muted" title={`${a.reference} · ${a.visitType} · ${a.status}`}>
-                                {a.time} · {a.patient}{a.visitType === 'Follow-up Consultation' ? ' (follow-up)' : ''}
-                              </span>
-                            ))}
-                            {s.bookedAppointments.length > 3 && (
-                              <span className="font-bold text-muted">+{s.bookedAppointments.length - 3} more</span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-muted">None</span>
-                        )}
+                    <tr key={s.userId}
+                      className="cursor-pointer focus-visible:outline-2 focus-visible:outline-primary"
+                      tabIndex={0}
+                      aria-label={`View schedule for ${s.user?.name || 'staff'}`}
+                      aria-haspopup="dialog"
+                      onClick={() => setSelectedStaff(s)}
+                      onKeyDown={(event) => {
+                        if (event.target === event.currentTarget && ['Enter', ' '].includes(event.key)) {
+                          event.preventDefault()
+                          setSelectedStaff(s)
+                        }
+                      }}
+                    >
+                      <td>
+                        <strong className="font-bold text-ink">
+                          {s.user?.name || '—'}
+                        </strong>
                       </td>
+                      <td className="text-muted">{roleLabel(s.user?.role)}</td>
+                      <td className="text-muted">{s.department || '—'}</td>
+                      <td className="max-w-[220px] break-all text-muted">{s.email || '—'}</td>
                       <td>
                         <span className={`inline-flex rounded-[4px] px-2 py-[3px] text-[11px] font-bold ${
                           s.status === 'Available' ? 'bg-[#dff6dd] text-[#1e5a1b]' : 'bg-[#ffebe0] text-[#a33c12]'
                         }`}>{s.status}</span>
-                      </td>
-                      <td>
-                        <div className="flex flex-wrap gap-[6px]">
-                          {canUpdate && (
-                            <>
-                              <button type="button" className={BTN_INFO} onClick={() => openEdit(s)}>Edit</button>
-                              <button type="button" className={BTN_PRIMARY} onClick={() => openAvailabilityModal(s)}>
-                                {s.status === 'Available' ? 'Mark Unavailable' : 'Mark Available'}
-                              </button>
-                            </>
-                          )}
-                          {canDelete && (
-                            <button type="button" className={BTN_DANGER} onClick={() => openDeleteModal(s)}>Delete</button>
-                          )}
-                        </div>
                       </td>
                     </tr>
                   ))
@@ -302,12 +292,30 @@ function StaffSchedule({ page }) {
         <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} />
       </div>
 
+      {selectedStaff && <StaffScheduleDetailsModal
+        staff={selectedStaff}
+        canEditSchedule={canEditSchedule}
+        canDelete={canDelete}
+        onEdit={(schedule) => { setSelectedStaff(null); openEdit(schedule) }}
+        onAvailability={(schedule) => { setSelectedStaff(null); openAvailabilityModal(schedule) }}
+        onDelete={(schedule) => { setSelectedStaff(null); openDeleteModal(schedule) }}
+        onClose={() => setSelectedStaff(null)}
+      />}
+
+      {createModalOpen && <CreateStaffScheduleModal
+        staffOptions={staffOptions}
+        initialUserId={isClinician ? String(user.id) : ''}
+        onSave={schedules.saveWeeklySchedule}
+        onClose={() => setCreateModalOpen(false)}
+        showToast={showToast}
+      />}
+
       {scheduleModalOpen && (
-        <div className={MODAL_BACKDROP} role="dialog" aria-modal="true" aria-label={editing ? 'Edit schedule' : 'Create schedule'}
+        <div className={MODAL_BACKDROP} role="dialog" aria-modal="true" aria-label="Edit schedule"
           onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) setScheduleModalOpen(false) }}>
           <div className={MODAL_CARD}>
             <div className={MODAL_HEADER}>
-              <h3 className="m-0 text-[18px] text-ink">{editing ? 'Edit Schedule' : 'Create Schedule'}</h3>
+              <h3 className="m-0 text-[18px] text-ink">Edit Schedule</h3>
               <button type="button" className={MODAL_CLOSE} onClick={() => { if (!busy) setScheduleModalOpen(false) }}>✕</button>
             </div>
             <div className={MODAL_BODY}>
@@ -321,7 +329,12 @@ function StaffSchedule({ page }) {
                 </label>
                 <label className={FORM_LABEL}>
                   Date
-                  <input type="date" className={FORM_FIELD} {...scheduleForm.register('date', { required: 'Date is required.' })} disabled={busy} />
+                  <Controller
+                    name="date"
+                    control={scheduleForm.control}
+                    rules={{ required: 'Date is required.' }}
+                    render={({ field }) => <AppointmentDatePicker value={field.value} onChange={field.onChange} onBlur={field.onBlur} name={field.name} min={todayISO()} className={FORM_FIELD} required disabled={busy} />}
+                  />
                 </label>
                 <p className="m-0 text-[12px] text-muted">Clinic working hours are 8:00 AM to 5:00 PM.</p>
                 <div className={FORM_ROW}>
@@ -355,7 +368,7 @@ function StaffSchedule({ page }) {
                   <button type="button" className={PILL} onClick={() => setScheduleModalOpen(false)} disabled={busy}>Cancel</button>
                   <button type="submit" className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`} disabled={busy}>
                     {busy && <InlineSpinner />}
-                    {busy ? 'Saving...' : editing ? 'Save Changes' : 'Create Schedule'}
+                    {busy ? 'Saving...' : 'Save Changes'}
                   </button>
                 </div>
               </form>

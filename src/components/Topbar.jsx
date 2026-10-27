@@ -1,5 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Icon from './Icon'
+import UserAvatar from './UserAvatar'
+import MyProfileModal from './MyProfileModal'
+import { roleLabel } from '../lib/clinic'
 import InlineSpinner from './Spinner'
 import ConfirmLogoutModal from './ConfirmLogoutModal'
 import { useAuth } from '../hooks/useAuth'
@@ -8,12 +11,13 @@ import { useToast } from '../hooks/useToast'
 import { useToggle } from '../hooks/useToggle'
 
 function Topbar({ onToggleSidebar }) {
-  const { logout, isLoggingOut, user } = useAuth()
+  const { logout, isLoggingOut, user, userRole } = useAuth()
   const { unreadCount } = useNotifications('topbar')
   const { showToast } = useToast()
   const [dropdownOpen, toggleDropdown, , closeDropdown] = useToggle(false)
   const [logoutOpen, , openLogout, closeLogout] = useToggle(false)
   const dropdownRef = useRef(null)
+  const [profileOpen, setProfileOpen] = useState(false)
 
   useEffect(() => {
     const handler = (event) => {
@@ -95,7 +99,7 @@ function Topbar({ onToggleSidebar }) {
                 className="grid size-10 place-items-center rounded-xl bg-gradient-to-tr from-accent to-[#e67e58] text-[13px] font-extrabold text-white shadow-2xs"
                 aria-hidden="true"
               >
-                <span>{user?.name ? user.name.slice(0, 2).toUpperCase() : 'AD'}</span>
+                <UserAvatar user={user} className="size-full" />
               </div>
               <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-success ring-2 ring-white" />
             </button>
@@ -106,8 +110,13 @@ function Topbar({ onToggleSidebar }) {
                   <p className="m-0 text-[13.5px] font-extrabold text-ink truncate">
                     {user?.name || 'Admin User'}
                   </p>
-                  <span className="text-[11.5px] font-bold text-accent">Administrator</span>
+                  <span className="text-[11.5px] font-bold text-accent">{roleLabel(userRole)}</span>
                 </div>
+                {['doctor', 'nurse', 'front_desk'].includes(userRole) && (
+                  <button type="button" className="mt-1 flex w-full cursor-pointer items-center gap-2 rounded-xl border-0 bg-transparent px-3 py-2.5 text-left text-[13px] font-bold text-primary transition-colors hover:bg-primary/10" onClick={() => { closeDropdown(); setProfileOpen(true) }}>
+                    <Icon name="users" size={17} />My Profile
+                  </button>
+                )}
                 <button
                   type="button"
                   className="mt-1 flex w-full cursor-pointer items-center gap-2 rounded-xl border-0 bg-transparent px-3 py-2.5 text-left text-[13px] font-bold text-danger transition-colors hover:bg-[#fdf1ec] disabled:cursor-not-allowed active:scale-[0.98]"
@@ -122,6 +131,7 @@ function Topbar({ onToggleSidebar }) {
           </div>
         </div>
       </header>
+    {profileOpen && <MyProfileModal onClose={() => setProfileOpen(false)} />}
     <ConfirmLogoutModal
       open={logoutOpen}
       user={user}

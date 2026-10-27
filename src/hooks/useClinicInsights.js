@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { insightsService } from '../services/insightsService'
 
 /**
- * Static dashboard charts store (activity bars + peak hours) — once per app.
+ * Live dashboard charts store (activity bars + peak hours).
  * Backed by TanStack Query: both insight endpoints are fetched together and
  * cached under one key, so the dashboard keeps the previous chart data
  * visible during background refetches.
@@ -20,6 +20,7 @@ export function useClinicInsightsStore() {
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ['clinic-insights'],
     queryFn: fetcher,
+    refetchInterval: 60_000,
   })
 
   return { data, isLoading, error: error?.message ?? null, refetch, isRefetching }

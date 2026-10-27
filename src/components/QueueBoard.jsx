@@ -15,7 +15,7 @@ const ROW = 'flex flex-col sm:grid sm:grid-cols-[64px_minmax(0,1fr)_auto] items-
 /**
  * Today's patient queue, served first in, first out.
  *
- * Checked-in patients wait in their assigned doctor's line (unassigned
+ * Checked-in patients wait in their assigned doctor/nurse's line (unassigned
  * patients share one line) ordered by scheduled time slot, then check-in
  * order. Only the head of each line can be called in; the API enforces the
  * same rule.
@@ -59,9 +59,9 @@ export default function QueueBoard({
   if (error) return <ErrorState message={error} onRetry={refetch} />
   if (isLoading) return <ListSkeleton rows={4} />
 
-  const doctorLine = (e) => (
+  const staffLine = (e) => (
     <span className="block text-[12px] text-muted">
-      {e.staffId ? `${e.staff} · ${roleLabel(e.staffRole)}` : <span className="font-bold text-[#a33c12]">Doctor not yet assigned</span>}
+      {e.staffId ? `${e.staff} · ${roleLabel(e.staffRole)}` : <span className="font-bold text-[#a33c12]">Doctor / Nurse not yet assigned</span>}
     </span>
   )
 
@@ -75,7 +75,7 @@ export default function QueueBoard({
         {e.reference} · {e.type}
         {e.isFollowUp && e.previousConsultation ? ` · follow-up of ${e.previousConsultation.reference}` : ''}
       </span>
-      {doctorLine(e)}
+      {staffLine(e)}
     </div>
   )
 
@@ -91,8 +91,8 @@ export default function QueueBoard({
         </div>
         <div className="flex items-center gap-2">
           <RefreshingBadge refreshing={isRefetching && !isLoading} />
-          <select className={SELECT_INPUT} value={lineFilter} onChange={(e) => setLineFilter(e.target.value)} aria-label="Filter by doctor line">
-            <option value="All">All doctor lines</option>
+          <select className={SELECT_INPUT} value={lineFilter} onChange={(e) => setLineFilter(e.target.value)} aria-label="Filter by doctor / nurse line">
+            <option value="All">All doctor / nurse lines</option>
             {lines.map(([key, label]) => (
               <option key={key} value={key}>
                 {label}

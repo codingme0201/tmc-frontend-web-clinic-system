@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useUsersStore } from '../hooks/useUsers'
 import { useRoles } from '../hooks/useRoles'
-import { usePatients } from '../hooks/usePatients'
 import { useForm, useWatch } from 'react-hook-form'
 import { useToast } from '../hooks/useToast'
 import { useSearch } from '../hooks/useSearch'
@@ -18,7 +17,6 @@ import StatusBadge from '../components/StatusBadge'
 import Pagination from '../components/Pagination'
 import RefreshingBadge from '../components/RefreshingBadge'
 import TableSkeleton from '../components/skeletons/TableSkeleton'
-import StudentSelect from '../components/StudentSelect'
 import CourseSelect from '../components/CourseSelect'
 import { roleLabel } from '../lib/clinic'
 import { EmptyState, ErrorState } from '../components/AsyncState'
@@ -39,11 +37,12 @@ function UserManagement({ page }) {
   const canToggleStatus = (u) => STATUS_TOGGLE_ROLES.includes(u.role?.name) && u.id !== authUser?.id
   const users = useUsersStore()
   const roles = useRoles()
-  const patients = usePatients()
   const { showToast } = useToast()
   const { search, setSearch, debouncedSearch, resetSearch } = useSearch({ debounceMs: 300 })
   const [statusFilter, setStatusFilter] = useState('All')
   const [roleFilter, setRoleFilter] = useState('All')
+  const [viewId, setViewId] = useState(null)
+  const viewedUser = users.data.find((user) => user.id === viewId) || null
 
   // Client-side filtering by search and filters
   const filtered = useMemo(() => {
@@ -89,7 +88,7 @@ function UserManagement({ page }) {
     course: '',
     block: 'Block 1',
     address: 'Tagum Norte, Trinidad, Bohol, Philippines',
-    nationality: 'Filipino',
+    sex: '',
     phone: '',
     emergency_contact_name: '',
     emergency_contact_phone: '',
@@ -101,7 +100,6 @@ function UserManagement({ page }) {
   const userForm = useForm({
     defaultValues: DEFAULT_USER_FORM,
   })
-  const linkedPatientId = useWatch({ control: userForm.control, name: 'patient_id' })
   const userCourse = useWatch({ control: userForm.control, name: 'course' })
 
   // Role assignment modal
@@ -137,6 +135,12 @@ function UserManagement({ page }) {
   }, [roleOptions, watchedRoleId])
   const isPatientRole = selectedRole?.name === 'patient' || selectedRole?.name === 'student'
 
+  const roleAssignmentOptions = useMemo(() => {
+    const currentRole = roleTarget?.role?.name || roleOptions.find((role) => String(role.id) === String(roleTarget?.role_id))?.name
+    const patientAccount = ['student', 'patient'].includes(currentRole)
+    return assignableRoles.filter((role) => ['student', 'patient'].includes(role.name) === patientAccount)
+  }, [assignableRoles, roleTarget, roleOptions])
+
   // ---------- Create / Edit -------------------------------------------------
 
   const openCreate = () => {
@@ -163,7 +167,7 @@ function UserManagement({ page }) {
       course: p.course || p.courseDept || p.course_dept || '',
       block: p.block || 'Block 1',
       address: p.address || 'Tagum Norte, Trinidad, Bohol, Philippines',
-      nationality: p.nationality || 'Filipino',
+      sex: p.sex === 'Others' ? 'Other' : ['Female', 'Male', 'Other'].includes(p.sex) ? p.sex : '',
       phone: p.phone || p.contact || '',
       emergency_contact_name: p.emergencyContactName || p.emergency_contact_name || '',
       emergency_contact_phone: p.emergencyContactPhone || p.emergency_contact_phone || '',
@@ -192,7 +196,7 @@ function UserManagement({ page }) {
       const payload = {
         name: fullName || values.name,
         email: values.email,
-        role_id: values.role_id ? Number(values.role_id) : undefined,
+        role_id: !editing && values.role_id ? Number(values.role_id) : undefined,
         patient_id: isPatientRole ? (values.patient_id || null) : null,
         student_id: studentId,
         first_name: isPatientRole ? values.first_name : undefined,
@@ -206,7 +210,7 @@ function UserManagement({ page }) {
         courseDept: isPatientRole ? values.course : undefined,
         block: isPatientRole ? values.block : undefined,
         address: isPatientRole ? values.address : undefined,
-        nationality: isPatientRole ? values.nationality : undefined,
+        sex: isPatientRole ? values.sex || undefined : undefined,
         phone: isPatientRole ? values.phone : undefined,
         contact: isPatientRole ? values.phone : undefined,
         emergency_contact_name: isPatientRole ? values.emergency_contact_name : undefined,
@@ -432,7 +436,7 @@ function UserManagement({ page }) {
           {users.error ? (
             <ErrorState message={users.error} onRetry={users.refetch} />
           ) : (
-            <table className={TABLE}>
+            <table className={`${TABLE} [&_tbody_tr[data-row]]:cursor-pointer [&_tbody_tr[data-row]:hover]:bg-[#f7fbfb]`}>
               <thead>
                 <tr>
                   <th>User</th>
@@ -440,15 +444,14 @@ function UserManagement({ page }) {
                   <th>Role</th>
                   <th>Status</th>
                   <th>Created</th>
-                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {users.isLoading ? (
-                  <TableSkeleton columns={6} />
+                  <TableSkeleton columns={5} />
                 ) : pageItems.length === 0 ? (
                   <tr>
-                    <td colSpan="6">
+                    <td colSpan="5">
                       <EmptyState
                         message={
                           search || statusFilter !== 'All' || roleFilter !== 'All'
@@ -460,7 +463,19 @@ function UserManagement({ page }) {
                   </tr>
                 ) : (
                   pageItems.map((user) => (
-                    <tr key={user.id}>
+                    <tr
+                      key={user.id}
+                      data-row
+                      tabIndex={0}
+                      title={`View ${user.name}'s details`}
+                      onClick={() => setViewId(user.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          setViewId(user.id)
+                        }
+                      }}
+                    >
                       <td>
                         <strong className="font-bold text-ink">{user.name}</strong>
                         {(user.patient_id || user.patientId) && (
@@ -488,39 +503,6 @@ function UserManagement({ page }) {
                       <td className="text-[12.5px] text-muted">
                         {user.created_at ? formatDate(user.created_at) : '—'}
                       </td>
-                      <td>
-                        <div className="flex flex-wrap gap-[6px]">
-                          {canUpdate && (
-                            <>
-                              <button type="button" className={BTN_INFO} onClick={() => openEdit(user)}>
-                                Edit
-                              </button>
-                              {user.role?.name !== 'admin' && (
-                                <button type="button" className={BTN_PRIMARY} onClick={() => openRoleModal(user)}>
-                                  Role
-                                </button>
-                              )}
-                              <button type="button" className={BTN_SUCCESS} onClick={() => openPasswordModal(user)}>
-                                Password
-                              </button>
-                              {canToggleStatus(user) && (user.status === 'active' ? (
-                                <button type="button" className={BTN_DANGER} onClick={() => setDeactivateTarget(user)}>
-                                  Deactivate
-                                </button>
-                              ) : (
-                                <button type="button" className={BTN_SUCCESS} onClick={() => setActivateTarget(user)}>
-                                  Activate
-                                </button>
-                              ))}
-                            </>
-                          )}
-                          {canDelete && user.role?.name !== 'admin' && user.id !== authUser?.id && (
-                            <button type="button" className={BTN_DANGER} onClick={() => setDeleteTarget(user)}>
-                              Delete
-                            </button>
-                          )}
-                        </div>
-                      </td>
                     </tr>
                   ))
                 )}
@@ -531,6 +513,85 @@ function UserManagement({ page }) {
 
         <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} />
       </div>
+
+      {viewedUser && (
+        <div
+          className={MODAL_BACKDROP}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`User details for ${viewedUser.name}`}
+          onMouseDown={(event) => { if (event.target === event.currentTarget) setViewId(null) }}
+        >
+          <div className={MODAL_CARD}>
+            <div className={MODAL_HEADER}>
+              <h3 className="m-0 text-[18px] text-ink">User Details — {viewedUser.name}</h3>
+              <button type="button" className={MODAL_CLOSE} aria-label="Close user details" onClick={() => setViewId(null)}>✕</button>
+            </div>
+            <div className={MODAL_BODY}>
+              <dl className="m-0 grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-4">
+                {[
+                  ['Full Name', viewedUser.name],
+                  ['Email', viewedUser.email],
+                  ['Role', roleLabel(viewedUser.role?.name)],
+                  ['Status', <StatusBadge key="status" status={viewedUser.status || 'active'} />],
+                  ['Created', viewedUser.created_at ? formatDate(viewedUser.created_at) : '—'],
+                  ...((viewedUser.patient_id || viewedUser.patientId || viewedUser.patient) ? [
+                    ['Patient / Student ID', viewedUser.patient_id || viewedUser.patientId || viewedUser.patient?.patientId],
+                    ['Age', viewedUser.patient?.age],
+                    ['Sex', viewedUser.patient?.sex],
+                    ['Course / Department', viewedUser.patient?.course || viewedUser.patient?.courseDept],
+                    ['Block', viewedUser.patient?.block],
+                    ['Address', viewedUser.patient?.address],
+                    ['Nationality', viewedUser.patient?.nationality],
+                    ['Contact', viewedUser.patient?.phone || viewedUser.patient?.contact],
+                    ['Emergency Contact', viewedUser.patient?.emergencyContactName],
+                    ['Emergency Phone', viewedUser.patient?.emergencyContactPhone],
+                  ] : []),
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <dt className="mb-0.5 text-[11px] font-extrabold uppercase text-muted">{label}</dt>
+                    <dd className="m-0 break-words text-[14px] font-bold text-ink">{value ?? '—'}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+            <div className={MODAL_FOOTER}>
+              <div className={MODAL_FOOTER_ACTIONS}>
+                {canUpdate && (
+                  <>
+                    <button type="button" className={BTN_INFO} onClick={() => { setViewId(null); openEdit(viewedUser) }}>
+                      Edit
+                    </button>
+                    {viewedUser.role?.name !== 'admin' && (
+                      <button type="button" className={BTN_PRIMARY} onClick={() => { setViewId(null); openRoleModal(viewedUser) }}>
+                        Role
+                      </button>
+                    )}
+                    <button type="button" className={BTN_SUCCESS} onClick={() => { setViewId(null); openPasswordModal(viewedUser) }}>
+                      Password
+                    </button>
+                    {canToggleStatus(viewedUser) && (viewedUser.status === 'active' ? (
+                      <button type="button" className={BTN_DANGER} onClick={() => { setViewId(null); setDeactivateTarget(viewedUser) }}>
+                        Deactivate
+                      </button>
+                    ) : (
+                      <button type="button" className={BTN_SUCCESS} onClick={() => { setViewId(null); setActivateTarget(viewedUser) }}>
+                        Activate
+                      </button>
+                    ))}
+                  </>
+                )}
+                {canDelete && viewedUser.role?.name !== 'admin' && viewedUser.id !== authUser?.id && (
+                  <button type="button" className={BTN_DANGER} onClick={() => { setViewId(null); setDeleteTarget(viewedUser) }}>
+                    Delete
+                  </button>
+                )}
+                <button type="button" className={PILL} onClick={() => setViewId(null)}>Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ================= CREATE / EDIT USER MODAL ================= */}
       {userModalOpen && (
@@ -564,7 +625,7 @@ function UserManagement({ page }) {
                     className={FORM_FIELD}
                     {...userForm.register('role_id', { required: 'Role is required.' })}
                     disabled={busy || !!editing}
-                    title={editing ? 'Use the Role button to change the role.' : undefined}
+                    title={editing ? 'Role changes use the Role action and must stay within the existing user category.' : undefined}
                   >
                     <option value="">Select a role</option>
                     {(editing ? roleOptions : assignableRoles).map((r) => (
@@ -640,43 +701,6 @@ function UserManagement({ page }) {
                       </p>
                     </div>
 
-                    <label className={FORM_LABEL}>
-                      <span>Link or Auto-fill from Existing Patient (Optional)</span>
-                      <StudentSelect
-                        value={linkedPatientId || ''}
-                        valueKey="patientId"
-                        patients={patients.data || []}
-                        disabled={busy}
-                        placeholder="Search existing student name or ID..."
-                        onChange={(val, matchedPatient) => {
-                          userForm.setValue('patient_id', val)
-                          userForm.setValue('student_id', val)
-                          if (matchedPatient) {
-                            userForm.setValue('name', matchedPatient.name || '')
-                            userForm.setValue('first_name', matchedPatient.firstName || matchedPatient.first_name || '')
-                            userForm.setValue('middle_name', matchedPatient.middleName || matchedPatient.middle_name || '')
-                            userForm.setValue('last_name', matchedPatient.lastName || matchedPatient.last_name || '')
-                            if (matchedPatient.age) userForm.setValue('age', String(matchedPatient.age))
-                            if (matchedPatient.course || matchedPatient.courseDept) {
-                              userForm.setValue('course', matchedPatient.course || matchedPatient.courseDept)
-                            }
-                            if (matchedPatient.block) userForm.setValue('block', matchedPatient.block)
-                            if (matchedPatient.address) userForm.setValue('address', matchedPatient.address)
-                            if (matchedPatient.nationality) userForm.setValue('nationality', matchedPatient.nationality)
-                            if (matchedPatient.phone || matchedPatient.contact) {
-                              userForm.setValue('phone', matchedPatient.phone || matchedPatient.contact)
-                            }
-                            if (matchedPatient.emergencyContactName) {
-                              userForm.setValue('emergency_contact_name', matchedPatient.emergencyContactName)
-                            }
-                            if (matchedPatient.emergencyContactPhone) {
-                              userForm.setValue('emergency_contact_phone', matchedPatient.emergencyContactPhone)
-                            }
-                          }
-                        }}
-                      />
-                    </label>
-
                     {/* Section 1: Personal Details */}
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                       <label className={FORM_LABEL}>
@@ -723,14 +747,17 @@ function UserManagement({ page }) {
                         />
                       </label>
                       <label className={FORM_LABEL}>
-                        Nationality *
-                        <input
-                          type="text"
-                          placeholder="e.g. Filipino"
+                        Sex *
+                        <select
                           className={FORM_FIELD}
-                          {...userForm.register('nationality', { required: isPatientRole ? 'Nationality is required.' : false })}
+                          {...userForm.register('sex', { required: isPatientRole && !editing ? 'Sex is required.' : false })}
                           disabled={busy}
-                        />
+                        >
+                          <option value="">Select sex</option>
+                          <option value="Female">Female</option>
+                          <option value="Male">Male</option>
+                          <option value="Other">Others</option>
+                        </select>
                       </label>
                     </div>
 
@@ -741,6 +768,8 @@ function UserManagement({ page }) {
                         <input
                           type="text"
                           placeholder="e.g. 24-021128"
+                          pattern="[0-9]{2}-[0-9]{6}"
+                          title="Enter the existing TMC Student ID in 00-000000 format."
                           className={FORM_FIELD}
                           {...userForm.register('student_id', { required: isPatientRole ? 'Student ID is required.' : false })}
                           disabled={busy}
@@ -875,7 +904,7 @@ function UserManagement({ page }) {
                   disabled={busy}
                 >
                   <option value="">Select a role</option>
-                  {assignableRoles.map((r) => (
+                  {roleAssignmentOptions.map((r) => (
                     <option key={r.id} value={r.id}>
                       {roleLabel(r.name)}
                       {r.description ? ` — ${r.description}` : ''}
@@ -893,7 +922,7 @@ function UserManagement({ page }) {
                   type="button"
                   className={`${PRIMARY_BTN} min-h-10 px-[14px] text-[13px]`}
                   onClick={handleSaveRole}
-                  disabled={busy || !selectedRoleId}
+                  disabled={busy || !selectedRoleId || Number(selectedRoleId) === Number(roleTarget.role_id || roleTarget.role?.id)}
                 >
                   {busy && <InlineSpinner />}
                   {busy ? 'Saving...' : 'Save Role'}

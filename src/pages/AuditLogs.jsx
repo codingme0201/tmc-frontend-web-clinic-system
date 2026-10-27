@@ -41,7 +41,6 @@ function AuditLogs({ page }) {
   const [moduleFilter, setModuleFilter] = useState('All')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
-  const [clinicalOnly, setClinicalOnly] = useState(false)
   const [selectedLog, setSelectedLog] = useState(null)
 
   // Sync debounced search to the store filters
@@ -63,28 +62,22 @@ function AuditLogs({ page }) {
     updateFilter('to', dateTo)
   }, [dateTo, updateFilter])
 
-  // Sync clinical filter
-  useEffect(() => {
-    updateFilter('clinical', clinicalOnly)
-  }, [clinicalOnly, updateFilter])
-
   const pagination = usePagination(filtered, { pageSize: 10 })
   const { pageItems, resetPage, currentPage, totalPages, goToPage } = pagination
 
   useEffect(() => {
     resetPage()
-  }, [debouncedSearch, moduleFilter, dateFrom, dateTo, clinicalOnly, resetPage])
+  }, [debouncedSearch, moduleFilter, dateFrom, dateTo, resetPage])
 
   const handleClearFilters = () => {
     resetSearch()
     setModuleFilter('All')
     setDateFrom('')
     setDateTo('')
-    setClinicalOnly(false)
     resetFilters()
   }
 
-  const hasActiveFilters = search || moduleFilter !== 'All' || dateFrom || dateTo || clinicalOnly
+  const hasActiveFilters = search || moduleFilter !== 'All' || dateFrom || dateTo
 
   // Module counts for summary chips
   const moduleCounts = useMemo(() => {
@@ -190,18 +183,6 @@ function AuditLogs({ page }) {
               title="To date"
             />
           </div>
-          <button
-            type="button"
-            className={`cursor-pointer inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-extrabold transition-all duration-150 ${
-              clinicalOnly
-                ? 'border border-danger bg-danger/10 text-danger ring-2 ring-danger/20'
-                : 'border border-line bg-white text-muted hover:border-line-strong'
-            }`}
-            onClick={() => setClinicalOnly((prev) => !prev)}
-          >
-            <span className="size-2 rounded-full bg-danger" />
-            Sensitive Records Only
-          </button>
           {hasActiveFilters && (
             <button type="button" className={PILL} onClick={handleClearFilters}>
               Clear filters

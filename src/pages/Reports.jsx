@@ -11,6 +11,7 @@ import Icon from '../components/Icon'
 import InlineSpinner from '../components/Spinner'
 import Pagination from '../components/Pagination'
 import { usePagination } from '../hooks/usePagination'
+import { APPOINTMENT_TYPES } from '../lib/clinic'
 import TableSkeleton from '../components/skeletons/TableSkeleton'
 import { EmptyState, ErrorState } from '../components/AsyncState'
 
@@ -22,7 +23,7 @@ const REPORT_TYPES = [
   { id: 'prescriptions', label: 'Prescriptions', icon: 'pill', description: 'Prescription records within a selected period.' },
 ]
 
-const APPOINTMENT_STATUSES = ['All', 'Pending', 'Under Review', 'Approved', 'Rescheduled', 'Rejected', 'Cancelled', 'Completed']
+const APPOINTMENT_STATUSES = ['All', 'Pending', 'Under Review', 'Approved', 'Rescheduled', 'Rejected', 'Cancelled', 'Completed', 'No-Show', 'Expired']
 const CONSULTATION_STATUSES = ['All', 'Scheduled', 'In Progress', 'Completed']
 const CERTIFICATE_STATUSES = ['All', 'Pending', 'Approved', 'Issued', 'Rejected', 'Void']
 const PATIENT_TYPES = ['All', 'Student']
@@ -64,7 +65,7 @@ function Reports({ page }) {
 
   const typeOptions = (() => {
     switch (reports.activeReport) {
-      case 'appointments': return ['All', 'Check-up', 'Dental concern', 'Follow-up', 'Fever', 'Vaccination', 'Emergency']
+      case 'appointments': return ['All', ...APPOINTMENT_TYPES]
       case 'patients': return PATIENT_TYPES
       default: return ['All']
     }
@@ -171,7 +172,7 @@ function Reports({ page }) {
             disabled={busy || !reports.reportData.length}
           >
             {busy ? <InlineSpinner /> : <Icon name="download" size={16} />}
-            Export {activeReport.label} to Excel (CSV)
+            Export {activeReport.label} to Excel
           </button>
         )}
       </section>
@@ -264,7 +265,7 @@ function Reports({ page }) {
             <button type="button" className={`${PILL} min-h-[42px]`} onClick={resetFilters} disabled={busy}>
               Reset
             </button>
-            <button type="submit" className={`${PRIMARY_BTN} min-h-[42px] px-[16px] text-[13px] max-[620px]:flex-1`} disabled={busy}>
+            <button type="submit" className={`${PILL} min-h-[42px] px-[16px] text-[13px] max-[620px]:flex-1`} disabled={busy}>
               {busy && <InlineSpinner />}
               Generate Report
             </button>
@@ -365,7 +366,7 @@ function Reports({ page }) {
                           <td>
                             <span className={`${STATUS_PILL} ${
                               row.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' :
-                              row.status === 'Cancelled' || row.status === 'Rejected' ? 'bg-red-100 text-red-700' :
+                              ['Cancelled', 'Rejected', 'No-Show', 'Expired'].includes(row.status) ? 'bg-red-100 text-red-700' :
                               row.status === 'Approved' ? 'bg-blue-100 text-blue-700' :
                               'bg-amber-100 text-amber-700'
                             }`}>

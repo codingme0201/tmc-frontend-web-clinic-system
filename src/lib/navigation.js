@@ -15,13 +15,11 @@ export const navSections = [
     items: [
       { id: 'appointments', label: 'Appointments', icon: 'calendarCheck', permission: 'appointments.view' },
       { id: 'consultations', label: 'Consultations', icon: 'stethoscope', permission: 'consultations.view' },
+      { id: 'patients', label: 'Patients', icon: 'users', permission: 'patients.view' },
       { id: 'medicalRecords', label: 'Medical Records', icon: 'folderHeart', permission: 'medical_records.view' },
-      { id: 'medicalCertificates', label: 'Medical Certificates', icon: 'certificate', permission: 'medical_certificates.view' },
       { id: 'prescriptions', label: 'Prescriptions', icon: 'pill', permission: 'prescriptions.view' },
+      { id: 'medicalCertificates', label: 'Medical Certificates', icon: 'certificate', permission: 'medical_certificates.view' },
     ],
-  },
-  {
-    items: [{ id: 'patients', label: 'Patients', icon: 'users', permission: 'patients.view' }],
   },
   {
     label: 'Schedules',
@@ -83,7 +81,7 @@ export const pageContent = {
   patients: {
     title: 'Patients',
     eyebrow: 'Patient Registry',
-    description: 'View student, faculty, and staff patient profiles.',
+    description: 'Manage and view student patient profiles and medical information.',
   },
   staffSchedule: {
     title: 'Medical Staff Schedule',

@@ -3,8 +3,8 @@
 import { request } from './api'
 
 /** Fetch recent activity log entries, newest first (Dashboard). */
-export async function fetchActivityLogs() {
-  const res = await request('/activity-logs')
+export async function fetchActivityLogs({ role } = {}) {
+  const res = await request(`/activity-logs${role === 'admin' ? '?role=admin' : ''}`)
   return res.data
 }
 
